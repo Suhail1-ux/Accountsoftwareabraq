@@ -34,6 +34,7 @@ public interface IExpensesIncurredService
     Task<IEnumerable<LookupItem>> GetExpenseLedgersAsync(int? subGroupId, string? searchTerm);
 
     Task<IEnumerable<string>> GetVehiclesAsync(string? searchTerm);
+    Task<IEnumerable<VehInfo>> GetVehiclesListAsync();
     
     // Helper operations
     Task LoadAccountNamesAsync(ExpensesIncurred expense);

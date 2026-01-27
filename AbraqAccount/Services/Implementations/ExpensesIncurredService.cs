@@ -169,8 +169,29 @@ public class ExpensesIncurredService : IExpensesIncurredService
         expensesIncurred.Status = expensesIncurred.Status ?? "Unapproved";
         expensesIncurred.IsActive = true;
 
-        _context.ExpensesIncurreds.Add(expensesIncurred);
-        await _context.SaveChangesAsync();
+        foreach (var item in expensesIncurred.Items) 
+        {
+            item.Id = 0;
+            // Null out navigation properties to prevent EF from trying to insert existing master data
+            item.ItemGroup = null; 
+            item.Item = null;
+        }
+        foreach (var misc in expensesIncurred.MiscCharges) misc.Id = 0;
+
+        try
+        {
+            _context.ExpensesIncurreds.Add(expensesIncurred);
+            await _context.SaveChangesAsync();
+        }
+        catch (DbUpdateException ex)
+        {
+            var deepestMessage = GetDeepestMessage(ex);
+            throw new Exception($"Database Error: {deepestMessage}", ex);
+        }
+        catch (Exception ex)
+        {
+            throw new Exception($"System Error: {ex.Message}", ex);
+        }
 
         return expensesIncurred;
     }
@@ -294,16 +315,48 @@ public class ExpensesIncurredService : IExpensesIncurredService
         existingExpense.Amount = expensesIncurred.Amount;
         existingExpense.Status = expensesIncurred.Status;
 
-        // Update Items
-        _context.ExpenseItems.RemoveRange(existingExpense.Items);
-        existingExpense.Items = expensesIncurred.Items;
+        try
+        {
+            // Update Items - Clear existing and add new as fresh records
+            if (existingExpense.Items != null && existingExpense.Items.Any())
+            {
+                _context.ExpenseItems.RemoveRange(existingExpense.Items);
+            }
 
-        // Update MiscCharges
-        _context.ExpenseMiscCharges.RemoveRange(existingExpense.MiscCharges);
-        existingExpense.MiscCharges = expensesIncurred.MiscCharges;
+            foreach (var item in expensesIncurred.Items)
+            {
+                item.Id = 0;
+                item.ExpensesIncurredId = existingExpense.Id;
+                // Null out navigation properties to prevent EF from trying to insert existing master data
+                item.ItemGroup = null;
+                item.Item = null;
+                _context.ExpenseItems.Add(item);
+            }
 
-        _context.Update(existingExpense);
-        await _context.SaveChangesAsync();
+            // Update MiscCharges - Clear existing and add new as fresh records
+            if (existingExpense.MiscCharges != null)
+            {
+                _context.ExpenseMiscCharges.RemoveRange(existingExpense.MiscCharges);
+            }
+
+            foreach (var misc in expensesIncurred.MiscCharges)
+            {
+                misc.Id = 0;
+                misc.ExpensesIncurredId = existingExpense.Id;
+                _context.ExpenseMiscCharges.Add(misc);
+            }
+
+            await _context.SaveChangesAsync();
+        }
+        catch (DbUpdateException ex)
+        {
+            var deepestMessage = GetDeepestMessage(ex);
+            throw new Exception($"Database Error: {deepestMessage}", ex);
+        }
+        catch (Exception ex)
+        {
+            throw new Exception($"System Error: {ex.Message}", ex);
+        }
 
         return existingExpense;
     }
@@ -616,6 +669,25 @@ public class ExpensesIncurredService : IExpensesIncurredService
         }
 
         return vehicles.Distinct().OrderBy(v => v).Take(20);
+    }
+
+    public async Task<IEnumerable<VehInfo>> GetVehiclesListAsync()
+    {
+        return await _context.VehInfos
+            .Where(v => v.FlagDeleted != 1)
+            .OrderBy(v => v.VehNo)
+            .AsNoTracking()
+            .ToListAsync();
+    }
+
+    private string GetDeepestMessage(Exception ex)
+    {
+        var current = ex;
+        while (current.InnerException != null)
+        {
+            current = current.InnerException;
+        }
+        return current.Message;
     }
 }
 

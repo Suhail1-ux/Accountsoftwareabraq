@@ -43,6 +43,7 @@ builder.Services.AddScoped<ICreditNoteService, CreditNoteService>();
 builder.Services.AddScoped<IUserPermissionService, UserPermissionService>();
 builder.Services.AddScoped<IReportService, ReportService>();
 builder.Services.AddScoped<IUOMService, UOMService>();
+builder.Services.AddScoped<INotificationService, NotificationService>();
 
 // Add SQL Server DbContext
 builder.Services.AddDbContext<AppDbContext>(options =>

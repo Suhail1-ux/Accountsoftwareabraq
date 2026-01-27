@@ -3016,6 +3016,52 @@ namespace AbraqAccount.Migrations
                     b.ToTable("UserPermissions", (string)null);
                 });
 
+            modelBuilder.Entity("AbraqAccount.Models.VehInfo", b =>
+                {
+                    b.Property<int>("Vid")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasColumnName("vid");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Vid"));
+
+                    b.Property<string>("ContactNo")
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("contactno");
+
+                    b.Property<DateTime?>("CreatedDate")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("createddate");
+
+                    b.Property<string>("DriverName")
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("drivername");
+
+                    b.Property<int?>("FlagDeleted")
+                        .HasColumnType("int")
+                        .HasColumnName("flagdeleted");
+
+                    b.Property<bool?>("Status")
+                        .HasColumnType("bit")
+                        .HasColumnName("status");
+
+                    b.Property<int?>("UserId")
+                        .HasColumnType("int")
+                        .HasColumnName("userid");
+
+                    b.Property<string>("VehNo")
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("vehno");
+
+                    b.Property<string>("VehType")
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("vehtype");
+
+                    b.HasKey("Vid");
+
+                    b.ToTable("vehinfo");
+                });
+
             modelBuilder.Entity("AbraqAccount.Models.Vendor", b =>
                 {
                     b.Property<int>("Id")

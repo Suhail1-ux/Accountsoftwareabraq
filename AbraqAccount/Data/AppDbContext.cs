@@ -59,6 +59,7 @@ public class AppDbContext : DbContext
     public DbSet<EntryForAccount> EntryForAccounts { get; set; }
     public DbSet<Menu> Menus { get; set; }
     public DbSet<UserPermission> UserPermissions { get; set; }
+    public DbSet<VehInfo> VehInfos { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
