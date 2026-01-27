@@ -47,11 +47,7 @@
         }
     </div>
     
-    <!-- DEBUG OVERLAY -->
-    <div style="margin-top:5px; padding:5px; background:#fff3cd; border:1px solid #ffeeba; font-family:monospace; font-size:11px; color:#856404;">
-        <strong>DEBUG STATUS:</strong> @DebugLog <br/>
-        Type: @(SearchFunc == null ? "NULL" : "Valid") | Term: '@_searchTerm'
-    </div>
+
 </div>
 
 <style>
@@ -99,7 +95,7 @@
     [Parameter] public string? InitialValue { get; set; }
     [Parameter] public string? CssClass { get; set; }
     
-    private string DebugLog { get; set; } = "Ready"; // Debug Prop
+
 
     private string? _searchTerm;
     [Parameter] public string? SearchTerm 
@@ -110,7 +106,7 @@
             if (_searchTerm != value)
             {
                 _searchTerm = value;
-                DebugLog = $"Input: '{value}'"; // Log
+
                 RestartTimer();
             }
         } 
@@ -144,20 +140,17 @@
 
     private async Task PerformSearch()
     {
-        Console.WriteLine($"[AccountSearch] PerformSearch triggered for Term: '{_searchTerm}'");
+
         
         // ALLOW EMPTY SEARCH (Show Defaults)
         // if (string.IsNullOrWhiteSpace(_searchTerm)) { ... } // REMOVED check
 
         if (SearchFunc == null)
         {
-            await InvokeAsync(() => { DebugLog = "ERROR: SearchFunc NULL"; StateHasChanged(); });
-            Console.WriteLine("[AccountSearch] ERROR: SearchFunc is NULL!");
             return;
         }
 
         await InvokeAsync(() => {
-            DebugLog = string.IsNullOrEmpty(_searchTerm) ? "Loading defaults..." : "Searching..."; 
             isLoading = true;
             StateHasChanged();
         });
@@ -169,7 +162,6 @@
             var count = searchResults?.Count() ?? 0;
             
             await InvokeAsync(() => {
-                DebugLog = $"Found {count} results"; 
                 results = searchResults;
                 isLoading = false;
                 StateHasChanged();
@@ -177,9 +169,7 @@
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[AccountSearch] ERROR: {ex.Message}");
             await InvokeAsync(() => {
-                DebugLog = $"ERROR: {ex.Message}";
                 isLoading = false;
                 StateHasChanged();
             });

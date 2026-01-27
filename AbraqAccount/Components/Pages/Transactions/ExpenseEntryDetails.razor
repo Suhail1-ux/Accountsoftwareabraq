@@ -1,5 +1,6 @@
 @page "/transactions/expense-entry/view/{Id:int}"
 @using AbraqAccount.Components.Pages.Transactions.SubComponents
+@layout DashboardLayout
 
 <div class="p-0">
     <ExpenseEntryForm Id="@Id" IsReadOnly="true" />

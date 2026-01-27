@@ -3,30 +3,36 @@
 @using AbraqAccount.Services.Interfaces
 @inject IExpensesIncurredService ExpenseService
 @inject NavigationManager Navigation
+@layout DashboardLayout
 
-<div class="expense-list-container">
-    <div class="row align-items-center mb-4">
+<div class="expense-list-container px-4 py-4">
+    <div class="row align-items-center mb-5">
         <div class="col">
-            <h4 class="m-0 text-dark fw-bold">Expense Entry <small class="text-muted fw-normal">Control Panel</small></h4>
+            <h3 class="m-0 text-dark fw-800" style="letter-spacing: -0.02em;">Expense Entry <small class="text-muted fw-normal ms-2" style="font-size: 0.5em; text-transform: uppercase; letter-spacing: 0.1em;">Control Panel</small></h3>
         </div>
         <div class="col-auto">
-            <span class="text-muted small"><i class="bi bi-house"></i> Home &gt; Expense Entry</span>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0 bg-transparent p-0">
+                    <li class="breadcrumb-item"><a href="" class="text-accent text-decoration-none fw-600">Home</a></li>
+                    <li class="breadcrumb-item active fw-600 text-muted">Expense Entry</li>
+                </ol>
+            </nav>
         </div>
     </div>
 
-    <!-- Filter Section -->
-    <div class="filter-card card shadow-sm border-0 mb-4">
-        <div class="card-body p-4">
-            <div class="row gx-3 gy-4">
-                <div class="col-md-3">
+    <!-- Filter Section with better gaps -->
+    <div class="filter-card card shadow-sm border-0 mb-5">
+        <div class="card-body p-4 p-lg-5">
+            <div class="row gx-4 gy-4">
+                <div class="col-lg-3 col-md-6">
                     <label class="filter-label">Expense Entry Number</label>
-                    <input type="text" class="form-control-custom" placeholder="Expense Entry Num." @bind="voucherNo" />
+                    <input type="text" class="form-control-custom" placeholder="Order ID / Voucher No." @bind="voucherNo" />
                 </div>
-                <div class="col-md-3">
+                <div class="col-lg-3 col-md-6">
                     <label class="filter-label">Credit Account</label>
-                    <input type="text" class="form-control-custom" placeholder="Search by Credit Account" @bind="vendorName" />
+                    <input type="text" class="form-control-custom" placeholder="Vendor / Credit Name" @bind="vendorName" />
                 </div>
-                <div class="col-md-2">
+                <div class="col-lg-2 col-md-6">
                     <label class="filter-label">Status</label>
                     <select class="form-control-custom" @bind="status">
                         <option value="">All Status</option>
@@ -34,25 +40,23 @@
                         <option value="Approved">Approved</option>
                     </select>
                 </div>
-                <div class="col-md-2 d-flex align-items-end">
-                    <button class="btn btn-search w-100" @onclick="Search"><i class="bi bi-search me-2"></i>Search</button>
-                    <button class="btn btn-link text-dark ms-2" @onclick="ClearFilters">Clear</button>
+                <div class="col-lg-2 col-md-6 d-flex align-items-end gap-2">
+                    <button class="btn btn-search flex-grow-1" @onclick="Search"><i class="bi bi-search me-2"></i>Search</button>
+                    <button class="btn btn-link text-muted p-0 text-decoration-none small fw-600" @onclick="ClearFilters">Clear</button>
                 </div>
-                <div class="col-md-2 d-flex align-items-end justify-content-end">
-                    <button class="btn btn-add-new" @onclick="CreateNew"><i class="bi bi-plus"></i></button>
+                <div class="col-lg-2 col-md-12 d-flex align-items-end justify-content-end">
+                    <button class="btn btn-add-new-lg" @onclick="CreateNew" title="Create New Entry">
+                        <i class="bi bi-plus-lg me-2"></i> New Entry
+                    </button>
                 </div>
 
-                <div class="col-md-3 mt-3">
+                <div class="col-lg-3 col-md-6 mt-2">
                     <label class="filter-label">From Date</label>
-                    <div class="position-relative">
-                        <input type="date" class="form-control-custom" @bind="fromDate" />
-                    </div>
+                    <input type="date" class="form-control-custom" @bind="fromDate" />
                 </div>
-                <div class="col-md-3 mt-3">
+                <div class="col-lg-3 col-md-6 mt-2">
                     <label class="filter-label">To Date</label>
-                    <div class="position-relative">
-                        <input type="date" class="form-control-custom" @bind="toDate" />
-                    </div>
+                    <input type="date" class="form-control-custom" @bind="toDate" />
                 </div>
             </div>
         </div>
@@ -154,26 +158,43 @@
 </div>
 
 <style>
-    .expense-list-container { background: #f4f7f6; min-height: 100vh; padding: 25px; }
-    .filter-card { background: #e9ecef40; border-radius: 8px; }
-    .filter-label { display: block; font-size: 0.8rem; font-weight: 600; color: #555; margin-bottom: 8px; }
-    .form-control-custom { width: 100%; padding: 8px 12px; border: 1px solid #ced4da; border-radius: 4px; font-size: 0.85rem; background: white; }
-    .btn-search { background: #6c757d; color: white; border: none; padding: 8px 25px; border-radius: 4px; font-weight: 500; font-size: 0.9rem; }
-    .btn-add-new { background: #6c757d; color: white; border: none; width: 36px; height: 36px; border-radius: 4px; display: flex; align-items: center; justify-content: center; }
-    .btn-add-new i { font-size: 1.2rem; }
+    .expense-list-container { background: #f8fafc; min-height: calc(100vh - 80px); }
+    .filter-card { background: white; border-radius: 12px; box-shadow: var(--shadow-sm); border: 1px solid var(--border-color); }
+    .filter-label { display: block; font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.025em; }
+    .form-control-custom { width: 100%; padding: 10px 14px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 0.875rem; background: #fcfdfe; transition: all 0.2s; }
+    .form-control-custom:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1); background: white; }
     
-    .table-custom thead th { background: #f8f9fa; border-bottom: 2px solid #dee2e6; color: #495057; font-size: 0.8rem; padding: 12px 10px; white-space: nowrap; }
-    .table-custom tbody td { padding: 12px 10px; font-size: 0.85rem; color: #333; vertical-align: middle; border-bottom: 1px solid #f2f2f2; }
+    .btn-search { background: var(--accent); color: white; border: none; padding: 10px 24px; border-radius: 8px; font-weight: 600; font-size: 0.875rem; transition: all 0.2s; }
+    .btn-search:hover { background: var(--accent-hover); transform: translateY(-1px); box-shadow: var(--shadow-md); }
     
-    .status-badge { padding: 4px 10px; border-radius: 4px; font-size: 0.75rem; font-weight: 500; }
-    .status-badge.approved { background: #d4edda; color: #155724; }
-    .status-badge.unapproved { background: #fff3cd; color: #856404; }
+    .btn-add-new-lg { 
+        background: #10b981; 
+        color: white; 
+        border: none; 
+        padding: 10px 24px; 
+        border-radius: 12px; 
+        font-weight: 700; 
+        display: flex; 
+        align-items: center; 
+        justify-content: center; 
+        transition: all 0.2s; 
+        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2); 
+    }
+    .btn-add-new-lg:hover { transform: translateY(-2px); background: #059669; box-shadow: 0 6px 15px rgba(16, 185, 129, 0.3); }
     
-    .btn-action-icon { padding: 4px 8px; border: none; background: transparent; color: #6c757d; transition: all 0.2s; }
-    .btn-action-icon:hover { color: #333; background: #e9ecef; border-radius: 4px; }
+    .table-custom { border-collapse: separate; border-spacing: 0; }
+    .table-custom thead th { background: #f8fafc; border-bottom: 2px solid var(--border-color); color: var(--text-secondary); font-size: 0.75rem; padding: 14px 12px; font-weight: 800; text-transform: uppercase; }
+    .table-custom tbody td { padding: 14px 12px; font-size: 0.875rem; color: var(--text-primary); border-bottom: 1px solid var(--border-color); }
     
-    .pagination .page-link { border: none; margin: 0 2px; border-radius: 4px; color: #666; font-size: 0.85rem; }
-    .pagination .page-item.active .page-link { background: #6c757d; }
+    .status-badge { padding: 4px 12px; border-radius: 9999px; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+    .status-badge.approved { background: #dcfce7; color: #166534; }
+    .status-badge.unapproved { background: #fef3c7; color: #92400e; }
+    
+    .btn-action-icon { padding: 6px; border: none; background: transparent; color: var(--text-secondary); border-radius: 6px; transition: all 0.2s; }
+    .btn-action-icon:hover { color: var(--accent); background: #f1f5f9; }
+    
+    .pagination .page-link { border: none; margin: 0 4px; border-radius: 8px; color: var(--text-secondary); font-weight: 600; padding: 6px 14px; }
+    .pagination .page-item.active .page-link { background: var(--accent); color: white; }
 </style>
 
 @code {

@@ -4,43 +4,45 @@
 @inject NavigationManager Navigation
 @inject INotificationService NotificationService
 
-<div class="expense-entry-container">
+<div class="expense-entry-container px-4 py-4 mt-3">
     <!-- Header with Breadcrumbs and Top Actions -->
-    <div class="row align-items-center mb-3">
+    <div class="row align-items-center mb-5">
         <div class="col">
-            <h4 class="m-0">Expense Entry <small class="text-muted">Control Panel</small></h4>
+            <h3 class="m-0 fw-800 text-primary" style="letter-spacing: -0.02em;">Expense Entry <small class="text-muted fw-normal ms-2" style="font-size: 0.5em; text-transform: uppercase;">Control Panel</small></h3>
         </div>
-        <div class="col-auto d-flex align-items-center gap-2">
-            <span class="text-muted small"><i class="bi bi-house"></i> Home &gt; Expense Entry</span>
+        <div class="col-auto d-flex align-items-center gap-3">
+            <span class="text-muted small fw-600"><i class="bi bi-house-door me-1"></i> Home &nbsp;>&nbsp; Expense Entry</span>
             @if (!IsReadOnly)
             {
-                <button class="btn btn-save-top ms-3" @onclick="SubmitForm" disabled="@isSubmitting">
-                    @if (isSubmitting) { <span class="spinner-border spinner-border-sm me-1"></span> }
-                    Save
+                <button class="btn btn-modern-save px-4 py-2" @onclick="SubmitForm" disabled="@isSubmitting">
+                    @if (isSubmitting) { <span class="spinner-border spinner-border-sm me-2"></span> }
+                    <i class="bi bi-save2-fill me-2"></i> Save Changes
                 </button>
             }
-            <button class="btn btn-back-top" @onclick="Cancel"><i class="bi bi-arrow-left"></i></button>
+            <button class="btn btn-modern-back p-2" @onclick="Cancel" title="Back"><i class="bi bi-arrow-left fs-5"></i></button>
         </div>
     </div>
 
     <!-- Main Form Section -->
     <fieldset disabled="@IsReadOnly">
-        <div class="card shadow-sm border-0 mb-3 modern-card">
-            <div class="card-header modern-header py-2 px-3">
-                <h6 class="mb-0 fw-bold">Basic Information <small class="text-muted">(@(IsReadOnly ? "View" : (IsEdit ? "Edit" : "Add")))</small></h6>
+        <div class="card shadow-sm border-0 mb-5 modern-card">
+            <div class="card-header modern-header py-3 px-4">
+                <h5 class="mb-0 fw-700">Basic Information <small class="text-muted fw-normal ms-2">— @(IsReadOnly ? "View Mode" : (IsEdit ? "Update Entry" : "New Entry"))</small></h5>
             </div>
-            <div class="card-body p-3">
+            <div class="card-body p-4 p-lg-5">
                 @if (!string.IsNullOrEmpty(errorMessage))
                 {
-                    <div class="alert alert-danger py-2 px-3 mb-3" style="font-size: 0.85rem;">@errorMessage</div>
+                    <div class="alert alert-danger border-0 shadow-sm py-3 px-4 mb-4" style="font-size: 0.9rem; border-radius: 12px;">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i> @errorMessage
+                    </div>
                 }
 
-                <div class="row g-2">
-                    <div class="col-lg-2 col-md-4 col-sm-6">
+                <div class="row g-4 mb-3">
+                    <div class="col-md-6">
                         <label class="form-label-modern">Received Date <span class="text-danger">*</span></label>
                         <input type="date" @bind="model.ExpenseDate" class="form-control-modern" />
                     </div>
-                    <div class="col-lg-2 col-md-4 col-sm-6">
+                    <div class="col-md-6">
                         <label class="form-label-modern">Credit Account <span class="text-danger">*</span></label>
                         <AbraqAccount.Components.Common.AccountSearch 
                             Placeholder="Search Credit Account" 
@@ -49,7 +51,7 @@
                             InitialValue="@model.VendorName"
                             CssClass="form-control-modern" />
                     </div>
-                    <div class="col-lg-2 col-md-4 col-sm-6">
+                    <div class="col-md-6">
                         <label class="form-label-modern">Debit Account <span class="text-danger">*</span></label>
                         <AbraqAccount.Components.Common.AccountSearch 
                             Placeholder="Search Debit Account" 
@@ -58,7 +60,7 @@
                             InitialValue="@model.DebitAccountName"
                             CssClass="form-control-modern" />
                     </div>
-                    <div class="col-lg-2 col-md-4 col-sm-6">
+                    <div class="col-md-6">
                         <label class="form-label-modern">Unit <span class="text-danger">*</span></label>
                         <select @bind="model.Unit" class="form-control-modern">
                             <option value="">SELECT UNIT</option>
@@ -69,7 +71,7 @@
                         </select>
                     </div>
 
-                    <div class="col-lg-2 col-md-4 col-sm-6">
+                    <div class="col-md-6">
                         <label class="form-label-modern">PO Type <span class="text-danger">*</span></label>
                         <select @bind="model.POType" class="form-control-modern">
                             <option value="">SELECT</option>
@@ -77,15 +79,15 @@
                             <option value="Non-PO">Non-PO</option>
                         </select>
                     </div>
-                    <div class="col-lg-2 col-md-4 col-sm-6">
+                    <div class="col-md-6">
                         <label class="form-label-modern">Bill Date <span class="text-danger">*</span></label>
                         <input type="date" @bind="model.BillDate" class="form-control-modern" />
                     </div>
-                    <div class="col-lg-2 col-md-4 col-sm-6">
+                    <div class="col-md-6">
                         <label class="form-label-modern">Bill No <span class="text-danger">*</span></label>
                         <input type="text" @bind="model.BillNo" class="form-control-modern" placeholder="Ref/Bill No" />
                     </div>
-                    <div class="col-lg-2 col-md-4 col-sm-6">
+                    <div class="col-md-6">
                         <label class="form-label-modern">Vehicle No <span class="text-danger">*</span></label>
                         <select @bind="model.VehicleNo" class="form-control-modern">
                             <option value="">SELECT VEHICLE</option>
@@ -96,15 +98,15 @@
                         </select>
                     </div>
 
-                    <div class="col-lg-2 col-md-4 col-sm-6">
+                    <div class="col-md-6">
                         <label class="form-label-modern">PAN No</label>
                         <input type="text" @bind="model.PANNo" class="form-control-modern" placeholder="PAN No" />
                     </div>
-                    <div class="col-lg-2 col-md-4 col-sm-6">
+                    <div class="col-md-6">
                         <label class="form-label-modern">Firm Type</label>
                         <input type="text" @bind="model.FirmType" class="form-control-modern" placeholder="Firm Type" />
                     </div>
-                    <div class="col-lg-2 col-md-4 col-sm-6">
+                    <div class="col-md-6">
                         <label class="form-label-modern">Expense ledger <span class="text-danger">*</span></label>
                         <AbraqAccount.Components.Common.AccountSearch 
                             Placeholder="Search Ledger" 
@@ -113,7 +115,7 @@
                             InitialValue="@model.ExpenseLedger?.Name"
                             CssClass="form-control-modern" />
                     </div>
-                    <div class="col-lg-2 col-md-4 col-sm-12">
+                    <div class="col-md-6">
                         <label class="form-label-modern">Bill File</label>
                         <div class="d-flex align-items-center gap-2">
                             <button class="btn btn-outline-secondary btn-xs-modern" type="button" @onclick="() => {}">Upload</button>
@@ -370,52 +372,55 @@
 </div>
 
 <style>
-    .expense-entry-container { background: #f0f2f5; padding: 15px; padding-bottom: 100px; font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+    .expense-entry-container { background: #f8fafc; padding: 20px; padding-bottom: 120px; font-family: 'Inter', system-ui, -apple-system, sans-serif; }
     
-    .modern-card { border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06) !important; }
-    .modern-header { background: #ffffff; border-bottom: 1px solid #edf2f7; }
-    .modern-header h6 { color: #2d3748; letter-spacing: -0.01em; }
+    .modern-card { border-radius: 12px; border: 1px solid var(--border-color); background: #ffffff; box-shadow: var(--shadow-md) !important; margin-bottom: 24px; }
+    .modern-header { background: #ffffff; border-bottom: 1px solid var(--border-color); padding: 12px 20px; background: #fcfdfe; }
+    .modern-header h6 { color: var(--text-primary); letter-spacing: -0.01em; font-size: 0.95rem; }
 
-    .form-label-modern { display: block; font-size: 0.75rem; font-weight: 700; color: #4a5568; margin-bottom: 3px; text-transform: uppercase; }
-    .form-control-modern { border: 1px solid #e2e8f0; border-radius: 6px; padding: 6px 10px; font-size: 0.85rem; width: 100%; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); background-color: #f8fafc; }
-    .form-control-modern:focus { border-color: #4299e1; outline: none; background-color: #fff; box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.15); }
-    .form-control-modern[readonly] { background-color: #edf2f7; cursor: not-allowed; }
+    .form-label-modern { display: block; font-size: 0.7rem; font-weight: 800; color: var(--text-secondary); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .form-control-modern { border: 1px solid var(--border-color); border-radius: 8px; padding: 10px 14px; font-size: 0.875rem; width: 100%; transition: all 0.2s; background-color: #fcfdfe; }
+    .form-control-modern:focus { border-color: var(--accent); outline: none; background-color: #fff; box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1); }
+    .form-control-modern[readonly] { background-color: #f1f5f9; cursor: not-allowed; color: var(--text-secondary); }
 
-    .modern-input-row { background: #fff; padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: inset 0 2px 4px 0 rgba(0,0,0,0.05); }
+    .modern-input-row { background: #f8fafc; padding: 16px; border: 1px solid var(--border-color); border-radius: 10px; }
 
-    .btn-xs-modern { padding: 2px 8px; font-size: 0.75rem; border-radius: 4px; }
-    .x-small { font-size: 0.7rem; }
+    .btn-xs-modern { padding: 4px 10px; font-size: 0.75rem; border-radius: 6px; font-weight: 600; }
+    .x-small { font-size: 0.7rem; color: var(--text-secondary); }
 
-    .table-modern { margin-bottom: 0; }
-    .table-modern thead th { background: #f7fafc; color: #718096; font-size: 0.75rem; text-transform: uppercase; font-weight: 800; padding: 10px; border-bottom: 2px solid #edf2f7; }
-    .table-modern tbody td { padding: 10px; font-size: 0.85rem; vertical-align: middle; color: #2d3748; border-bottom: 1px solid #f1f5f9; }
-    .table-modern tbody tr:hover { background-color: #f8fafc; }
+    .table-custom thead th { background: #f8fafc; color: var(--text-secondary); font-size: 0.7rem; text-transform: uppercase; font-weight: 800; padding: 14px 12px; border-bottom: 2px solid var(--border-color); }
+    .table-custom tbody td { padding: 12px; font-size: 0.875rem; vertical-align: middle; color: var(--text-primary); border-bottom: 1px solid var(--border-color); }
+    .table-custom tbody tr:hover { background-color: #f1f5f9; }
 
-    .sticky-footer { position: fixed; bottom: 0; left: 286px; right: 0; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(8px); padding: 12px 25px; border-top: 1px solid #e2e8f0; z-index: 900; }
-    /* Mobile/Sidebar adjustment for sticky footer */
+    .sticky-footer { position: fixed; bottom: 0; left: var(--sidebar-width); right: 0; background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(12px); padding: 16px 30px; border-top: 1px solid var(--border-color); z-index: 900; box-shadow: 0 -4px 15px rgba(0,0,0,0.05); }
+    /* Mobile adjustment */
     @@media (max-width: 991.98px) { .sticky-footer { left: 0; } }
 
-    .total-box { display: flex; flex-direction: column; background: #fff; padding: 6px 12px; border: 1px solid #e2e8f0; border-radius: 6px; }
-    .total-box .label { font-size: 0.65rem; font-weight: 800; color: #718096; text-transform: uppercase; line-height: 1; margin-bottom: 2px; }
-    .total-box .value { font-size: 1.1rem; font-weight: 700; color: #1a202c; }
+    .total-box { display: flex; flex-direction: column; background: #fff; padding: 10px 16px; border: 1px solid var(--border-color); border-radius: 10px; transition: all 0.3s; }
+    .total-box:hover { border-color: var(--accent); transform: translateY(-2px); }
+    .total-box .label { font-size: 0.65rem; font-weight: 800; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+    .total-box .value { font-size: 1.25rem; font-weight: 800; color: var(--text-primary); }
     
-    .net-total { background: #ebf8ff; border-color: #bee3f8; }
-    .net-total .label { color: #3182ce; }
-    .net-total .value { color: #2b6cb0; }
+    .net-total { background: #eef2ff; border-color: #c7d2fe; }
+    .net-total .label { color: #4f46e5; }
+    .net-total .value { color: #3730a3; }
 
-    .discount-input { border: none; background: transparent; font-size: 1.1rem; font-weight: 700; color: #e53e3e; text-align: right; width: 100%; outline: none; }
-    .discount-input:focus { color: #c53030; }
+    .discount-input { border: none; background: transparent; font-size: 1.25rem; font-weight: 800; color: #ef4444; text-align: right; width: 100%; outline: none; }
+    .discount-input:focus { color: #dc2626; }
 
-    .btn-modern-add { background: #38a169; color: white; border: none; border-radius: 6px; font-weight: 600; font-size: 0.85rem; transition: transform 0.1s; }
-    .btn-modern-add:hover { background: #2f855a; transform: translateY(-1px); }
-    .btn-modern-cancel { background: #edf2f7; color: #4a5568; border: 1px solid #e2e8f0; border-radius: 6px; font-weight: 600; font-size: 0.85rem; }
+    .btn-modern-add { background: #10b981; color: white; border: none; border-radius: 8px; font-weight: 700; font-size: 0.875rem; transition: all 0.2s; padding: 10px; }
+    .btn-modern-add:hover { background: #059669; transform: scale(1.02); }
+    .btn-modern-cancel { background: #fff; color: var(--text-secondary); border: 1px solid var(--border-color); border-radius: 8px; font-weight: 600; font-size: 0.875rem; padding: 10px; }
     
-    .btn-modern-save { background: #4299e1; color: white; border: none; border-radius: 6px; font-weight: 700; font-size: 0.95rem; }
-    .btn-modern-save:hover { background: #3182ce; box-shadow: 0 4px 12px rgba(66, 153, 225, 0.3); }
-    .btn-modern-back { background: #718096; color: white; border: none; border-radius: 6px; font-weight: 700; font-size: 0.95rem; }
+    .btn-modern-save { background: var(--accent); color: white; border: none; border-radius: 8px; font-weight: 700; font-size: 1rem; transition: all 0.2s; }
+    .btn-modern-save:hover { background: var(--accent-hover); box-shadow: 0 10px 15px -3px rgba(99, 102, 241, 0.4); transform: translateY(-2px); }
+    .btn-modern-back { background: #fff; color: var(--text-secondary); border: 1px solid var(--border-color); border-radius: 8px; font-weight: 700; font-size: 1rem; transition: all 0.2s; }
+    .btn-modern-back:hover { background: #f8fafc; border-color: var(--text-secondary); }
 
-    @@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-    .modern-card { animation: fadeIn 0.4s ease-out; }
+    .col-lg-2 { width: 16.666667%; } /* Ensure precise mapping for large screens */
+
+    @@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .modern-card { animation: fadeIn 0.5s ease-out; }
 </style>
 
 @code {
