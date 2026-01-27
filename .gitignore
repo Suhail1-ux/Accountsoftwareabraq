@@ -42,8 +42,10 @@ project.fragment.lock.json
 artifacts/
 
 # ASP.NET Core
+**/appsettings.json
 **/appsettings.Development.json
 **/appsettings.Production.json
+**/Migrations/
 # Be careful not to exclude appsettings.json if it contains only config structure, 
 # but often it contains connection strings so it might be safer to ignore or template it.
 # For now, excluding Development.json is usually safe.
