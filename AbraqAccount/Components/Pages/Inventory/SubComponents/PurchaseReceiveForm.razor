@@ -1,0 +1,319 @@
+@using AbraqAccount.Models
+@using AbraqAccount.Services.Interfaces
+@using Microsoft.AspNetCore.Mvc.Rendering
+@using Microsoft.AspNetCore.Components.Forms
+@inject IPurchaseTransactionService TransactionService
+@inject NavigationManager Navigation
+
+<div class="form-card">
+    <div class="form-header">
+        <h3>@(IsEdit ? "Edit" : "Create") Purchase Receive (GRN)</h3>
+        <div class="header-actions">
+            @if (IsEdit)
+            {
+                <span class="badge bg-info me-3">GRN#: @model.ReceiptNo</span>
+            }
+            <button class="btn btn-primary" @onclick="SubmitForm" disabled="@isSubmitting">
+                @if (isSubmitting)
+                {
+                    <span class="spinner-border spinner-border-sm" role="status"></span>
+                }
+                Save
+            </button>
+            <button class="btn btn-secondary" @onclick="Cancel">Cancel</button>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger">@errorMessage</div>
+    }
+
+    <div class="row g-3">
+        <div class="col-md-3">
+            <div class="form-group mb-3">
+                <label class="form-label text-danger">Purchase Type *</label>
+                <select @bind="model.PurchaseType" class="form-select">
+                    <option value="">SELECT</option>
+                    @if (purchaseTypeOptions != null)
+                    {
+                        @foreach (var opt in purchaseTypeOptions)
+                        {
+                            <option value="@opt.Value">@opt.Text</option>
+                        }
+                    }
+                </select>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="form-group mb-3">
+                <label class="form-label text-danger">PO/PR Number *</label>
+                @if (model.PurchaseType == "Direct Purchase")
+                {
+                    <input type="text" @bind="model.PONumber" class="form-control" placeholder="Direct..." />
+                }
+                else
+                {
+                    <AbraqAccount.Components.Common.AccountSearch 
+                        Placeholder="Search PO/PR..." 
+                        SearchFunc="TransactionService.GetPONumbersAsync"
+                        OnAccountSelected="(acc) => model.PONumber = acc.Name"
+                        InitialValue="@model.PONumber" />
+                }
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="form-group mb-3">
+                <label class="form-label text-danger">Vendor *</label>
+                <AbraqAccount.Components.Common.AccountSearch 
+                    Placeholder="Search Vendor..." 
+                    SearchFunc="TransactionService.GetVendorsAsync"
+                    OnAccountSelected="OnVendorSelected"
+                    InitialValue="@model.Vendor?.VendorName" />
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="form-group mb-3">
+                <label class="form-label">Vendor GSTIN</label>
+                <input type="text" @bind="model.VendorGSTNo" class="form-control" readonly />
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-md-3">
+            <div class="form-group mb-3">
+                <label class="form-label text-danger">Expense Group *</label>
+                <select @onchange="OnExpenseGroupChanged" class="form-select" value="@model.ExpenseGroupId">
+                    <option value="0">SELECT GROUP</option>
+                    @if (expenseGroupOptions != null)
+                    {
+                        @foreach (var opt in expenseGroupOptions)
+                        {
+                            <option value="@opt.Value">@opt.Text</option>
+                        }
+                    }
+                </select>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="form-group mb-3">
+                <label class="form-label text-danger">Sub Group *</label>
+                <select @onchange="OnSubGroupChanged" class="form-select" value="@model.ExpenseSubGroupId">
+                    <option value="0">SELECT SUB GROUP</option>
+                    @if (subGroupOptions != null)
+                    {
+                        @foreach (var opt in subGroupOptions)
+                        {
+                            <option value="@opt.Id">@opt.Name</option>
+                        }
+                    }
+                </select>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="form-group mb-3">
+                <label class="form-label text-danger">Ledger *</label>
+                <select @bind="model.ExpenseLedgerId" class="form-select">
+                    <option value="0">SELECT LEDGER</option>
+                    @if (ledgerOptions != null)
+                    {
+                        @foreach (var opt in ledgerOptions)
+                        {
+                            <option value="@opt.Id">@opt.Name</option>
+                        }
+                    }
+                </select>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="form-group mb-3">
+                <label class="form-label text-danger">Received Date *</label>
+                <input type="date" @bind="model.ReceivedDate" class="form-control" />
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-md-3">
+            <div class="form-group mb-3">
+                <label class="form-label text-danger">Bill Number *</label>
+                <input type="text" @bind="model.BillNo" class="form-control" placeholder="Bill#" />
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="form-group mb-3">
+                <label class="form-label text-danger">Bill Date *</label>
+                <input type="date" @bind="model.BillDate" class="form-control" />
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="form-group mb-3">
+                <label class="form-label">Vehicle No</label>
+                <input type="text" @bind="model.VehicleNo" class="form-control" placeholder="ABC-123" />
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="form-group mb-3">
+                <label class="form-label">Scanned Bill (Max 2MB)</label>
+                <InputFile OnChange="HandleFileSelected" class="form-control" />
+            </div>
+        </div>
+    </div>
+
+    <div class="items-section mt-4">
+        <h5>Receive Items</h5>
+        <div class="table-responsive">
+            <table class="table table-bordered align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width: 250px;">Item Name</th>
+                        <th style="width: 100px;">UOM</th>
+                        <th style="width: 120px;">Qty</th>
+                        <th style="width: 120px;">Unit Price</th>
+                        <th style="width: 150px;">Total</th>
+                        <th style="width: 40px;"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in model.Items)
+                    {
+                        <tr>
+                            <td><input type="text" @bind="item.ItemName" class="form-control form-control-sm" placeholder="Search/Enter name" /></td>
+                            <td><input type="text" @bind="item.UOM" class="form-control form-control-sm" placeholder="UOM" /></td>
+                            <td><input type="number" step="0.01" value="@item.Qty" @oninput="(e) => UpdateItem(item, e, 'Q')" class="form-control form-control-sm text-end" /></td>
+                            <td><input type="number" step="0.01" value="@item.UnitPrice" @oninput="(e) => UpdateItem(item, e, 'P')" class="form-control form-control-sm text-end" /></td>
+                            <td class="text-end fw-bold">@item.Amount?.ToString("N2")</td>
+                            <td>
+                                <button class="btn btn-outline-danger btn-sm p-0 px-1" @onclick="() => RemoveItem(item)">
+                                    <i class="bi bi-dash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <button class="btn btn-outline-primary btn-sm" @onclick="AddItem">
+            <i class="bi bi-plus"></i> Add Item
+        </button>
+    </div>
+
+    <div class="footer-summary mt-4 p-3 bg-light rounded text-end">
+        <span class="h5">Net Amount: <span class="text-primary">@TotalAmount.ToString("N2")</span></span>
+    </div>
+</div>
+
+<style>
+    .form-card { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.05); }
+    .form-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; padding-bottom: 1rem; border-bottom: 1px solid #eee; }
+</style>
+
+@code {
+    [Parameter] public int? Id { get; set; }
+    private PurchaseReceive model = new() { ReceivedDate = DateTime.Now, BillDate = DateTime.Now, Date = DateTime.Now };
+    private List<SelectListItem>? purchaseTypeOptions;
+    private List<SelectListItem>? expenseGroupOptions;
+    private List<LookupItem>? subGroupOptions;
+    private List<LookupItem>? ledgerOptions;
+    private IBrowserFile? selectedFile;
+    private bool IsEdit => Id.HasValue;
+    private bool isSubmitting;
+    private string? errorMessage;
+
+    private decimal TotalAmount => model.Items.Sum(i => i.Amount ?? 0);
+
+    protected override async Task OnInitializedAsync()
+    {
+        dynamic viewBag = new System.Dynamic.ExpandoObject();
+        await TransactionService.LoadReceiveDropdownsAsync(viewBag);
+        purchaseTypeOptions = ((SelectList)viewBag.PurchaseTypes).ToList();
+        expenseGroupOptions = ((SelectList)viewBag.ExpenseGroups).ToList();
+
+        if (IsEdit)
+        {
+            // Load logic here (not implemented yet, but for parity focus on Create)
+        }
+        else
+        {
+            AddItem();
+        }
+    }
+
+    private void AddItem() => model.Items.Add(new PurchaseReceiveItem { CreatedAt = DateTime.Now });
+    private void RemoveItem(PurchaseReceiveItem item) { model.Items.Remove(item); RecalculateTotals(); }
+
+    private void OnVendorSelected(LookupItem lookup)
+    {
+        model.VendorId = lookup.Id;
+        model.Vendor = new Vendor { Id = lookup.Id, VendorName = lookup.Name };
+        // Assuming I should fetch Vendor details to get GSTIN
+        model.VendorGSTNo = "SAMPLE-GSTIN"; // Placeholder
+    }
+
+    private async Task OnExpenseGroupChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out int groupId))
+        {
+            model.ExpenseGroupId = groupId;
+            model.ExpenseSubGroupId = 0;
+            model.ExpenseLedgerId = 0;
+            ledgerOptions = null;
+            subGroupOptions = (await TransactionService.GetMasterSubGroupsAsync(groupId)).ToList();
+        }
+    }
+
+    private async Task OnSubGroupChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out int subGroupId))
+        {
+            model.ExpenseSubGroupId = subGroupId;
+            model.ExpenseLedgerId = 0;
+            ledgerOptions = (await TransactionService.GetSubGroupLedgersAsync(subGroupId)).ToList();
+        }
+    }
+
+    private void HandleFileSelected(InputFileChangeEventArgs e) => selectedFile = e.File;
+
+    private void UpdateItem(PurchaseReceiveItem item, ChangeEventArgs e, char field)
+    {
+        if (decimal.TryParse(e.Value?.ToString(), out decimal val))
+        {
+            if (field == 'Q') item.Qty = val;
+            else if (field == 'P') item.UnitPrice = val;
+            item.Amount = item.Qty * (item.UnitPrice ?? 0);
+            RecalculateTotals();
+        }
+    }
+
+    private void RecalculateTotals()
+    {
+        model.Amount = TotalAmount;
+        model.Qty = model.Items.Sum(i => i.Qty);
+    }
+
+    private async Task SubmitForm()
+    {
+        if (model.VendorId == 0) { errorMessage = "Vendor is required."; return; }
+        if (model.ExpenseGroupId == 0) { errorMessage = "Expense Group is required."; return; }
+        if (model.ExpenseSubGroupId == 0) { errorMessage = "Sub Group is required."; return; }
+        if (model.ExpenseLedgerId == 0) { errorMessage = "Ledger is required."; return; }
+        if (string.IsNullOrWhiteSpace(model.BillNo)) { errorMessage = "Bill Number is required."; return; }
+        if (!model.Items.Any(i => !string.IsNullOrEmpty(i.ItemName))) { errorMessage = "At least one item is required."; return; }
+
+        isSubmitting = true;
+        errorMessage = null;
+
+        model.Amount = TotalAmount;
+
+        // Custom implementation in service for Blazor object
+        var result = await TransactionService.CreatePurchaseReceiveAsync(model);
+
+        if (result.success) Navigation.NavigateTo("/inventory/purchase-receives");
+        else errorMessage = result.message;
+        
+        isSubmitting = false;
+    }
+
+    private void Cancel() => Navigation.NavigateTo("/inventory/purchase-receives");
+}

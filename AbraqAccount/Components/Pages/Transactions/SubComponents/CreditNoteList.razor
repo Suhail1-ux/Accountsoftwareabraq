@@ -1,0 +1,357 @@
+@using AbraqAccount.Models
+@using AbraqAccount.Services.Interfaces
+@using Microsoft.AspNetCore.Mvc.Rendering
+@inject ICreditNoteService CreditNoteService
+@inject IJSRuntime JS
+
+<div class="filter-section">
+    <div class="filter-group">
+        <label>Unit</label>
+        <select @bind="filter.Unit">
+            <option value="">All Units</option>
+            @if (units != null)
+            {
+                @foreach (var u in units)
+                {
+                    <option value="@u">@u</option>
+                }
+            }
+        </select>
+    </div>
+    <div class="filter-group">
+        <label>Credit Note No</label>
+        <input type="text" @bind="filter.NoteNo" placeholder="Search by Credit No" />
+    </div>
+    <div class="filter-group">
+        <label>Grower Group</label>
+        <select @onchange="OnGroupChange">
+            <option value="">All Groups</option>
+            @if (growerGroups != null)
+            {
+                @foreach (var g in growerGroups)
+                {
+                    <option value="@g.Value">@g.Text</option>
+                }
+            }
+        </select>
+    </div>
+    <div class="filter-group">
+        <label>Grower Name</label>
+        <select @bind="filter.FarmerId">
+            <option value="">All Growers</option>
+            @if (farmers != null)
+            {
+                @foreach (var f in farmers)
+                {
+                    <option value="@f.Id">@f.FarmerName</option>
+                }
+            }
+        </select>
+    </div>
+    <div class="filter-group">
+        <label>Status</label>
+        <select @bind="filter.Status">
+            <option value="Unapproved">Unapproved</option>
+            <option value="Approved">Approved</option>
+            <option value="Rejected">Rejected</option>
+            <option value="ALL">All Status</option>
+        </select>
+    </div>
+    <div class="filter-group">
+        <label>From Date</label>
+        <input type="date" @bind="filter.FromDate" />
+    </div>
+    <div class="filter-group">
+        <label>To Date</label>
+        <input type="date" @bind="filter.ToDate" />
+    </div>
+    <div class="filter-actions">
+        <button class="btn-search" @onclick="LoadData">
+            <i class="bi bi-search"></i> Search
+        </button>
+        <button class="btn-clear" @onclick="ClearFilters">Clear</button>
+    </div>
+</div>
+
+<div class="table-card">
+    <div class="table-wrapper">
+        <table class="table-notes">
+            <thead>
+                <tr>
+                    <th>Credit No</th>
+                    <th>Unit</th>
+                    <th>Date</th>
+                    <th>Credit</th>
+                    <th>Debit</th>
+                    <th>Amount</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (creditNotes == null)
+                {
+                    <tr><td colspan="8" class="text-center">Loading...</td></tr>
+                }
+                else if (!creditNotes.Any())
+                {
+                    <tr><td colspan="8" class="text-center">No credit notes found.</td></tr>
+                }
+                else
+                {
+                    @foreach (var item in creditNotes)
+                    {
+                        <tr>
+                            <td>@item.CreditNoteNo</td>
+                            <td>@item.Unit</td>
+                            <td>@item.CreditNoteDate.ToString("dd/MM/yyyy")</td>
+                            <td>@(item.CreditAccountName ?? "-")</td>
+                            <td>@(item.DebitAccountName ?? "-")</td>
+                            <td>@(item.Amount?.ToString("N2") ?? "0.00")</td>
+                            <td>
+                                <span class="badge @GetStatusClass(item.Status)">@item.Status</span>
+                            </td>
+                            <td>
+                                <div class="action-icons">
+                                    @if (item.Status != "Approved")
+                                    {
+                                        <button class="action-icon edit-icon" type="button" @onclick="() => OnEdit.InvokeAsync(item.Id)" title="Edit">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                    }
+                                    <NavLink href="@($"transactions/credit-note/details/{item.Id}")" class="action-icon view-icon" title="View Details">
+                                        <i class="bi bi-eye"></i>
+                                    </NavLink>
+                                    @if (item.Status == "Approved")
+                                    {
+                                        <button class="action-icon approved-icon" @onclick="() => Unapprove(item.Id)" title="Unapprove">
+                                            <i class="bi bi-check-circle-fill"></i>
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        <button class="action-icon approve-icon" @onclick="() => Approve(item.Id)" title="Approve">
+                                            <i class="bi bi-hand-thumbs-up"></i>
+                                        </button>
+                                        <button class="action-icon delete-icon" @onclick="() => Delete(item.Id)" title="Delete">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Pagination -->
+    <div class="pagination-section">
+        <div class="pagination-info">
+            <span>Showing @(startRecord) - @(endRecord) of @(totalCount) Display</span>
+            <input type="number" @bind="pageSize" min="1" max="100" />
+            <button class="btn-go" @onclick="LoadData">Go</button>
+        </div>
+        <div class="pagination-controls">
+            <button class="pagination-btn" @onclick="() => GoToPage(1)" disabled="@(currentPage == 1)">K</button>
+            <button class="pagination-btn" @onclick="() => GoToPage(currentPage - 1)" disabled="@(currentPage == 1)">&lt;</button>
+            <span>Page</span>
+            <select @onchange="OnPageChange">
+                @for (int i = 1; i <= totalPages; i++)
+                {
+                    <option value="@i" selected="@(i == currentPage)">@i</option>
+                }
+            </select>
+            <span>of @totalPages</span>
+            <button class="pagination-btn" @onclick="() => GoToPage(currentPage + 1)" disabled="@(currentPage >= totalPages)">&gt;</button>
+            <button class="pagination-btn" @onclick="() => GoToPage(totalPages)" disabled="@(currentPage >= totalPages)">K</button>
+        </div>
+    </div>
+</div>
+
+<style>
+    .filter-section {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        gap: 1rem;
+        background: white;
+        padding: 1.5rem;
+        border: 1px solid #e0e0e0;
+        border-radius: 4px;
+        margin-bottom: 1.5rem;
+        align-items: flex-end;
+    }
+
+    .filter-group { display: flex; flex-direction: column; }
+    .filter-group label { font-size: 0.9rem; font-weight: 600; color: #333; margin-bottom: 0.5rem; }
+    .filter-group input, .filter-group select { padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; font-size: 0.9rem; }
+    .filter-actions { display: flex; gap: 0.5rem; }
+    .btn-search { background-color: #6c757d; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; }
+    .btn-clear { background-color: #e9ecef; color: #333; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; }
+    .table-card { background: white; border: 1px solid #e0e0e0; border-radius: 4px; padding: 1.5rem; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    .table-wrapper { overflow-x: auto; }
+    .table-notes { width: 100%; border-collapse: collapse; }
+    .table-notes th { padding: 0.75rem; text-align: left; background: #f8f9fa; border-bottom: 2px solid #dee2e6; }
+    .table-notes td { padding: 0.75rem; border-bottom: 1px solid #dee2e6; }
+    
+    .badge { padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem; }
+    .badge-unapproved { background-color: #ffc107; color: black; }
+    .badge-approved { background-color: #28a745; color: white; }
+    .badge-rejected { background-color: #dc3545; color: white; }
+
+    .action-icons { display: flex; gap: 0.5rem; }
+    .action-icon { color: #6c757d; font-size: 1.1rem; cursor: pointer; text-decoration: none; }
+    .action-icon:hover { color: #007bff; }
+    .approved-icon { color: #28a745; border: none; background: none; }
+    .approve-icon { color: #198754; border: none; background: none; }
+    .delete-icon { color: #dc3545; border: none; background: none; }
+
+    .pagination-section { display: flex; justify-content: space-between; align-items: center; margin-top: 1rem; }
+    .pagination-info { display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; }
+    .pagination-info input { width: 60px; padding: 0.25rem; border: 1px solid #ddd; }
+    .pagination-controls { display: flex; gap: 0.25rem; align-items: center; }
+    .pagination-btn { padding: 0.25rem 0.75rem; border: 1px solid #ddd; background: #fff; cursor: pointer; }
+    .pagination-btn:disabled { cursor: not-allowed; opacity: 0.5; }
+</style>
+
+@code {
+    [Parameter] public EventCallback<int> OnEdit { get; set; }
+    private List<CreditNote>? creditNotes;
+    private List<string> units = new() { "Unit 1", "Unit 2", "Abraq Agro Fresh LLP" };
+    private IEnumerable<SelectListItem>? growerGroups;
+    private List<dynamic>? farmers;
+    private int currentPage = 1;
+    private int pageSize = 10;
+    private int totalCount = 0;
+    private int totalPages => (int)Math.Ceiling((double)totalCount / pageSize);
+    private int startRecord => (currentPage - 1) * pageSize + 1;
+    private int endRecord => Math.Min(currentPage * pageSize, totalCount);
+
+    private CreditNoteFilter filter = new() { Status = "Unapproved" };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDropdowns();
+        await LoadData();
+    }
+
+    private async Task LoadDropdowns()
+    {
+        var viewBag = new System.Dynamic.ExpandoObject() as dynamic;
+        await CreditNoteService.LoadDropdownsAsync(viewBag);
+        growerGroups = viewBag.GrowerGroups;
+    }
+
+    private async Task LoadData()
+    {
+        try
+        {
+            var result = await CreditNoteService.GetCreditNotesAsync(
+                filter.Unit,
+                filter.NoteNo,
+                filter.GroupId,
+                filter.FarmerId,
+                filter.Status,
+                filter.FromDate,
+                filter.ToDate,
+                currentPage,
+                pageSize
+            );
+            creditNotes = result.notes ?? new List<CreditNote>();
+            totalCount = result.totalCount;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading Credit Notes: {ex.Message}");
+            creditNotes = new List<CreditNote>();
+        }
+    }
+
+    private async Task OnGroupChange(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out int groupId))
+        {
+            filter.GroupId = groupId;
+            filter.FarmerId = null;
+            var result = await CreditNoteService.GetFarmersByGroupAsync(groupId);
+            farmers = result.Cast<dynamic>().ToList();
+        }
+        else
+        {
+            filter.GroupId = null;
+            filter.FarmerId = null;
+            farmers = null;
+        }
+    }
+
+    private async Task ClearFilters()
+    {
+        filter = new() { Status = "Unapproved" };
+        currentPage = 1;
+        farmers = null;
+        await LoadData();
+    }
+
+    private async Task GoToPage(int page)
+    {
+        if (page >= 1 && page <= totalPages)
+        {
+            currentPage = page;
+            await LoadData();
+        }
+    }
+
+    private async Task OnPageChange(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out int page))
+        {
+            await GoToPage(page);
+        }
+    }
+
+    private async Task Approve(int id)
+    {
+        if (await JS.InvokeAsync<bool>("confirm", "Are you sure you want to approve this credit note?"))
+        {
+            await CreditNoteService.ApproveCreditNoteAsync(id);
+            await LoadData();
+        }
+    }
+
+    private async Task Unapprove(int id)
+    {
+        if (await JS.InvokeAsync<bool>("confirm", "Are you sure you want to unapprove this credit note?"))
+        {
+            await CreditNoteService.UnapproveCreditNoteAsync(id);
+            await LoadData();
+        }
+    }
+
+    private async Task Delete(int id)
+    {
+        if (await JS.InvokeAsync<bool>("confirm", "Are you sure you want to delete this credit note?"))
+        {
+            await CreditNoteService.DeleteCreditNoteAsync(id);
+            await LoadData();
+        }
+    }
+
+    private string GetStatusClass(string? status) => status?.ToLower() switch
+    {
+        "approved" => "badge-approved",
+        "rejected" => "badge-rejected",
+        _ => "badge-unapproved"
+    };
+
+    public class CreditNoteFilter
+    {
+        public string? Unit { get; set; }
+        public string? NoteNo { get; set; }
+        public int? GroupId { get; set; }
+        public int? FarmerId { get; set; }
+        public string Status { get; set; } = "Unapproved";
+        public DateTime? FromDate { get; set; }
+        public DateTime? ToDate { get; set; }
+    }
+}

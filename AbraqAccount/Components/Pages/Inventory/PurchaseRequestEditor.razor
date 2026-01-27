@@ -1,0 +1,11 @@
+@page "/inventory/purchase-requests/create"
+@page "/inventory/purchase-requests/edit/{Id:int}"
+@using AbraqAccount.Components.Pages.Inventory.SubComponents
+
+<div class="container-fluid py-4">
+    <PurchaseRequestForm Id="@Id" />
+</div>
+
+@code {
+    [Parameter] public int? Id { get; set; }
+}

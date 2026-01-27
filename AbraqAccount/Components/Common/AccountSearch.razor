@@ -1,0 +1,195 @@
+@using System.Timers
+@using AbraqAccount.Models
+@implements IDisposable
+
+<div class="search-container">
+    @if (!string.IsNullOrEmpty(Label))
+    {
+        <label>@Label @(Required ? "*" : "")</label>
+    }
+    <div class="search-input-wrapper">
+        <input type="text" 
+               value="@SearchTerm"
+               @oninput="OnInputChanged"
+               placeholder="@Placeholder" 
+               autocomplete="off"
+               @onfocus="() => isFocused = true"
+               @onblur="HandleBlur"
+               class="form-control @CssClass" />
+        
+        @if (isLoading)
+        {
+            <div class="spinner-border spinner-border-sm search-spinner" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        }
+
+        @if (isFocused && results != null && results.Any())
+        {
+            <div class="results-dropdown">
+                @foreach (var result in results)
+                {
+                    <div class="result-item" @onmousedown="() => SelectAccount(result)">
+                        <div class="result-name">@result.Name</div>
+                        @if (!string.IsNullOrEmpty(result.AccountNumber))
+                        {
+                            <div class="result-meta">@result.AccountNumber</div>
+                        }
+                        @if (!string.IsNullOrEmpty(result.Type))
+                        {
+                            <span class="badge bg-secondary">@result.Type</span>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+<style>
+    .search-container { position: relative; margin-bottom: 1rem; }
+    .search-container label { display: block; margin-bottom: 0.5rem; font-weight: 600; color: #333; }
+    .search-input-wrapper { position: relative; }
+    .search-spinner { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); }
+    
+    .results-dropdown {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        max-height: 250px;
+        overflow-y: auto;
+        z-index: 1000;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        margin-top: 2px;
+    }
+
+    .result-item {
+        padding: 0.75rem 1rem;
+        cursor: pointer;
+        border-bottom: 1px solid #eee;
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+
+    .result-item:hover { background-color: #f8f9fa; }
+    .result-name { font-weight: 500; color: #333; }
+    .result-meta { font-size: 0.8rem; color: #666; }
+    .badge { align-self: flex-start; font-size: 0.7rem; }
+</style>
+
+@code {
+    [Parameter] public string? Label { get; set; }
+    [Parameter] public string Placeholder { get; set; } = "Search account...";
+    [Parameter] public bool Required { get; set; }
+    [Parameter] public Func<string, Task<IEnumerable<LookupItem>>>? SearchFunc { get; set; }
+    [Parameter] public EventCallback<LookupItem> OnAccountSelected { get; set; }
+    [Parameter] public string? InitialValue { get; set; }
+    [Parameter] public string? CssClass { get; set; }
+
+    private string? _searchTerm;
+    [Parameter] public string? SearchTerm 
+    { 
+        get => _searchTerm; 
+        set 
+        { 
+            if (_searchTerm != value)
+            {
+                _searchTerm = value;
+                RestartTimer();
+            }
+        } 
+    }
+
+    private void OnInputChanged(ChangeEventArgs e)
+    {
+        var val = e.Value?.ToString();
+        Console.WriteLine($"[AccountSearch] OnInputChanged: '{val}'");
+        SearchTerm = val;
+    }
+
+    private IEnumerable<LookupItem>? results;
+    private bool isLoading;
+    private bool isFocused;
+    private Timer? debounceTimer;
+
+    protected override void OnInitialized()
+    {
+        _searchTerm = InitialValue;
+        debounceTimer = new Timer(300);
+        debounceTimer.Elapsed += async (sender, e) => await PerformSearch();
+        debounceTimer.AutoReset = false;
+    }
+
+    private void RestartTimer()
+    {
+        debounceTimer?.Stop();
+        debounceTimer?.Start();
+    }
+
+    private async Task PerformSearch()
+    {
+        Console.WriteLine($"[AccountSearch] PerformSearch triggered. Term: '{_searchTerm}'");
+        if (string.IsNullOrWhiteSpace(_searchTerm) || SearchFunc == null)
+        {
+            Console.WriteLine("[AccountSearch] Term empty or SearchFunc null.");
+            await InvokeAsync(() => {
+                results = null;
+                isLoading = false;
+                StateHasChanged();
+            });
+            return;
+        }
+
+        await InvokeAsync(() => {
+            isLoading = true;
+            StateHasChanged();
+        });
+
+        try
+        {
+            Console.WriteLine("[AccountSearch] Invoking SearchFunc...");
+            var searchResults = await SearchFunc(_searchTerm);
+            Console.WriteLine($"[AccountSearch] SearchFunc returned {searchResults?.Count() ?? 0} results.");
+            await InvokeAsync(() => {
+                results = searchResults;
+                isLoading = false;
+                StateHasChanged();
+            });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[AccountSearch] ERROR in PerformSearch: {ex.Message}");
+            Console.WriteLine(ex.StackTrace);
+            await InvokeAsync(() => {
+                isLoading = false;
+                StateHasChanged();
+            });
+        }
+    }
+
+    private async Task SelectAccount(LookupItem account)
+    {
+        _searchTerm = account.Name;
+        results = null;
+        isFocused = false;
+        await OnAccountSelected.InvokeAsync(account);
+        StateHasChanged();
+    }
+
+    private async Task HandleBlur()
+    {
+        await Task.Delay(200);
+        isFocused = false;
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        debounceTimer?.Dispose();
+    }
+}

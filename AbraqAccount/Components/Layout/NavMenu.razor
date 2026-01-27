@@ -1,0 +1,177 @@
+﻿@using AbraqAccount.Services.Interfaces
+@using Microsoft.AspNetCore.Http
+@inject IUserPermissionService PermissionService
+@inject IHttpContextAccessor HttpContextAccessor
+@inject NavigationManager NavigationManager
+
+<ul class="sidebar-menu">
+    @if (hasDashboardPermission)
+    {
+        <li>
+            <NavLink class="nav-link" href="dashboard">
+                <i class="bi bi-speedometer2"></i>
+                <span>DashBoard</span>
+            </NavLink>
+        </li>
+    }
+
+    <!-- Master -->
+    <li class="menu-item-with-dropdown @(openMenus.Contains("Master") ? "open" : "")">
+        <a href="javascript:void(0)" @onclick="@(() => ToggleMenu("Master"))">
+            <span>
+                <i class="bi bi-grid-3x3-gap"></i>
+                <span>Master</span>
+            </span>
+            <i class="bi bi-chevron-down dropdown-arrow"></i>
+        </a>
+        <ul class="submenu">
+            <li>
+                <NavLink class="nav-link" href="master/uom">UOM Master</NavLink>
+            </li>
+        </ul>
+    </li>
+
+    <!-- Account Master -->
+    <li class="menu-item-with-dropdown @(openMenus.Contains("AccountMaster") ? "open" : "")">
+        <a href="javascript:void(0)" @onclick="@(() => ToggleMenu("AccountMaster"))">
+            <span>
+                <i class="bi bi-wallet2"></i>
+                <span>Account Master</span>
+            </span>
+            <i class="bi bi-chevron-down dropdown-arrow"></i>
+        </a>
+        <ul class="submenu">
+            <li><NavLink class="nav-link" href="account-master/master-group">Master Group</NavLink></li>
+            <li><NavLink class="nav-link" href="account-master/master-sub-group">Master Sub Group</NavLink></li>
+            <li><NavLink class="nav-link" href="account-master/sub-group-ledger">Sub Group Ledger</NavLink></li>
+        </ul>
+    </li>
+
+    <!-- Transactions -->
+    <li class="menu-item-with-dropdown @(openMenus.Contains("Transactions") ? "open" : "")">
+        <a href="javascript:void(0)" @onclick="@(() => ToggleMenu("Transactions"))">
+            <span>
+                <i class="bi bi-receipt"></i>
+                <span>Transactions</span>
+            </span>
+            <i class="bi bi-chevron-down dropdown-arrow"></i>
+        </a>
+        <ul class="submenu">
+            <li><NavLink class="nav-link" href="master/bank-master">Ledger Creation</NavLink></li>
+            <li><NavLink class="nav-link" href="transactions/entries">Transaction Entries</NavLink></li>
+            <li><NavLink class="nav-link" href="transactions/expense-entry">Expense Entry</NavLink></li>
+        </ul>
+    </li>
+
+    <!-- Ledger Report -->
+    <li>
+        <NavLink class="nav-link" href="reports/ledger">
+            <i class="bi bi-file-earmark-spreadsheet"></i>
+            <span>Ledger Report</span>
+        </NavLink>
+    </li>
+
+     <!-- Balance Sheet -->
+    <li>
+        <NavLink class="nav-link" href="reports/balance-sheet">
+            <i class="bi bi-bank"></i>
+            <span>Balance Sheet</span>
+        </NavLink>
+    </li>
+
+    <!-- Inventory -->
+    <li class="menu-item-with-dropdown @(openMenus.Contains("Inventory") ? "open" : "")">
+        <a href="javascript:void(0)" @onclick="@(() => ToggleMenu("Inventory"))">
+            <span>
+                <i class="bi bi-box-seam"></i>
+                <span>Inventory</span>
+            </span>
+            <i class="bi bi-chevron-down dropdown-arrow"></i>
+        </a>
+        <ul class="submenu">
+            <li><NavLink class="nav-link" href="inventory/item-groups">Purchase Item Group</NavLink></li>
+            <li><NavLink class="nav-link" href="inventory/items">Purchase Item</NavLink></li>
+            <li><NavLink class="nav-link" href="inventory/packing-special-rates">Packing Special Rate</NavLink></li>
+            <li><NavLink class="nav-link" href="inventory/po-terms">Purchase Order T & C</NavLink></li>
+            <li><NavLink class="nav-link" href="inventory/packing-recipes">Packing Recipe</NavLink></li>
+            <li><NavLink class="nav-link" href="inventory/purchase-orders">Purchase Order</NavLink></li>
+            <li><NavLink class="nav-link" href="inventory/purchase-requests">Purchase Request</NavLink></li>
+            <li><NavLink class="nav-link" href="inventory/purchase-receives">Purchase Receive</NavLink></li>
+            <li><NavLink class="nav-link" href="inventory/reports/purchase-order-report">Purchase Order Report</NavLink></li>
+            <li><NavLink class="nav-link" href="inventory/material-issues">Material Issue</NavLink></li>
+            <li><NavLink class="nav-link" href="inventory/reports/stock-ledger">Material Stock Ledger</NavLink></li>
+        </ul>
+    </li>
+
+    <!-- Reports -->
+    <li class="menu-item-with-dropdown @(openMenus.Contains("Reports") ? "open" : "")">
+        <a href="javascript:void(0)" @onclick="@(() => ToggleMenu("Reports"))">
+            <span>
+                <i class="bi bi-file-earmark-bar-graph"></i>
+                <span>Reports</span>
+            </span>
+            <i class="bi bi-chevron-down dropdown-arrow"></i>
+        </a>
+        <ul class="submenu">
+            <li><NavLink class="nav-link" href="reports/ledger">Account Ledger</NavLink></li>
+            <li><NavLink class="nav-link" href="reports/balance-sheet">Balance Sheet</NavLink></li>
+            <li><NavLink class="nav-link" href="inventory/reports/stock-ledger">Stock Ledger</NavLink></li>
+            <li><NavLink class="nav-link" href="inventory/reports/purchase-order-report">PO Report</NavLink></li>
+        </ul>
+    </li>
+
+    <!-- Settings -->
+    <li class="menu-item-with-dropdown @(openMenus.Contains("Settings") ? "open" : "")">
+        <a href="javascript:void(0)" @onclick="@(() => ToggleMenu("Settings"))">
+            <span>
+                <i class="bi bi-gear"></i>
+                <span>Settings</span>
+            </span>
+            <i class="bi bi-chevron-down dropdown-arrow"></i>
+        </a>
+        <ul class="submenu">
+            <li><NavLink class="nav-link" href="settings/entry-for">Profiles (Entry For)</NavLink></li>
+            <li><NavLink class="nav-link" href="settings/transaction-rules">Transaction Rules</NavLink></li>
+            <li><NavLink class="nav-link" href="settings/permissions">User Permissions</NavLink></li>
+            <li><NavLink class="nav-link" href="settings/profile">User Profile</NavLink></li>
+        </ul>
+    </li>
+</ul>
+
+@code {
+    private int userId = 0;
+    private bool hasDashboardPermission = true; // Default to true or check later
+    private HashSet<string> openMenus = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var session = HttpContextAccessor.HttpContext?.Session;
+            if (session != null)
+            {
+                var userIdStr = session.GetString("UserId");
+                if (int.TryParse(userIdStr, out int id))
+                {
+                    userId = id;
+                }
+            }
+        }
+        catch 
+        {
+            // Ignore session errors during interactive render
+        }
+    }
+
+    private void ToggleMenu(string menuName)
+    {
+        if (openMenus.Contains(menuName))
+        {
+            openMenus.Remove(menuName);
+        }
+        else
+        {
+            openMenus.Add(menuName);
+        }
+    }
+}

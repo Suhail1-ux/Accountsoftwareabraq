@@ -1,0 +1,15 @@
+@page "/transactions/debit-note/create"
+@page "/transactions/debit-note/edit/{Id:int}"
+@using AbraqAccount.Components.Pages.Transactions.SubComponents
+
+<div class="container-fluid py-4">
+    <div class="row">
+        <div class="col-12">
+            <DebitNoteForm Id="Id" />
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public int? Id { get; set; }
+}

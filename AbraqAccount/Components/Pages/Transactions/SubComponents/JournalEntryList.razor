@@ -1,0 +1,344 @@
+@using AbraqAccount.Models
+@using AbraqAccount.Services.Interfaces
+@inject IGeneralEntryService GeneralEntryService
+@inject IJSRuntime JS
+
+<div class="filter-section">
+    <div class="filter-group">
+        <label>Unit</label>
+        <select @bind="filter.Unit">
+            <option value="">All Units</option>
+            @if (units != null)
+            {
+                @foreach (var u in units)
+                {
+                    <option value="@u">@u</option>
+                }
+            }
+        </select>
+    </div>
+    <div class="filter-group">
+        <label>Journal Entry No</label>
+        <input type="text" @bind="filter.NoteNo" placeholder="Search by Journal No" />
+    </div>
+    <div class="filter-group">
+        <label>Status</label>
+        <select @bind="filter.Status">
+            <option value="Unapproved">Unapproved</option>
+            <option value="Approved">Approved</option>
+            <option value="ALL">All Status</option>
+        </select>
+    </div>
+    <div class="filter-group">
+        <label>From Date</label>
+        <input type="date" @bind="filter.FromDate" />
+    </div>
+    <div class="filter-group">
+        <label>To Date</label>
+        <input type="date" @bind="filter.ToDate" />
+    </div>
+    <div class="filter-actions">
+        <button class="btn-search" @onclick="LoadData">
+            <i class="bi bi-search"></i> Search
+        </button>
+        <button class="btn-clear" @onclick="ClearFilters">Clear</button>
+    </div>
+</div>
+
+<div class="table-card">
+    <div class="table-wrapper">
+        <table class="table-notes">
+            <thead>
+                <tr>
+                    <th>Unit</th>
+                    <th>Journal No</th>
+                    <th>Date</th>
+                    <th>From Vendor/Expense(Dr.)</th>
+                    <th>To Vendor/Expense/Bank(Cr.)</th>
+                    <th>Type</th>
+                    <th>Amount</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (journalGroups == null)
+                {
+                    <tr><td colspan="9" class="text-center">Loading...</td></tr>
+                }
+                else if (!journalGroups.Any())
+                {
+                    <tr><td colspan="9" class="text-center">No journal entries found.</td></tr>
+                }
+                else
+                {
+                    @foreach (var group in journalGroups)
+                    {
+                        var firstEntry = group.Entries.FirstOrDefault();
+                        var debitAccounts = GetDisplayAccounts(group.Entries, isCredit: false);
+                        var creditAccounts = GetDisplayAccounts(group.Entries, isCredit: true);
+
+                        <tr>
+                            <td>@(group.Unit ?? "")</td>
+                            <td>
+                                <button class="btn-link" @onclick="() => ShowDetails(group.VoucherNo)">
+                                    @group.VoucherNo
+                                </button>
+                            </td>
+                            <td>@group.Date.ToString("dd/MM/yyyy")</td>
+                            <td>@debitAccounts</td>
+                            <td>@creditAccounts</td>
+                            <td>@(firstEntry?.Type ?? "-")</td>
+                            <td>@group.TotalDebit.ToString("N2")</td>
+                            <td>
+                                <span class="badge @GetStatusClass(group.Status)">@group.Status</span>
+                            </td>
+                            <td>
+                                <div class="action-icons">
+                                    @if (group.Status == "Approved")
+                                    {
+                                        <button class="action-icon approved-icon" @onclick="() => Unapprove(group.VoucherNo)" title="Unapprove">
+                                            <i class="bi bi-check-circle-fill"></i>
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        <button class="action-icon approve-icon" @onclick="() => Approve(group.VoucherNo)" title="Approve">
+                                            <i class="bi bi-hand-thumbs-up"></i>
+                                        </button>
+                                    }
+                                    
+                                    @if (group.Status != "Approved")
+                                    {
+                                        <button class="action-icon edit-icon" type="button" @onclick="() => OnEdit.InvokeAsync(group.VoucherNo)" title="Edit">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                    }
+                                    <NavLink href="@($"transactions/general-entry/details/{group.VoucherNo}")" class="action-icon view-icon" title="View">
+                                        <i class="bi bi-eye"></i>
+                                    </NavLink>
+                                    <button class="action-icon history-icon" @onclick="() => ShowHistory(group.VoucherNo)" title="History">
+                                        <i class="bi bi-info-circle"></i>
+                                    </button>
+                                    @if (group.Status != "Approved")
+                                    {
+                                        <button class="action-icon delete-icon" @onclick="() => Delete(group.VoucherNo)" title="Delete">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Pagination -->
+    <div class="pagination-section">
+        <div class="pagination-info">
+            <span>Showing @(startRecord) - @(endRecord) of @(totalCount) Display</span>
+            <input type="number" @bind="pageSize" min="1" max="100" />
+            <button class="btn-go" @onclick="LoadData">Go</button>
+        </div>
+        <div class="pagination-controls">
+            <button class="pagination-btn" @onclick="() => GoToPage(1)" disabled="@(currentPage == 1)">K</button>
+            <button class="pagination-btn" @onclick="() => GoToPage(currentPage - 1)" disabled="@(currentPage == 1)">&lt;</button>
+            <span>Page</span>
+            <select @onchange="OnPageChange">
+                @for (int i = 1; i <= totalPages; i++)
+                {
+                    <option value="@i" selected="@(i == currentPage)">@i</option>
+                }
+            </select>
+            <span>of @totalPages</span>
+            <button class="pagination-btn" @onclick="() => GoToPage(currentPage + 1)" disabled="@(currentPage >= totalPages)">&gt;</button>
+            <button class="pagination-btn" @onclick="() => GoToPage(totalPages)" disabled="@(currentPage >= totalPages)">K</button>
+        </div>
+    </div>
+</div>
+
+<style>
+    .filter-section { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 1rem; background: white; padding: 1.5rem; border: 1px solid #e0e0e0; border-radius: 4px; margin-bottom: 1.5rem; align-items: flex-end; }
+    .filter-group { display: flex; flex-direction: column; }
+    .filter-group label { font-size: 0.9rem; font-weight: 600; color: #333; margin-bottom: 0.5rem; }
+    .filter-group input, .filter-group select { padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; font-size: 0.9rem; }
+    .filter-actions { display: flex; gap: 0.5rem; }
+    .btn-search { background-color: #6c757d; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; }
+    .btn-clear { background-color: #e9ecef; color: #333; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; }
+    .btn-link { background: none; border: none; color: #007bff; text-decoration: underline; cursor: pointer; padding: 0; font-size: inherit; text-align: left; }
+    
+    .table-card { background: white; border: 1px solid #e0e0e0; border-radius: 4px; padding: 1.5rem; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    .table-wrapper { overflow-x: auto; }
+    .table-notes { width: 100%; border-collapse: collapse; }
+    .table-notes th { padding: 0.75rem; text-align: left; background: #f8f9fa; border-bottom: 2px solid #dee2e6; }
+    .table-notes td { padding: 0.75rem; border-bottom: 1px solid #dee2e6; }
+    
+    .badge { padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem; }
+    .badge-unapproved { background-color: #ffc107; color: black; }
+    .badge-approved { background-color: #28a745; color: white; }
+    
+    .text-primary { color: #007bff; }
+    .text-danger { color: #dc3545; }
+
+    .action-icons { display: flex; gap: 0.5rem; }
+    .action-icon { color: #6c757d; font-size: 1.1rem; cursor: pointer; text-decoration: none; border: none; background: none; padding: 0; }
+    .action-icon:hover { color: #007bff; }
+    .approved-icon { color: #28a745; }
+    .approve-icon { color: #198754; }
+    .delete-icon { color: #dc3545; }
+
+    .pagination-section { display: flex; justify-content: space-between; align-items: center; margin-top: 1rem; }
+    .pagination-info { display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; }
+    .pagination-info input { width: 60px; padding: 0.25rem; border: 1px solid #ddd; }
+    .pagination-controls { display: flex; gap: 0.25rem; align-items: center; }
+    .pagination-btn { padding: 0.25rem 0.75rem; border: 1px solid #ddd; background: #fff; cursor: pointer; }
+    .pagination-btn:disabled { cursor: not-allowed; opacity: 0.5; }
+</style>
+
+@code {
+    [Parameter] public EventCallback<string> OnEdit { get; set; }
+    private List<GeneralEntryGroupViewModel>? journalGroups;
+    private List<string> units = new() { "Unit 1", "Unit 2", "Abraq Agro Fresh LLP" };
+    private string mediatorName = "ASSETS";
+    private int currentPage = 1;
+    private int pageSize = 10;
+    private int totalCount = 0;
+    private int totalPages => (int)Math.Ceiling((double)totalCount / pageSize);
+    private int startRecord => (currentPage - 1) * pageSize + 1;
+    private int endRecord => Math.Min(currentPage * pageSize, totalCount);
+
+    private JournalFilter filter = new() { Status = "Unapproved" };
+
+    protected override async Task OnInitializedAsync()
+    {
+        mediatorName = (await GeneralEntryService.GetMediatorAccountNameAsync() ?? "ASSETS").Trim();
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        try
+        {
+            var result = await GeneralEntryService.GetJournalGroupsAsync(
+                filter.Unit,
+                filter.NoteNo,
+                filter.Status,
+                filter.FromDate,
+                filter.ToDate,
+                currentPage,
+                pageSize
+            );
+            journalGroups = result.groups ?? new List<GeneralEntryGroupViewModel>();
+            totalCount = result.totalCount;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading Journal Groups: {ex.Message}");
+            journalGroups = new List<GeneralEntryGroupViewModel>();
+        }
+    }
+
+    private string GetDisplayAccounts(List<GeneralEntry> entries, bool isCredit)
+    {
+        var accounts = entries
+            .Select(e => isCredit ? e.CreditAccountName?.Trim() : e.DebitAccountName?.Trim())
+            .Where(n => !string.IsNullOrEmpty(n) && 
+                       !n.Equals("N/A", StringComparison.OrdinalIgnoreCase) && 
+                       !n.Equals("Default", StringComparison.OrdinalIgnoreCase) && 
+                       !n.Equals(mediatorName, StringComparison.OrdinalIgnoreCase))
+            .Distinct();
+
+        var result = string.Join(", ", accounts);
+        return string.IsNullOrEmpty(result) ? "-" : result;
+    }
+
+    private async Task ClearFilters()
+    {
+        filter = new() { Status = "Unapproved" };
+        currentPage = 1;
+        await LoadData();
+    }
+
+    private async Task GoToPage(int page)
+    {
+        if (page >= 1 && page <= totalPages)
+        {
+            currentPage = page;
+            await LoadData();
+        }
+    }
+
+    private async Task OnPageChange(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out int page))
+        {
+            await GoToPage(page);
+        }
+    }
+
+    private async Task ShowDetails(string voucherNo)
+    {
+        // Implement modal or navigation
+    }
+
+    private async Task ShowHistory(string voucherNo)
+    {
+        // Implement history modal
+    }
+
+    private async Task Approve(string voucherNo)
+    {
+        if (await JS.InvokeAsync<bool>("confirm", "Are you sure you want to approve this journal voucher?"))
+        {
+            var entries = await GeneralEntryService.GetVoucherEntriesAsync(voucherNo);
+            foreach (var entry in entries)
+            {
+                await GeneralEntryService.ApproveEntryAsync(entry.Id, "Admin");
+            }
+            await LoadData();
+        }
+    }
+
+    private async Task Unapprove(string voucherNo)
+    {
+        if (await JS.InvokeAsync<bool>("confirm", "Are you sure you want to unapprove this journal voucher?"))
+        {
+            var entries = await GeneralEntryService.GetVoucherEntriesAsync(voucherNo);
+            foreach (var entry in entries)
+            {
+                await GeneralEntryService.UnapproveEntryAsync(entry.Id, "Admin");
+            }
+            await LoadData();
+        }
+    }
+
+    private async Task Delete(string voucherNo)
+    {
+        if (await JS.InvokeAsync<bool>("confirm", "Are you sure you want to delete this journal voucher?"))
+        {
+            var entries = await GeneralEntryService.GetVoucherEntriesAsync(voucherNo);
+            foreach (var entry in entries)
+            {
+                await GeneralEntryService.DeleteEntryAsync(entry.Id, "Admin");
+            }
+            await LoadData();
+        }
+    }
+
+    private string GetStatusClass(string? status) => status?.ToLower() switch
+    {
+        "approved" => "badge-approved",
+        _ => "badge-unapproved"
+    };
+
+    public class JournalFilter
+    {
+        public string? Unit { get; set; }
+        public string? NoteNo { get; set; }
+        public string Status { get; set; } = "Unapproved";
+        public DateTime? FromDate { get; set; }
+        public DateTime? ToDate { get; set; }
+    }
+}

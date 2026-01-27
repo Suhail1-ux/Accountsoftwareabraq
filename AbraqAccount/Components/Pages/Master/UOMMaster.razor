@@ -1,0 +1,424 @@
+@page "/master/uom"
+@using AbraqAccount.Models
+@using AbraqAccount.Services.Interfaces
+@using Microsoft.AspNetCore.Http
+@inject IUOMService UOMService
+@inject IHttpContextAccessor HttpContextAccessor
+@inject IJSRuntime JS
+@layout DashboardLayout
+
+<div class="container-fluid">
+    <div class="uom-header">
+        <div class="uom-title-section">
+            <h1>UOM Master <small class="subtitle" style="color: #999; font-size: 0.9rem; font-weight: normal;">Control panel</small></h1>
+        </div>
+        <div class="breadcrumbs-top">
+             <i class="bi bi-house"></i> Home <span>&gt;</span> UOM Master
+        </div>
+    </div>
+
+    <div class="list-header-bar">
+        <h3>UOM Master <small style="color: #999; font-weight: normal; font-size: 0.9rem;">- List</small></h3>
+        <div class="list-header-actions">
+            <div style="display: flex; gap: 0.5rem;">
+                <div class="search-input-wrapper">
+                    <input type="text" @bind="searchTerm" @bind:event="oninput" @onkeyup="HandleSearch" placeholder="Enter Search Criteria" />
+                </div>
+                <button type="button" class="btn-search" @onclick="RefreshList">
+                    <i class="bi bi-search"></i>
+                </button>
+            </div>
+            <button type="button" class="add-button" @onclick="OpenCreateModal">
+                <i class="bi bi-plus-lg"></i>
+            </button>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(successMessage))
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert" style="margin: 1rem 0;">
+            @successMessage
+            <button type="button" class="btn-close" @onclick="() => successMessage = null"></button>
+        </div>
+    }
+
+    <div class="table-card">
+        <table class="table-custom">
+            <thead>
+                <tr>
+                    <th>UOM Name <i class="bi bi-arrow-down-up" style="font-size: 0.7rem; color: #ccc;"></i></th>
+                    <th>UOM Code <i class="bi bi-arrow-down-up" style="font-size: 0.7rem; color: #ccc;"></i></th>
+                    <th>CFT <i class="bi bi-arrow-down-up" style="font-size: 0.7rem; color: #ccc;"></i></th>
+                    <th>Status <i class="bi bi-arrow-down-up" style="font-size: 0.7rem; color: #ccc;"></i></th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (uoms == null)
+                {
+                    <tr><td colspan="5" style="text-align: center; padding: 2rem;">Loading...</td></tr>
+                }
+                else if (!uoms.Any())
+                {
+                    <tr><td colspan="5" style="text-align: center; padding: 2rem; color: #999;">No UOMs found.</td></tr>
+                }
+                else
+                {
+                    @foreach (var item in uoms)
+                    {
+                        <tr>
+                            <td>@item.UOMName</td>
+                            <td>@item.UOMCode</td>
+                            <td>@item.CFT.ToString("N0")</td>
+                            <td>
+                                @if (item.IsActive)
+                                {
+                                    <i class="bi bi-check-circle-fill status-check"></i>
+                                }
+                                else
+                                {
+                                    <i class="bi bi-x-circle status-check" style="color: #dc3545;"></i>
+                                }
+                            </td>
+                            <td>
+                                <div class="action-icons">
+                                    <button type="button" @onclick="() => OpenEditModal(item)" class="action-icon" title="Edit">
+                                        <i class="bi bi-pencil-square"></i>
+                                    </button>
+                                    <button type="button" @onclick="() => OpenDetailsModal(item)" class="action-icon" title="View">
+                                        <i class="bi bi-eye"></i>
+                                    </button>
+                                    <button type="button" @onclick="() => ShowHistory(item)" class="action-icon history-trigger" title="Info">
+                                        <i class="bi bi-info-circle"></i>
+                                    </button>
+                                    <button type="button" @onclick="() => DeleteUOM(item.Id)" class="action-icon delete" title="Delete">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Form Modal (Unified for Create/Edit/Details) -->
+@if (showFormModal)
+{
+    <div class="modal-overlay show">
+        <div class="history-modal" style="max-width: 600px;">
+            <div class="modal-header">
+                <h3>@(isDetailsView ? "Details" : (editingUom.Id == 0 ? "Create UOM" : "Edit UOM"))</h3>
+                <button type="button" class="modal-close" @onclick="CloseFormModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <EditForm Model="editingUom" OnValidSubmit="SaveUOM">
+                    <DataAnnotationsValidator />
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">UOM Name</label>
+                            <InputText @bind-Value="editingUom.UOMName" class="form-control" disabled="@isDetailsView" />
+                            <ValidationMessage For="() => editingUom.UOMName" class="text-danger" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">UOM Code</label>
+                            <InputText @bind-Value="editingUom.UOMCode" class="form-control" disabled="@isDetailsView" />
+                            <ValidationMessage For="() => editingUom.UOMCode" class="text-danger" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Length</label>
+                            <InputNumber @bind-Value="editingUom.Length" class="form-control" disabled="@isDetailsView" @oninput="UpdateCFT" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Width</label>
+                            <InputNumber @bind-Value="editingUom.Width" class="form-control" disabled="@isDetailsView" @oninput="UpdateCFT" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Height</label>
+                            <InputNumber @bind-Value="editingUom.Height" class="form-control" disabled="@isDetailsView" @oninput="UpdateCFT" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">CFT</label>
+                            <InputNumber @bind-Value="editingUom.CFT" class="form-control" disabled />
+                        </div>
+                        <div class="col-md-6 d-flex align-items-end">
+                            <div class="form-check mb-2">
+                                <InputCheckbox @bind-Value="editingUom.IsActive" class="form-check-input" id="isActive" disabled="@isDetailsView" />
+                                <label class="form-check-label" for="isActive">Is Active</label>
+                            </div>
+                        </div>
+                    </div>
+                    @if (!isDetailsView)
+                    {
+                        <div class="mt-4 d-flex justify-content-end gap-2">
+                            <button type="button" class="btn btn-secondary" @onclick="CloseFormModal">Cancel</button>
+                            <button type="submit" class="btn btn-primary">Save changes</button>
+                        </div>
+                    }
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- History Modal -->
+@if (showHistoryModal)
+{
+    <div class="modal-overlay show">
+        <div class="history-modal">
+            <div class="modal-header">
+                <h3>History</h3>
+                <button type="button" class="modal-close" @onclick="() => showHistoryModal = false">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div style="margin-bottom: 1rem;">UOM Name - <strong>@historyItemName</strong></div>
+                <table class="history-table">
+                    <thead>
+                        <tr>
+                            <th>Action</th>
+                            <th>User</th>
+                            <th>Date & Time</th>
+                            <th>Action Details / Remarks</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (histories == null)
+                        {
+                            <tr><td colspan="4" style="text-align: center;">Loading...</td></tr>
+                        }
+                        else if (!histories.Any())
+                        {
+                            <tr><td colspan="4" style="text-align: center;">No history found.</td></tr>
+                        }
+                        else
+                        {
+                            @foreach (var h in histories)
+                            {
+                                <tr>
+                                    <td>@h.Action</td>
+                                    <td>@h.User</td>
+                                    <td>@h.ActionDate.ToString("dd-MM-yyyy HH:mm:ss")</td>
+                                    <td>@h.Remarks</td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-ok" @onclick="() => showHistoryModal = false">Ok</button>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .uom-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+        padding: 1.5rem;
+        background-color: white;
+        margin: -2rem -2rem 1.5rem -2rem;
+        border-bottom: 1px solid #e0e0e0;
+    }
+
+    .uom-title-section h1 { font-size: 2rem; font-weight: bold; margin: 0; color: #333; }
+    .breadcrumbs-top { font-size: 0.9rem; color: #666; }
+    .breadcrumbs-top span { margin: 0 0.5rem; color: #999; }
+
+    .list-header-bar {
+        background-color: #f8f9fa;
+        padding: 1rem 1.5rem;
+        margin: 0 -2rem 1.5rem -2rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-top: 1px solid #dee2e6;
+        border-bottom: 1px solid #dee2e6;
+    }
+
+    .list-header-bar h3 { font-size: 1.25rem; font-weight: 600; color: #333; margin: 0; }
+    .list-header-actions { display: flex; gap: 0.5rem; align-items: center; }
+
+    .search-input-wrapper input {
+        padding: 0.5rem 0.75rem;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 0.9rem;
+        width: 300px;
+    }
+
+    .btn-search {
+        background-color: #6c757d; color: white; border: none; border-radius: 4px;
+        width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; cursor: pointer;
+    }
+
+    .add-button {
+        width: 40px; height: 40px; background-color: #9c9c9c; border: none; border-radius: 4px;
+        display: flex; align-items: center; justify-content: center; cursor: pointer;
+        font-size: 1.25rem; color: white; transition: background-color 0.3s;
+    }
+
+    .add-button:hover { background-color: #7a7a7a; }
+
+    .table-card {
+        background: white; border: 1px solid #e0e0e0; border-radius: 4px; margin: 1.5rem 0; box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+
+    .table-custom { width: 100%; border-collapse: collapse; }
+    .table-custom th { padding: 1rem; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #dee2e6; background-color: #fff; }
+    .table-custom td { padding: 1rem; border-bottom: 1px solid #dee2e6; color: #555; }
+    .status-check { color: #6c757d; font-size: 1.2rem; }
+
+    .action-icons { display: flex; gap: 0.75rem; }
+    .action-icon { background: none; border: none; color: #6c757d; font-size: 1.1rem; cursor: pointer; padding: 0; }
+    .action-icon:hover { color: #000; }
+    .action-icon.delete { color: #dc3545; }
+
+    /* Modals Ported */
+    .modal-overlay {
+        display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+        background-color: rgba(0,0,0,0.5); z-index: 2000; align-items: center; justify-content: center;
+    }
+    .modal-overlay.show { display: flex; }
+    .history-modal {
+        background-color: white; border-radius: 4px; width: 90%; max-width: 800px; max-height: 90vh;
+        display: flex; flex-direction: column; box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    .modal-header {
+        background-color: #6c757d; color: white; padding: 1rem 1.5rem; display: flex;
+        justify-content: space-between; align-items: center; border-radius: 4px 4px 0 0;
+    }
+    .modal-header h3 { margin: 0; font-size: 1.25rem; }
+    .modal-close { background: none; border: none; color: white; font-size: 1.5rem; cursor: pointer; }
+    .modal-body { padding: 1.5rem; overflow-y: auto; flex: 1; }
+    .history-table { width: 100%; border-collapse: collapse; }
+    .history-table th, .history-table td { padding: 0.75rem; border-bottom: 1px solid #dee2e6; text-align: left; }
+    .history-table th { background-color: #f8f9fa; }
+    .modal-footer { padding: 1rem 1.5rem; border-top: 1px solid #e0e0e0; display: flex; justify-content: flex-end; }
+    .btn-ok { background-color: #6c757d; color: white; border: none; padding: 0.5rem 1.5rem; border-radius: 4px; cursor: pointer; }
+</style>
+
+@code {
+    private List<UOM>? uoms;
+    private string searchTerm = "";
+    private string? successMessage;
+    
+    // Modal states
+    private bool showFormModal = false;
+    private bool showHistoryModal = false;
+    private bool isDetailsView = false;
+    private UOM editingUom = new();
+    
+    private List<UOMHistory>? histories;
+    private string historyItemName = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshList();
+    }
+
+    private async Task RefreshList()
+    {
+        uoms = await UOMService.GetUOMsAsync(searchTerm);
+    }
+
+    private async Task HandleSearch(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await RefreshList();
+        }
+    }
+
+    private void OpenCreateModal()
+    {
+        editingUom = new UOM();
+        isDetailsView = false;
+        showFormModal = true;
+    }
+
+    private void OpenEditModal(UOM item)
+    {
+        // Clone for editing
+        editingUom = new UOM
+        {
+            Id = item.Id,
+            UOMName = item.UOMName,
+            UOMCode = item.UOMCode,
+            Length = item.Length,
+            Width = item.Width,
+            Height = item.Height,
+            CFT = item.CFT,
+            IsActive = item.IsActive,
+            CreatedAt = item.CreatedAt
+        };
+        isDetailsView = false;
+        showFormModal = true;
+    }
+
+    private void OpenDetailsModal(UOM item)
+    {
+        editingUom = item;
+        isDetailsView = true;
+        showFormModal = true;
+    }
+
+    private void CloseFormModal()
+    {
+        showFormModal = false;
+    }
+
+    private async Task SaveUOM()
+    {
+        var username = HttpContextAccessor.HttpContext?.Session.GetString("Username") ?? "Unknown";
+        bool result;
+        if (editingUom.Id == 0)
+        {
+            result = await UOMService.CreateUOMAsync(editingUom, username);
+            if (result) successMessage = "UOM created successfully!";
+        }
+        else
+        {
+            result = await UOMService.UpdateUOMAsync(editingUom, username);
+            if (result) successMessage = "UOM updated successfully!";
+        }
+
+        if (result)
+        {
+            showFormModal = false;
+            await RefreshList();
+        }
+    }
+
+    private async Task DeleteUOM(int id)
+    {
+        bool confirmed = await JS.InvokeAsync<bool>("confirm", "Are you sure you want to delete this UOM?");
+        if (confirmed)
+        {
+            var result = await UOMService.DeleteUOMAsync(id);
+            if (result)
+            {
+                successMessage = "UOM deleted successfully!";
+                await RefreshList();
+            }
+        }
+    }
+
+    private async Task ShowHistory(UOM item)
+    {
+        historyItemName = item.UOMName;
+        histories = null;
+        showHistoryModal = true;
+        histories = await UOMService.GetUOMHistoryAsync(item.Id);
+    }
+
+    private void UpdateCFT()
+    {
+        editingUom.CFT = editingUom.Length * editingUom.Width * editingUom.Height;
+    }
+}

@@ -1,0 +1,175 @@
+@page "/inventory/purchase-requests"
+@using AbraqAccount.Models
+@using AbraqAccount.Services.Interfaces
+@inject IPurchaseTransactionService TransactionService
+@inject NavigationManager Navigation
+
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="mb-0">Purchase Requests</h2>
+        <button class="btn btn-primary" @onclick="CreateNew">
+            <i class="bi bi-plus-lg"></i> New Request
+        </button>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-2">
+                    <label class="form-label">Request No</label>
+                    <input type="text" class="form-control" placeholder="PR#" @bind="poRequestNo" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Item Name</label>
+                    <input type="text" class="form-control" placeholder="Item..." @bind="itemName" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Requested By</label>
+                    <input type="text" class="form-control" placeholder="User..." @bind="requestedBy" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Status</label>
+                    <select class="form-select" @bind="status">
+                        <option value="">ALL</option>
+                        <option value="Pending">Pending</option>
+                        <option value="Approved">Approved</option>
+                        <option value="Rejected">Rejected</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">From Date</label>
+                    <input type="date" class="form-control" @bind="fromDate" />
+                </div>
+                <div class="col-md-1 d-flex align-items-end">
+                    <button class="btn btn-secondary w-100" @onclick="Search">Search</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (requests == null)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    }
+    else if (!requests.Any())
+    {
+        <div class="alert alert-info">No purchase requests found.</div>
+    }
+    else
+    {
+        <div class="card shadow-sm">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Date</th>
+                            <th>Request No</th>
+                            <th>Requested By</th>
+                            <th>Items</th>
+                            <th>Status</th>
+                            <th class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var req in requests)
+                        {
+                            <tr>
+                                <td>@req.RequestDate.ToString("dd MMM yyyy")</td>
+                                <td><span class="badge bg-secondary">@req.PORequestNo</span></td>
+                                <td>@req.RequestedBy?.Username</td>
+                                <td>
+                                    <span class="badge bg-info">@req.Items.Count Items</span>
+                                </td>
+                                <td>
+                                    <span class="badge @GetStatusBadgeClass(req.Status)">@req.Status</span>
+                                </td>
+                                <td class="text-end">
+                                    <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => Edit(req.Id)">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            @if (totalPages > 1)
+            {
+                <div class="card-footer bg-white">
+                    <nav>
+                        <ul class="pagination pagination-sm justify-content-center mb-0">
+                            <li class="page-item @(currentPage == 1 ? "disabled" : "")">
+                                <button class="page-link" @onclick="() => GoToPage(currentPage - 1)">Previous</button>
+                            </li>
+                            @for (int i = 1; i <= totalPages; i++)
+                            {
+                                var pageNum = i;
+                                <li class="page-item @(currentPage == pageNum ? "active" : "")">
+                                    <button class="page-link" @onclick="() => GoToPage(pageNum)">@pageNum</button>
+                                </li>
+                            }
+                            <li class="page-item @(currentPage == totalPages ? "disabled" : "")">
+                                <button class="page-link" @onclick="() => GoToPage(currentPage + 1)">Next</button>
+                            </li>
+                        </ul>
+                    </nav>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private List<PurchaseRequest>? requests;
+    private string? poRequestNo;
+    private string? itemName;
+    private string? requestedBy;
+    private string status = "";
+    private DateTime? fromDate;
+    private DateTime? toDate;
+
+    private int currentPage = 1;
+    private int pageSize = 10;
+    private int totalPages;
+    private int totalCount;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadRequests();
+    }
+
+    private async Task LoadRequests()
+    {
+        var result = await TransactionService.GetPurchaseRequestsAsync(poRequestNo, itemName, requestedBy, status, fromDate, toDate, currentPage, pageSize);
+        requests = result.requests;
+        totalCount = result.totalCount;
+        totalPages = result.totalPages;
+    }
+
+    private async Task Search()
+    {
+        currentPage = 1;
+        await LoadRequests();
+    }
+
+    private async Task GoToPage(int page)
+    {
+        currentPage = page;
+        await LoadRequests();
+    }
+
+    private string GetStatusBadgeClass(string? status) => status switch
+    {
+        "Approved" => "bg-success-subtle text-success",
+        "Pending" => "bg-warning-subtle text-warning",
+        "Rejected" => "bg-danger-subtle text-danger",
+        _ => "bg-light text-dark"
+    };
+
+    private void CreateNew() => Navigation.NavigateTo("/inventory/purchase-requests/create");
+    private void Edit(int id) => Navigation.NavigateTo($"/inventory/purchase-requests/edit/{id}");
+}

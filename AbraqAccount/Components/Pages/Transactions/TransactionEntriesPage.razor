@@ -1,0 +1,376 @@
+@page "/transactions/entries"
+@using AbraqAccount.Components.Layout
+@using AbraqAccount.Models
+@using AbraqAccount.Services.Interfaces
+@using AbraqAccount.Components.Pages.Transactions.SubComponents
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JS
+@rendermode InteractiveServer
+@layout DashboardLayout
+
+<div class="container-fluid">
+    <div class="transaction-header">
+        <h2 class="page-title">Credit & Debit Notes Control panel</h2>
+        <div class="header-actions">
+            @if (mode == "Form")
+            {
+                <button class="btn-save-header me-2" @onclick="SubmitCurrentForm">Save</button>
+                <button class="btn-back-header" @onclick="BackToList">
+                    <i class="bi bi-arrow-left"></i>
+                </button>
+            }
+            else
+            {
+                <div class="add-dropdown-container">
+                    <button class="add-button" @onclick="ToggleAddDropdown" title="Add New">
+                        <i class="bi bi-plus-lg"></i>
+                    </button>
+                    @if (showAddDropdown)
+                    {
+                        <div class="add-dropdown-content show">
+                            <button class="dropdown-item" type="button" @onclick='() => EnterFormMode("Debit")'><i class="bi bi-file-earmark-plus"></i> Add Debit Note</button>
+                            <button class="dropdown-item" type="button" @onclick='() => EnterFormMode("Credit")'><i class="bi bi-file-earmark-plus"></i> Add Credit Note</button>
+                            <button class="dropdown-item" type="button" @onclick='() => EnterFormMode("Receipt")'><i class="bi bi-receipt"></i> Add Receipt Entry</button>
+                            <button class="dropdown-item" type="button" @onclick='() => EnterFormMode("Payment")'><i class="bi bi-check2-square"></i> Add Payment Settlement</button>
+                            <button class="dropdown-item" type="button" @onclick='() => EnterFormMode("Journal")'><i class="bi bi-journal-text"></i> Add Journal Entry</button>
+                            <button class="dropdown-item" type="button" @onclick='() => NavigationManager.NavigateTo("grower-book/index?action=create")'><i class="bi bi-book"></i> Add Grower Book Entry</button>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs-container">
+        <div class="tabs">
+            <button class="tab @(activeTab == "Debit" ? "active" : "")" @onclick="@(() => SwitchTab("Debit"))">
+                Debit Note
+            </button>
+            <button class="tab @(activeTab == "Credit" ? "active" : "")" @onclick="@(() => SwitchTab("Credit"))">
+                Credit Note
+            </button>
+            <button class="tab @(activeTab == "Receipt" ? "active" : "")" @onclick="@(() => SwitchTab("Receipt"))">
+                Receipt Entry
+            </button>
+            <button class="tab @(activeTab == "Payment" ? "active" : "")" @onclick="@(() => SwitchTab("Payment"))">
+                Payment Settlements
+            </button>
+            <button class="tab @(activeTab == "Journal" ? "active" : "")" @onclick="@(() => SwitchTab("Journal"))">
+                Journal Entry Book
+            </button>
+            <button class="tab" @onclick="NavigateToGrowerBook">
+                Grower Book
+            </button>
+        </div>
+    </div>
+
+    <div class="tab-content-container">
+        @if (mode == "List")
+        {
+            @if (activeTab == "Debit") { <DebitNoteList OnEdit="EditDebitNote" /> }
+            else if (activeTab == "Credit") { <CreditNoteList OnEdit="EditCreditNote" /> }
+            else if (activeTab == "Receipt") { <ReceiptEntryList OnEdit="EditReceipt" /> }
+            else if (activeTab == "Payment") { <PaymentSettlementList OnEdit="EditPayment" /> }
+            else if (activeTab == "Journal") { <JournalEntryList OnEdit="EditJournal" /> }
+        }
+        else if (mode == "Form")
+        {
+            @if (activeTab == "Debit") { <DebitNoteForm @ref="debitForm" Id="editId" /> }
+            else if (activeTab == "Credit") { <CreditNoteForm @ref="creditForm" Id="editId" /> }
+            else if (activeTab == "Receipt") { <ReceiptEntryForm @ref="receiptForm" VoucherNo="@editVoucher" /> }
+            else if (activeTab == "Payment") { <PaymentSettlementForm @ref="paymentForm" PANumber="@editVoucher" /> }
+            else if (activeTab == "Journal") { <JournalEntryForm @ref="journalForm" VoucherNo="@editVoucher" /> }
+        }
+    </div>
+</div>
+
+<style>
+    .transaction-header {
+        background-color: #f8f9fa;
+        padding: 1.5rem 2rem;
+        margin: -2rem -2rem 0 -2rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 2px solid #ffc107;
+    }
+
+    .page-title {
+        font-size: 1.25rem;
+        font-weight: 500;
+        color: #333;
+        margin: 0;
+    }
+
+    .btn-save-header {
+        background-color: #6c757d;
+        color: white;
+        border: none;
+        padding: 0.4rem 1.5rem;
+        border-radius: 4px;
+        font-size: 0.9rem;
+        font-weight: 500;
+        transition: background-color 0.2s;
+    }
+
+    .btn-save-header:hover {
+        background-color: #5a6268;
+    }
+
+    .btn-back-header {
+        background-color: #e9ecef;
+        color: #495057;
+        border: none;
+        width: 36px;
+        height: 36px;
+        border-radius: 4px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-back-header:hover {
+        background-color: #dee2e6;
+        color: #212529;
+    }
+
+    .dropdown-item {
+        width: 100%;
+        text-align: left;
+        background: none;
+        border: none;
+        padding: 0.75rem 1.5rem;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-size: 0.9rem;
+        color: #4a5568 !important;
+        transition: all 0.2s;
+        border-bottom: 1px solid #f7fafc;
+    }
+
+    .dropdown-item i {
+        margin-right: 10px;
+        color: #6c757d;
+    }
+
+    .dropdown-item:hover {
+        background-color: #f8f9fa;
+        color: #007bff;
+    }
+
+    .tabs-container {
+        background: white;
+        margin: 0 -2rem 1.5rem -2rem;
+        padding: 0 2rem;
+        border-bottom: 1px solid #dee2e6;
+    }
+
+    .tabs {
+        display: flex;
+        gap: 0;
+    }
+
+    .tab {
+        padding: 1.25rem 2.5rem;
+        background: none;
+        border: none;
+        border-bottom: 3px solid transparent;
+        cursor: pointer;
+        font-size: 0.95rem;
+        font-weight: 500;
+        color: #6c757d;
+        transition: all 0.2s;
+        text-decoration: none;
+    }
+
+    .tab:hover {
+        color: #007bff;
+        background-color: rgba(0, 123, 255, 0.05);
+    }
+
+    .tab.active {
+        color: #007bff;
+        border-bottom-color: #007bff;
+        font-weight: 600;
+    }
+
+    .add-dropdown-container {
+        position: relative;
+        display: inline-block;
+    }
+
+    .add-button {
+        width: 38px;
+        height: 38px;
+        background-color: #4a5568;
+        border: none;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        font-size: 1.1rem;
+        color: white;
+        transition: background-color 0.2s;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .add-button:hover {
+        background-color: #2d3748;
+    }
+
+    .add-dropdown-content {
+        display: none;
+        position: absolute;
+        right: 0;
+        top: calc(100% + 8px);
+        background-color: white;
+        min-width: 240px;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        z-index: 1100;
+        border-radius: 8px;
+        border: 1px solid #edf2f7;
+        overflow: hidden;
+        animation: slideDown 0.2s ease-out;
+    }
+
+    @@keyframes slideDown {
+        from { transform: translateY(-10px); opacity: 0; }
+        to { transform: translateY(0); opacity: 1; }
+    }
+
+    .add-dropdown-content.show {
+        display: block;
+    }
+
+    .add-dropdown-content .dropdown-item:hover {
+        background-color: #f8fafc;
+        color: #007bff !important;
+        padding-left: 24px;
+    }
+
+    .add-dropdown-content i {
+        font-size: 1.1rem;
+        color: #a0aec0;
+    }
+
+    .tab-content-container {
+        padding: 0;
+    }
+</style>
+
+@code {
+    private string activeTab = "Debit";
+    private bool showAddDropdown = false;
+    private string mode = "List"; // "List" or "Form"
+    private int? editId;
+    private string? editVoucher;
+
+    // Form references for direct submission from header
+    private DebitNoteForm? debitForm;
+    private CreditNoteForm? creditForm;
+    private ReceiptEntryForm? receiptForm;
+    private PaymentSettlementForm? paymentForm;
+    private JournalEntryForm? journalForm;
+
+    [Parameter]
+    [SupplyParameterFromQuery]
+    public string? noteType { get; set; }
+
+    protected override void OnInitialized()
+    {
+        if (!string.IsNullOrEmpty(noteType))
+        {
+            activeTab = noteType;
+        }
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (!string.IsNullOrEmpty(noteType))
+        {
+            activeTab = noteType;
+        }
+    }
+
+    private void SwitchTab(string tabName)
+    {
+        // Keep in "Form" mode (Add) only if we are currently in Form mode AND not editing an existing item
+        bool keepAddMode = mode == "Form" && editId == null && editVoucher == null;
+
+        activeTab = tabName;
+        
+        if (keepAddMode)
+        {
+            mode = "Form";
+            editId = null;
+            editVoucher = null;
+        }
+        else
+        {
+            mode = "List";
+            editId = null;
+            editVoucher = null;
+        }
+
+        showAddDropdown = false;
+        // Update URL query parameter
+        var uri = NavigationManager.GetUriWithQueryParameter("noteType", tabName);
+        NavigationManager.NavigateTo(uri);
+    }
+
+    private void ToggleAddDropdown()
+    {
+        showAddDropdown = !showAddDropdown;
+    }
+
+    private void EnterFormMode(string tab)
+    {
+        activeTab = tab;
+        mode = "Form";
+        editId = null;
+        editVoucher = null;
+        showAddDropdown = false;
+    }
+
+    private void BackToList()
+    {
+        mode = "List";
+        editId = null;
+        editVoucher = null;
+    }
+
+    private async Task SubmitCurrentForm()
+    {
+        if (activeTab == "Debit" && debitForm != null) await debitForm.SubmitForm();
+        else if (activeTab == "Credit" && creditForm != null) await creditForm.SubmitForm();
+        else if (activeTab == "Receipt" && receiptForm != null) await receiptForm.SubmitForm();
+        else if (activeTab == "Payment" && paymentForm != null) await paymentForm.SubmitForm();
+        else if (activeTab == "Journal" && journalForm != null) await journalForm.SubmitForm();
+    }
+
+    // Edit handlers (passed to List components)
+    private void EditDebitNote(int id) { mode = "Form"; activeTab = "Debit"; editId = id; }
+    private void EditCreditNote(int id) { mode = "Form"; activeTab = "Credit"; editId = id; }
+    private void EditReceipt(string voucher) { mode = "Form"; activeTab = "Receipt"; editVoucher = voucher; }
+    private void EditPayment(string voucher) { mode = "Form"; activeTab = "Payment"; editVoucher = voucher; }
+    private void EditJournal(string voucher) { mode = "Form"; activeTab = "Journal"; editVoucher = voucher; }
+
+    private void NavigateToGrowerBook()
+    {
+        bool keepAddMode = mode == "Form" && editId == null && editVoucher == null;
+        if (keepAddMode)
+        {
+            NavigationManager.NavigateTo("grower-book/index?action=create");
+        }
+        else
+        {
+            NavigationManager.NavigateTo("grower-book/index");
+        }
+    }
+}

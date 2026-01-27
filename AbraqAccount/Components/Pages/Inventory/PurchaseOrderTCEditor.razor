@@ -1,0 +1,15 @@
+@page "/inventory/po-terms/create"
+@page "/inventory/po-terms/edit/{Id:int}"
+@using AbraqAccount.Components.Pages.Inventory.SubComponents
+
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <PurchaseOrderTCForm Id="@Id" />
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public int? Id { get; set; }
+}

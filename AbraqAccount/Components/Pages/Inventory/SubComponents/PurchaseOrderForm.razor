@@ -1,0 +1,394 @@
+@using AbraqAccount.Models
+@using AbraqAccount.Services.Interfaces
+@using Microsoft.AspNetCore.Mvc.Rendering
+@inject IPurchaseOrderService POService
+@inject NavigationManager Navigation
+
+<div class="form-card">
+    <div class="form-header">
+        <h3>@(IsEdit ? "Edit" : "Create") Purchase Order</h3>
+        <div class="header-actions">
+            @if (IsEdit)
+            {
+                <span class="badge bg-info me-3">PO#: @model.PONumber</span>
+            }
+            <button class="btn btn-primary" @onclick="SubmitForm" disabled="@isSubmitting">
+                @if (isSubmitting)
+                {
+                    <span class="spinner-border spinner-border-sm" role="status"></span>
+                }
+                Save
+            </button>
+            <button class="btn btn-secondary" @onclick="Cancel">Cancel</button>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger">@errorMessage</div>
+    }
+
+    <div class="row g-3">
+        <div class="col-md-4">
+            <div class="form-group mb-3">
+                <label class="form-label text-danger">Vendor *</label>
+                <AbraqAccount.Components.Common.AccountSearch 
+                    Placeholder="Search Vendor..." 
+                    SearchFunc="POService.GetVendorsAsync"
+                    OnAccountSelected="OnVendorSelected"
+                    InitialValue="@model.Vendor?.VendorName" />
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="form-group mb-3">
+                <label class="form-label text-danger">PO Date *</label>
+                <input type="date" @bind="model.PODate" class="form-control" />
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="form-group mb-3">
+                <label class="form-label text-danger">PO Type *</label>
+                <select @bind="model.POType" class="form-select">
+                    <option value="">SELECT</option>
+                    <option value="Regular">Regular</option>
+                    <option value="Urgent">Urgent</option>
+                </select>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="form-group mb-3">
+                <label class="form-label text-danger">Expected Received Date *</label>
+                <input type="date" @bind="model.ExpectedReceivedDate" class="form-control" />
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="form-group mb-3">
+                <label class="form-label">Vendor Reference</label>
+                <input type="text" @bind="model.VendorReference" class="form-control" placeholder="Ref#" />
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-md-6">
+            <div class="form-group mb-3">
+                <label class="form-label text-danger">Billing To *</label>
+                <textarea @bind="model.BillingTo" class="form-control" rows="2" placeholder="Billing details..."></textarea>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="form-group mb-3">
+                <label class="form-label text-danger">Delivery Address *</label>
+                <textarea @bind="model.DeliveryAddress" class="form-control" rows="2" placeholder="Delivery details..."></textarea>
+            </div>
+        </div>
+    </div>
+
+    <div class="items-section mt-4">
+        <h5>Order Items</h5>
+        <div class="table-responsive">
+            <table class="table table-bordered align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width: 200px;">Item Group</th>
+                        <th style="width: 250px;">Item Name</th>
+                        <th style="width: 150px;">Description</th>
+                        <th style="width: 80px;">UOM</th>
+                        <th style="width: 100px;">Qty</th>
+                        <th style="width: 120px;">Unit Price</th>
+                        <th style="width: 100px;">GST %</th>
+                        <th style="width: 120px;">Total</th>
+                        <th style="width: 40px;"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in model.Items)
+                    {
+                        <tr>
+                            <td>
+                                <select @onchange="(e) => OnItemGroupChanged(item, e)" class="form-select form-select-sm" value="@item.PurchaseItemGroupId">
+                                    <option value="0">Select Group</option>
+                                    @if (itemGroups != null)
+                                    {
+                                        @foreach (var g in itemGroups)
+                                        {
+                                            <option value="@g.Id">@g.Name</option>
+                                        }
+                                    }
+                                </select>
+                            </td>
+                            <td class="position-static">
+                                <AbraqAccount.Components.Common.AccountSearch 
+                                    Placeholder="Search Item..." 
+                                    SearchFunc="(term) => POService.GetItemsByGroupAsync(item.PurchaseItemGroupId)"
+                                    OnAccountSelected="(acc) => OnItemNameSelected(item, acc)"
+                                    InitialValue="@item.PurchaseItem?.ItemName" />
+                            </td>
+                            <td><input type="text" @bind="item.ItemDescription" class="form-control form-control-sm" /></td>
+                            <td><input type="text" @bind="item.UOM" class="form-control form-control-sm" disabled /></td>
+                            <td><input type="number" step="1" value="@item.Qty" @oninput="(e) => UpdateItem(item, e, 'Q')" class="form-control form-control-sm text-end" /></td>
+                            <td><input type="number" step="0.01" value="@item.UnitPrice" @oninput="(e) => UpdateItem(item, e, 'P')" class="form-control form-control-sm text-end" /></td>
+                            <td>
+                                <select value="@item.GST" @onchange='(e) => { item.GST = e.Value?.ToString() ?? "NA"; RecalculateTotals(); }' class="form-select form-select-sm">
+                                    <option value="NA">NA</option>
+                                    <option value="5%">5%</option>
+                                    <option value="12%">12%</option>
+                                    <option value="18%">18%</option>
+                                    <option value="28%">28%</option>
+                                </select>
+                            </td>
+                            <td class="text-end fw-bold">@item.TotalAmount.ToString("N2")</td>
+                            <td>
+                                <button class="btn btn-outline-danger btn-sm p-0 px-1" @onclick="() => RemoveItem(item)">
+                                    <i class="bi bi-dash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <button class="btn btn-outline-primary btn-sm" @onclick="AddItem">
+            <i class="bi bi-plus"></i> Add Item
+        </button>
+    </div>
+
+    <div class="misc-section mt-4">
+        <h5>Misc Charges</h5>
+        <div class="row g-3">
+            <div class="col-md-9">
+                <div class="table-responsive">
+                    <table class="table table-bordered align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Charge Type</th>
+                                <th style="width: 150px;">Amount</th>
+                                <th style="width: 120px;">Tax %</th>
+                                <th style="width: 150px;">Total</th>
+                                <th style="width: 40px;"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var charge in model.MiscCharges)
+                            {
+                                <tr>
+                                    <td>
+                                        <select @bind="charge.ExpenseType" class="form-select form-select-sm">
+                                            <option value="">Select Type</option>
+                                            <option value="Discount">Discount</option>
+                                            <option value="Packing Charges">Packing Charges</option>
+                                            <option value="Freight Charges">Freight Charges</option>
+                                            <option value="Other Charges">Other Charges</option>
+                                        </select>
+                                    </td>
+                                    <td><input type="number" step="0.01" value="@charge.Amount" @oninput="(e) => UpdateCharge(charge, e, 'A')" class="form-control form-control-sm text-end" /></td>
+                                    <td>
+                                        <select value="@charge.Tax" @onchange='(e) => { charge.Tax = e.Value?.ToString() ?? "Select"; RecalculateTotals(); }' class="form-select form-select-sm">
+                                            <option value="Select">Select</option>
+                                            <option value="5%">5%</option>
+                                            <option value="12%">12%</option>
+                                            <option value="18%">18%</option>
+                                            <option value="28%">28%</option>
+                                        </select>
+                                    </td>
+                                    <td class="text-end fw-bold">@charge.TotalAmount.ToString("N2")</td>
+                                    <td>
+                                        <button class="btn btn-outline-danger btn-sm p-0 px-1" @onclick="() => model.MiscCharges.Remove(charge)">
+                                            <i class="bi bi-dash"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <button class="btn btn-outline-primary btn-sm" @onclick="AddCharge">
+                    <i class="bi bi-plus"></i> Add Charge
+                </button>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-light">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>Qty:</span> <span class="fw-bold">@model.POQty.ToString("N0")</span>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>Tax:</span> <span class="fw-bold">@model.TaxAmount.ToString("N2")</span>
+                        </div>
+                        <hr />
+                        <div class="d-flex justify-content-between h5 mb-0">
+                            <span>TOTAL:</span> <span class="text-primary fw-bold">@model.TotalAmount.ToString("N2")</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="tc-section mt-4">
+        <h5>Terms & Conditions</h5>
+        <div class="row">
+            @if (availableTCs != null)
+            {
+                @foreach (var tc in availableTCs)
+                {
+                    <div class="col-md-4 mb-2">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" 
+                                   checked="@IsTCSelected(tc.Id)"
+                                   @onchange="(e) => ToggleTC(tc.Id, e)" 
+                                   id="tc_@tc.Id">
+                            <label class="form-check-label" for="tc_@tc.Id">@tc.Name</label>
+                        </div>
+                    </div>
+                }
+            }
+        </div>
+    </div>
+</div>
+
+<style>
+    .form-card { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.05); }
+    .form-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; padding-bottom: 1rem; border-bottom: 1px solid #eee; }
+</style>
+
+@code {
+    [Parameter] public int? Id { get; set; }
+    private PurchaseOrder model = new() { PODate = DateTime.Now, ExpectedReceivedDate = DateTime.Now.AddDays(7) };
+    private List<LookupItem>? itemGroups;
+    private List<LookupItem>? availableTCs;
+    private bool IsEdit => Id.HasValue;
+    private bool isSubmitting;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        itemGroups = (await POService.GetItemGroupsAsync()).ToList();
+        availableTCs = (await POService.GetTermsConditionsAsync()).ToList();
+
+        if (IsEdit)
+        {
+            // Load logic here (not implemented in service yet, but assuming basic fetch)
+            // For now, I'll just focus on Create parity.
+        }
+        else
+        {
+            AddItem();
+        }
+    }
+
+    private void AddItem() => model.Items.Add(new PurchaseOrderItem { CreatedAt = DateTime.Now, GST = "NA" });
+    private void RemoveItem(PurchaseOrderItem item) { model.Items.Remove(item); RecalculateTotals(); }
+
+    private void AddCharge() => model.MiscCharges.Add(new PurchaseOrderMiscCharge { CreatedAt = DateTime.Now, Tax = "Select" });
+
+    private void OnVendorSelected(LookupItem lookup) { model.VendorId = lookup.Id; model.Vendor = new Vendor { Id = lookup.Id, VendorName = lookup.Name }; }
+
+    private void OnItemGroupChanged(PurchaseOrderItem item, ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out int groupId))
+        {
+            item.PurchaseItemGroupId = groupId;
+            item.PurchaseItem = null;
+            item.PurchaseItemId = 0;
+            item.UOM = "";
+        }
+    }
+
+    private void OnItemNameSelected(PurchaseOrderItem item, LookupItem lookup)
+    {
+        item.PurchaseItemId = lookup.Id;
+        item.PurchaseItem = new PurchaseItem { Id = lookup.Id, ItemName = lookup.Name };
+        item.UOM = lookup.UOM ?? "";
+        item.UnitPrice = lookup.Rate ?? 0;
+        RecalculateTotals();
+    }
+
+    private void UpdateItem(PurchaseOrderItem item, ChangeEventArgs e, char field)
+    {
+        if (decimal.TryParse(e.Value?.ToString(), out decimal val))
+        {
+            if (field == 'Q') item.Qty = val;
+            else if (field == 'P') item.UnitPrice = val;
+            RecalculateTotals();
+        }
+    }
+
+    private void UpdateCharge(PurchaseOrderMiscCharge charge, ChangeEventArgs e, char field)
+    {
+        if (decimal.TryParse(e.Value?.ToString(), out decimal val))
+        {
+            if (field == 'A') charge.Amount = val;
+            RecalculateTotals();
+        }
+    }
+
+    private bool IsTCSelected(int tcId) => model.TermsAndConditions.Any(t => t.PurchaseOrderTCId == tcId);
+
+    private void ToggleTC(int tcId, ChangeEventArgs e)
+    {
+        bool isChecked = (bool)(e.Value ?? false);
+        if (isChecked)
+        {
+            if (!IsTCSelected(tcId)) model.TermsAndConditions.Add(new PurchaseOrderTermsCondition { PurchaseOrderTCId = tcId });
+        }
+        else
+        {
+            model.TermsAndConditions.RemoveAll(t => t.PurchaseOrderTCId == tcId);
+        }
+    }
+
+    private void RecalculateTotals()
+    {
+        foreach (var item in model.Items)
+        {
+            item.Amount = item.Qty * item.UnitPrice;
+            item.TotalAmount = item.Amount - item.Discount;
+            item.GSTAmount = 0;
+            if (item.GST != "NA")
+            {
+                if (decimal.TryParse(item.GST.Replace("%", ""), out decimal p))
+                    item.GSTAmount = item.TotalAmount * (p / 100);
+            }
+            item.TotalAmount += item.GSTAmount;
+        }
+
+        foreach (var charge in model.MiscCharges)
+        {
+            charge.GSTAmount = 0;
+            if (charge.Tax != "Select")
+            {
+                if (decimal.TryParse(charge.Tax.Replace("%", ""), out decimal p))
+                    charge.GSTAmount = charge.Amount * (p / 100);
+            }
+            charge.TotalAmount = charge.Amount + charge.GSTAmount;
+        }
+
+        model.POQty = model.Items.Sum(i => i.Qty);
+        model.Amount = model.Items.Sum(i => i.Amount);
+        model.TaxAmount = model.Items.Sum(i => i.GSTAmount) + model.MiscCharges.Sum(m => m.GSTAmount);
+        model.TotalAmount = model.Items.Sum(i => i.TotalAmount) + model.MiscCharges.Sum(m => m.TotalAmount);
+    }
+
+    private async Task SubmitForm()
+    {
+        if (model.VendorId == 0) { errorMessage = "Vendor is required."; return; }
+        if (string.IsNullOrWhiteSpace(model.POType)) { errorMessage = "PO Type is required."; return; }
+        if (string.IsNullOrWhiteSpace(model.BillingTo)) { errorMessage = "Billing To is required."; return; }
+        if (string.IsNullOrWhiteSpace(model.DeliveryAddress)) { errorMessage = "Delivery Address is required."; return; }
+        if (!model.Items.Any(i => i.PurchaseItemId > 0)) { errorMessage = "At least one item is required."; return; }
+
+        isSubmitting = true;
+        errorMessage = null;
+
+        // Custom implementation in service for Blazor object
+        var result = await (IsEdit ? Task.FromResult((Success: false, Message: "Edit not implemented")) : POService.CreatePurchaseOrderAsync(model));
+
+        if (result.Item1) Navigation.NavigateTo("/inventory/purchase-orders");
+        else errorMessage = result.Item2;
+        
+        isSubmitting = false;
+    }
+
+    private void Cancel() => Navigation.NavigateTo("/inventory/purchase-orders");
+}

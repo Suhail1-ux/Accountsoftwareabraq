@@ -1,0 +1,200 @@
+@page "/inventory/reports/stock-ledger"
+@using AbraqAccount.Models
+@using AbraqAccount.Services.Interfaces
+@using Microsoft.AspNetCore.Mvc.Rendering
+@inject IInventoryService InvService
+
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="mb-0">Material Stock Ledger</h2>
+        <div class="actions">
+            <button class="btn btn-outline-success me-2" @onclick="ExportExcel">
+                <i class="bi bi-file-earmark-excel"></i> Export Excel
+            </button>
+            <button class="btn btn-outline-danger" @onclick="ExportPdf">
+                <i class="bi bi-file-earmark-pdf"></i> Export PDF
+            </button>
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-white">
+            <h5 class="mb-0">Report Filters</h5>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-2">
+                    <label class="form-label">From Date</label>
+                    <input type="date" @bind="filter.FromDate" class="form-control" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">To Date</label>
+                    <input type="date" @bind="filter.ToDate" class="form-control" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Item Group</label>
+                    <input type="text" @bind="filter.ItemGroup" class="form-control" placeholder="Search Group..." />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Item Name</label>
+                    <input type="text" @bind="filter.ItemName" class="form-control" placeholder="Search Item..." />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">UOM</label>
+                    <select @bind="filter.UOM" class="form-select">
+                        <option value="">SELECT</option>
+                        @if (uomOptions != null)
+                        {
+                            @foreach (var opt in uomOptions)
+                            {
+                                <option value="@opt.Value">@opt.Text</option>
+                            }
+                        }
+                    </select>
+                </div>
+            </div>
+            <div class="row g-3 mt-1">
+                <div class="col-md-2">
+                    <label class="form-label">Unit</label>
+                    <select @bind="filter.Unit" class="form-select">
+                        @if (unitOptions != null)
+                        {
+                            @foreach (var opt in unitOptions)
+                            {
+                                <option value="@opt.Value">@opt.Text</option>
+                            }
+                        }
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Vendor Name</label>
+                    <input type="text" @bind="filter.VendorName" class="form-control" placeholder="Search Vendor..." />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Report Type</label>
+                    <select @bind="filter.ReportType" class="form-select">
+                        @if (reportTypeOptions != null)
+                        {
+                            @foreach (var opt in reportTypeOptions)
+                            {
+                                <option value="@opt.Value">@opt.Text</option>
+                            }
+                        }
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Common Search</label>
+                    <input type="text" @bind="filter.CommonSearch" class="form-control" placeholder="..." />
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button class="btn btn-primary w-100" @onclick="GenerateReport">
+                        <i class="bi bi-play-fill"></i> View Report
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    }
+    else if (reportData == null)
+    {
+         <div class="alert alert-light text-center border">Select filters and click "View Report" to see results.</div>
+    }
+    else if (!reportData.Any())
+    {
+        <div class="alert alert-info">No data found for the selected criteria.</div>
+    }
+    else
+    {
+        <div class="card shadow-sm">
+            <div class="table-responsive">
+                <table class="table table-bordered table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Item Group</th>
+                            <th>Code</th>
+                            <th>Item Name</th>
+                            <th>UOM</th>
+                            <th class="text-end">Opening</th>
+                            <th class="text-end">Inward</th>
+                            <th class="text-end">Outward</th>
+                            <th class="text-end">Balance</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in reportData)
+                        {
+                            <tr>
+                                <td>@item.PurchaseItemGroup?.Name</td>
+                                <td><span class="badge bg-secondary">@item.Code</span></td>
+                                <td class="fw-bold">@item.ItemName</td>
+                                <td>@item.UOM</td>
+                                <td class="text-end">@item.OpeningQty.ToString("N2")</td>
+                                <td class="text-end text-success">@item.InwardQty.ToString("N2")</td>
+                                <td class="text-end text-danger">@item.OutwardQty.ToString("N2")</td>
+                                <td class="text-end fw-bold">@item.CurrentStock.ToString("N2")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private List<PurchaseItem>? reportData;
+    private bool isLoading;
+    private List<SelectListItem>? uomOptions;
+    private List<SelectListItem>? unitOptions;
+    private List<SelectListItem>? reportTypeOptions;
+
+    private ReportFilter filter = new() { 
+        FromDate = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1),
+        ToDate = DateTime.Now,
+        Unit = "All",
+        ReportType = "StockSummary"
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        dynamic viewBag = new System.Dynamic.ExpandoObject();
+        await InvService.LoadStockLedgerDropdownsAsync(viewBag);
+        uomOptions = ((SelectList)viewBag.UOMList).ToList();
+        unitOptions = ((SelectList)viewBag.UnitList).ToList();
+        reportTypeOptions = ((SelectList)viewBag.ReportTypeList).ToList();
+    }
+
+    private async Task GenerateReport()
+    {
+        isLoading = true;
+        reportData = await InvService.GetStockLedgerReportAsync(
+            filter.FromDate, filter.ToDate, filter.ItemGroup, 
+            filter.ItemName, filter.UOM, filter.Unit, 
+            filter.VendorName, filter.ReportType, filter.CommonSearch);
+        isLoading = false;
+    }
+
+    private void ExportExcel() { /* TODO: Implement excel export logic or link */ }
+    private void ExportPdf() { /* TODO: Implement PDF export logic or link */ }
+
+    public class ReportFilter
+    {
+        public DateTime FromDate { get; set; }
+        public DateTime ToDate { get; set; }
+        public string? ItemGroup { get; set; }
+        public string? ItemName { get; set; }
+        public string? UOM { get; set; }
+        public string? Unit { get; set; }
+        public string? VendorName { get; set; }
+        public string? ReportType { get; set; }
+        public string? CommonSearch { get; set; }
+    }
+}

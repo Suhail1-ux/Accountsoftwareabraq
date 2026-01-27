@@ -1,0 +1,230 @@
+@page "/settings/transaction-rules"
+@using AbraqAccount.Models
+@using AbraqAccount.Services.Interfaces
+@inject ISettingsService SettingsService
+@inject NavigationManager Navigation
+
+<div class="container-fluid py-4 dashboard-bg">
+    <div class="dashboard-header mb-4">
+        <h2 class="dashboard-title">Transaction Rules Configuration</h2>
+    </div>
+
+    <!-- Profile Selector Card -->
+    <div class="card shadow-sm border-0 mb-4 profile-selector-card">
+        <div class="card-body">
+            <div class="form-group mb-0">
+                <label class="form-label fw-bold text-muted small mb-2">Select Account Profile:</label>
+                <select class="form-select form-select-lg profile-dropdown" @onchange="OnProfileChanged">
+                    <option value="0">-- Select Account to Configure Rules --</option>
+                    @if (visibleProfiles != null)
+                    {
+                        @foreach (var profile in visibleProfiles)
+                        {
+                            var displayName = string.IsNullOrEmpty(profile.AccountName) || profile.AccountName.Equals("null", StringComparison.OrdinalIgnoreCase)
+                                ? $"{profile.TransactionType} / {profile.TransactionType}"
+                                : $"{profile.TransactionType} / {profile.AccountName}";
+                            
+                            <option value="@profile.Id">@displayName</option>
+                        }
+                    }
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <!-- main Rules Dashboard -->
+    <div class="card shadow-sm border-0 rules-card">
+        <div class="card-header bg-white py-3 border-0">
+            <div class="search-container">
+                <div class="input-group">
+                    <span class="input-group-text bg-transparent border-end-0">
+                        <i class="bi bi-search text-muted"></i>
+                    </span>
+                    <input type="text" class="form-control border-start-0" 
+                           placeholder="Search groups or ledgers.." 
+                           @bind-value="searchTerm" @bind-value:event="oninput" @onkeyup="UpdateFilteredList" />
+                </div>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="bg-light">
+                        <tr>
+                            <th class="ps-4" style="width: 60%">Group / Ledger Name</th>
+                            <th class="text-center">Allowed Transaction Nature</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (filteredItems == null || !filteredItems.Any())
+                        {
+                            <tr>
+                                <td colspan="2" class="text-center py-5 text-muted">
+                                    <i class="bi bi-info-circle me-2"></i> No records found.
+                                </td>
+                            </tr>
+                        }
+                        else
+                        {
+                            @foreach (var item in filteredItems)
+                            {
+                                <tr>
+                                    <td class="ps-4">
+                                        <div class="fw-bold text-dark">@item.Name</div>
+                                        <div class="small text-muted">@item.Hierarchy</div>
+                                    </td>
+                                    <td class="text-center">
+                                        <div class="btn-group btn-group-sm rule-toggle-group" role="group">
+                                            <button type="button" class="btn btn-rule @(item.RuleValue == "Cancel" ? "btn-rule-cancel-active" : "btn-rule-cancel")" 
+                                                    @onclick='() => SetRule(item, "Cancel")'>Cancel</button>
+                                            
+                                            <button type="button" class="btn btn-rule @(item.RuleValue == "Both" ? "btn-rule-both-active" : "btn-rule-both")" 
+                                                    @onclick='() => SetRule(item, "Both")'>Both</button>
+                                            
+                                            <button type="button" class="btn btn-rule @(item.RuleValue == "Debit" ? "btn-rule-debit-active" : "btn-rule-debit")" 
+                                                    @onclick='() => SetRule(item, "Debit")'>Debit Only</button>
+                                            
+                                            <button type="button" class="btn btn-rule @(item.RuleValue == "Credit" ? "btn-rule-credit-active" : "btn-rule-credit")" 
+                                                    @onclick='() => SetRule(item, "Credit")'>Credit Only</button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .dashboard-bg { background-color: #f8f9fa; min-height: 90vh; }
+    .dashboard-title { font-weight: 600; color: #333; font-size: 1.5rem; }
+    
+    .profile-selector-card { border-radius: 8px; }
+    .profile-dropdown { border-color: #dee2e6; color: #495057; font-size: 1rem; }
+    
+    .rules-card { border-radius: 8px; }
+    .search-container { max-width: 400px; }
+    
+    .table thead th { font-size: 0.8rem; text-transform: uppercase; color: #666; letter-spacing: 0.5px; border-bottom: 2px solid #eee; padding-top: 1rem; padding-bottom: 1rem; }
+    .table tbody td { padding-top: 1rem; padding-bottom: 1rem; border-bottom: 1px solid #f0f0f0; }
+
+    /* Rule Toggle Buttons */
+    .rule-toggle-group { gap: 0; border: 1px solid #ddd; border-radius: 6px; overflow: hidden; }
+    .btn-rule { 
+        padding: 0.4rem 1rem; 
+        font-size: 0.75rem; 
+        font-weight: 600; 
+        border: none; 
+        min-width: 90px;
+        transition: all 0.2s;
+        border-right: 1px solid #ddd;
+    }
+    .btn-rule:last-child { border-right: none; }
+    
+    /* Cancel - Black */
+    .btn-rule-cancel { background: #fff; color: #444; }
+    .btn-rule-cancel-active { background: #212529 !important; color: #fff !important; }
+    
+    /* Both - Silver/White */
+    .btn-rule-both { background: #fff; color: #444; }
+    .btn-rule-both-active { background: #e9ecef !important; color: #212529 !important; box-shadow: inset 0 2px 4px rgba(0,0,0,0.1); }
+    
+    /* Debit - Red */
+    .btn-rule-debit { background: #fff; color: #dc3545; }
+    .btn-rule-debit-active { background: #fee2e2 !important; color: #dc3545 !important; border: 1px solid #fca5a5 !important; margin-left: -1px; margin-right: -1px; z-index: 1; }
+    
+    /* Credit - Green */
+    .btn-rule-credit { background: #fff; color: #198754; }
+    .btn-rule-credit-active { background: #d1fae5 !important; color: #065f46 !important; border: 1px solid #6ee7b7 !important; margin-left: -1px; z-index: 1; }
+
+    .btn-rule:hover:not([class*="-active"]) { background: #f8f9fa; }
+</style>
+
+@code {
+    private List<EntryForAccount>? entryProfiles;
+    private List<EntryForAccount>? visibleProfiles;
+    private List<RulesItemViewModel>? allItems;
+    private List<RulesItemViewModel>? filteredItems;
+    private int selectedEntryId = 0;
+    private string searchTerm = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        entryProfiles = await SettingsService.GetEntryForAccountsAsync();
+        ApplyProfileFiltering();
+    }
+
+    private void ApplyProfileFiltering()
+    {
+        if (entryProfiles == null) return;
+
+        visibleProfiles = entryProfiles
+            .GroupBy(p => p.TransactionType)
+            .SelectMany(g => {
+                var validAccounts = g.Where(p => !string.IsNullOrEmpty(p.AccountName) && !p.AccountName.Equals("null", StringComparison.OrdinalIgnoreCase)).ToList();
+                if (validAccounts.Any())
+                {
+                    // If we have valid accounts, only show those
+                    return validAccounts;
+                }
+                else
+                {
+                    // If no valid account exists for this type, show the generic one(s)
+                    return g.Take(1).ToList(); 
+                }
+            })
+            .OrderBy(p => p.TransactionType)
+            .ThenBy(p => p.AccountName)
+            .ToList();
+    }
+
+    private async Task OnProfileChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out int id))
+        {
+            selectedEntryId = id;
+            if (id > 0)
+            {
+                allItems = await SettingsService.GetRulesDashboardDataAsync(id);
+                UpdateFilteredList();
+            }
+            else
+            {
+                allItems = null;
+                filteredItems = null;
+            }
+        }
+    }
+
+    private void UpdateFilteredList()
+    {
+        if (allItems == null) return;
+
+        if (string.IsNullOrWhiteSpace(searchTerm))
+        {
+            filteredItems = allItems.ToList();
+        }
+        else
+        {
+            filteredItems = allItems
+                .Where(i => i.Name.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) || 
+                            i.Hierarchy.Contains(searchTerm, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+        }
+    }
+
+    private async Task SetRule(RulesItemViewModel item, string value)
+    {
+        if (selectedEntryId == 0) return;
+
+        var result = await SettingsService.SaveAccountRuleByValueAsync(item.AccountType, item.AccountId, value, selectedEntryId);
+        if (result.success)
+        {
+            item.RuleValue = value;
+            StateHasChanged();
+        }
+    }
+}

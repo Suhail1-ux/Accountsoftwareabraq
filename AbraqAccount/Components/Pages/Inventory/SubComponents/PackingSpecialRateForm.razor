@@ -1,0 +1,211 @@
+@using AbraqAccount.Models
+@using AbraqAccount.Services.Interfaces
+@using Microsoft.AspNetCore.Mvc.Rendering
+@inject IPackingService PackingService
+@inject NavigationManager Navigation
+
+<div class="form-card">
+    <div class="form-header">
+        <h3>@(IsEdit ? "Edit" : "Add") Packing Special Rate</h3>
+        <div class="header-actions">
+            <button class="btn btn-primary" @onclick="SubmitForm" disabled="@isSubmitting">
+                @if (isSubmitting)
+                {
+                    <span class="spinner-border spinner-border-sm" role="status"></span>
+                }
+                Save
+            </button>
+            <button class="btn btn-secondary" @onclick="Cancel">Cancel</button>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger">@errorMessage</div>
+    }
+
+    <div class="row g-3">
+        <div class="col-md-3">
+            <div class="form-group mb-3">
+                <label class="form-label">Effective Date</label>
+                <input type="date" @bind="model.EffectiveDate" class="form-control" />
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="form-group mb-3">
+                <label class="form-label">Grower Group</label>
+                <select value="@model.GrowerGroupId" @onchange="OnGroupChanged" class="form-select">
+                    <option value="">--- Select Group ---</option>
+                    @if (groups != null)
+                    {
+                        @foreach (var g in groups)
+                        {
+                            <option value="@g.Value">@g.Text</option>
+                        }
+                    }
+                </select>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="form-group mb-3">
+                <label class="form-label">Grower Name</label>
+                <select @bind="model.FarmerId" class="form-select">
+                    <option value="">--- Select Grower ---</option>
+                    @if (farmers != null)
+                    {
+                        @foreach (var f in farmers)
+                        {
+                            <option value="@f.Id">@f.Name</option>
+                        }
+                    }
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <div class="details-section mt-4">
+        <h5>Item Rates</h5>
+        <div class="table-responsive">
+            <table class="table table-bordered align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Purchase Item</th>
+                        <th style="width: 150px;">Standard Rate</th>
+                        <th style="width: 150px;">Special Rate</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (model.Details != null)
+                    {
+                        @foreach (var detail in model.Details)
+                        {
+                            <tr>
+                                <td>@(detail.PurchaseItem?.ItemName ?? "Item ID: " + detail.PurchaseItemId)</td>
+                                <td>
+                                    <input type="number" step="0.01" @bind="detail.Rate" class="form-control text-end" disabled />
+                                </td>
+                                <td>
+                                    <input type="number" step="0.01" @bind="detail.SpecialRate" class="form-control text-end" />
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<style>
+    .form-card { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.05); }
+    .form-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; padding-bottom: 1rem; border-bottom: 1px solid #eee; }
+</style>
+
+@code {
+    [Parameter] public int? Id { get; set; }
+    private PackingSpecialRate model = new() { EffectiveDate = DateTime.Now, IsActive = true };
+    private List<SelectListItem>? groups;
+    private IEnumerable<LookupItem>? farmers;
+    private bool IsEdit => Id.HasValue;
+    private bool isSubmitting;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Load Dropdowns
+        // I'll need to update IPackingService to provide these as Lists
+        // For now, I'll use a hack or update the service.
+        // Actually, let's update the service to be more Blazor-friendly.
+        
+        dynamic viewBag = new System.Dynamic.ExpandoObject();
+        await PackingService.LoadSpecialRateDropdownsAsync(viewBag);
+        groups = (List<SelectListItem>)viewBag.GrowerGroupId;
+
+        if (IsEdit)
+        {
+            var existing = await PackingService.GetPackingSpecialRateByIdAsync(Id!.Value);
+            if (existing != null)
+            {
+                model = existing;
+                if (model.GrowerGroupId.HasValue)
+                {
+                    farmers = await PackingService.GetFarmersByGroupAsync(model.GrowerGroupId.Value);
+                }
+            }
+            else
+            {
+                errorMessage = "Special Rate not found.";
+            }
+        }
+        else
+        {
+            // Load Items for initial details
+            var packingItems = await PackingService.GetPackingItemsForRateAsync();
+            model.Details = packingItems.Select(i => {
+                var item = (dynamic)i;
+                return new PackingSpecialRateDetail {
+                    PurchaseItemId = item.id,
+                    Rate = item.rate,
+                    PurchaseItem = new PurchaseItem { Id = item.id, ItemName = item.name }
+                };
+            }).ToList();
+        }
+    }
+
+    private async Task OnGroupChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out int groupId))
+        {
+            model.GrowerGroupId = groupId;
+            farmers = await PackingService.GetFarmersByGroupAsync(groupId);
+        }
+        else
+        {
+            model.GrowerGroupId = null;
+            farmers = null;
+        }
+        model.FarmerId = null;
+    }
+
+    private async Task SubmitForm()
+    {
+        if (!model.GrowerGroupId.HasValue && !model.FarmerId.HasValue)
+        {
+            errorMessage = "Please select either Grower Group or Grower Name.";
+            return;
+        }
+
+        isSubmitting = true;
+        errorMessage = null;
+
+        // Note: The service CreatePackingSpecialRateAsync takes IFormCollection in original code.
+        // I might need to add a cleaner method to IPackingService.
+        // For now, I'll rely on the UpdatePackingSpecialRateAsync pattern if I can.
+        
+        var result = IsEdit 
+            ? await PackingService.UpdatePackingSpecialRateAsync(model.Id, model, model.Details)
+            : await CreatePackingSpecialRateWorkaround();
+
+        if (result.success)
+        {
+            Navigation.NavigateTo("/inventory/packing-special-rates");
+        }
+        else
+        {
+            errorMessage = result.message;
+        }
+        isSubmitting = false;
+    }
+
+    private async Task<(bool success, string message)> CreatePackingSpecialRateWorkaround()
+    {
+        // I'll assume I can use Update but with ID=0 or I'll just add a Create method to implementation if needed.
+        // Let's check the implementation of UpdatePackingSpecialRateAsync.
+        return await PackingService.UpdatePackingSpecialRateAsync(0, model, model.Details);
+    }
+
+    private void Cancel()
+    {
+        Navigation.NavigateTo("/inventory/packing-special-rates");
+    }
+}

@@ -1,0 +1,142 @@
+@using AbraqAccount.Models
+@using AbraqAccount.Services.Interfaces
+@using AbraqAccount.Components.Common
+@inject IGeneralEntryService GeneralEntryService
+@inject ISettingsService SettingsService
+
+<div class="transaction-form">
+    <div class="form-header">
+        <h3 class="form-title">Grower Book - @(string.IsNullOrEmpty(VoucherNo) ? "Add" : "Edit")</h3>
+    </div>
+
+    <EditForm Model="@item" OnValidSubmit="SubmitForm">
+        <DataAnnotationsValidator />
+        
+        <div class="row g-3">
+            <!-- Entry For & Transaction Date -->
+            <div class="col-md-6">
+                <label class="form-label">Entry For</label>
+                <InputSelect @bind-Value="item.EntryForId" class="form-select">
+                    <option value="0">Select Entry For</option>
+                    @if (entryProfiles != null)
+                    {
+                        foreach (var p in entryProfiles)
+                        {
+                            <option value="@p.Id">@p.Name</option>
+                        }
+                    }
+                </InputSelect>
+            </div>
+            
+            <div class="col-md-6">
+                <label class="form-label">Transaction Date <span class="text-danger">*</span></label>
+                <InputDate @bind-Value="item.EntryDate" class="form-control" />
+            </div>
+
+            <!-- Grower Credit & Debit -->
+            <div class="col-md-6">
+                <AccountSearch Label="Grower Credit *" 
+                              SearchFunc="@(term => SearchAccounts(term))" 
+                              OnAccountSelected="@(a => { item.CreditAccountId = a.Id; creditAccountName = a.Name; })"
+                              InitialValue="@creditAccountName"
+                              Required="true"
+                              CssClass="@(item.CreditAccountId == 0 ? "is-invalid" : "")" />
+            </div>
+
+            <div class="col-md-6">
+                <AccountSearch Label="Grower Debit *" 
+                              SearchFunc="@(term => SearchAccounts(term))" 
+                              OnAccountSelected="@(a => { item.DebitAccountId = a.Id; debitAccountName = a.Name; })"
+                              InitialValue="@debitAccountName"
+                              Required="true"
+                              CssClass="@(item.DebitAccountId == 0 ? "is-invalid" : "")" />
+            </div>
+
+            <!-- Amount -->
+             <div class="col-md-12">
+                <label class="form-label">Amount <span class="text-danger">*</span></label>
+                <InputNumber @bind-Value="item.Amount" class="form-control" min="0.01" step="0.01" />
+            </div>
+
+            <!-- Narration -->
+            <div class="col-12">
+                <label class="form-label">Particular</label>
+                <InputTextArea @bind-Value="item.Narration" class="form-control" rows="2" placeholder="Enter Particular" />
+            </div>
+        </div>
+    </EditForm>
+</div>
+
+@code {
+    [Parameter] public string? VoucherNo { get; set; }
+    
+    // We don't have separate events for save/cancel because the parent page handles the buttons via Ref,
+    // except for "Cancel" which is usually a BackToList call.
+    // However, sticking to the pattern, we'll expose a method.
+
+    private GeneralEntry item = new() { EntryDate = DateTime.Today, Type = "GrowerBook" };
+    private IEnumerable<LookupItem>? entryProfiles;
+    private string creditAccountName = "";
+    private string debitAccountName = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Load Entry Profiles relevant to Grower Book if any, or general ones
+        entryProfiles = await GeneralEntryService.GetEntryProfilesAsync("GrowerBook");
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!string.IsNullOrEmpty(VoucherNo))
+        {
+            var entries = await GeneralEntryService.GetVoucherEntriesAsync(VoucherNo);
+            if (entries.Any())
+            {
+                var first = entries.First();
+                // Map to item for editing
+                item = first;
+                // Note: Double entry logic might require adjusting how we load credit/debit 
+                // but GeneralEntry usually stores them normalized or we pick the primary one.
+                // Assuming standard structure where one entry represents the row.
+                
+                // Manually populate the local name fields since the property is read-only (computed)
+                // We trust the computed property for initialization
+                creditAccountName = item.CreditAccountName;
+                debitAccountName = item.DebitAccountName;
+            }
+        }
+        else
+        {
+             item = new GeneralEntry { EntryDate = DateTime.Today, Type = "GrowerBook" };
+             creditAccountName = "";
+             debitAccountName = "";
+        }
+    }
+
+    private async Task<IEnumerable<LookupItem>> SearchAccounts(string term)
+    {
+        // Specific search for Grower Book? Or general accounts?
+        // Service has GetGrowerAccountsAsync
+        return await GeneralEntryService.GetGrowerAccountsAsync(term, null, null);
+    }
+
+    public async Task SubmitForm()
+    {
+        if (item.CreditAccountId == 0 || item.DebitAccountId == 0 || item.Amount <= 0)
+        {
+            // Validation handling
+            return;
+        }
+
+        if (!string.IsNullOrEmpty(VoucherNo))
+        {
+             await GeneralEntryService.UpdateGrowerBookEntryAsync(item, "admin");
+        }
+        else
+        {
+             await GeneralEntryService.CreateGrowerBookEntryAsync(item, "admin");
+        }
+        
+        // Navigation or refresh handled by parent via mode switch
+    }
+}

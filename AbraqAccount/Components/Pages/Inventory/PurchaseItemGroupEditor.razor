@@ -1,0 +1,11 @@
+@page "/inventory/item-groups/create"
+@page "/inventory/item-groups/edit/{Id:int}"
+@using AbraqAccount.Components.Pages.Inventory.SubComponents
+
+<div class="p-0">
+    <PurchaseItemGroupForm Id="@Id" />
+</div>
+
+@code {
+    [Parameter] public int? Id { get; set; }
+}

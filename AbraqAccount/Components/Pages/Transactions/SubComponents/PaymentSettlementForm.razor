@@ -1,0 +1,382 @@
+@using AbraqAccount.Models
+@using AbraqAccount.Services.Interfaces
+@inject IPaymentSettlementService SettlementService
+@inject NavigationManager Navigation
+
+<div class="form-container">
+    <div class="form-section-title">
+        Payment Settlement - @(IsEdit ? "Edit" : "Add")
+    </div>
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger">@errorMessage</div>
+    }
+
+    <!-- Header Fields -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="form-group-custom">
+                <label>Settlement Date</label>
+                <input type="date" @bind="model.SettlementDate" class="form-control-custom" />
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="form-group-custom">
+                <label>Entry For</label>
+                <select @onchange="OnProfileChanged" class="form-control-custom">
+                    <option value="">Select Entry Profile</option>
+                    @if (entryProfiles != null)
+                    {
+                        @foreach (var profile in entryProfiles)
+                        {
+                            <option value="@profile.Id" selected="@(selectedProfileId == profile.Id)">@profile.Name</option>
+                        }
+                    }
+                </select>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="form-group-custom">
+                <label>Unit <span class="text-danger">*</span></label>
+                <select @bind="selectedUnit" class="form-control-custom">
+                    @foreach (var unit in unitList)
+                    {
+                        <option value="@unit">@unit</option>
+                    }
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <!-- Transaction Details Section -->
+    <div class="transaction-details-section">
+        <div class="section-subtitle mb-3">Transaction Details</div>
+        <div class="row mb-3">
+            <div class="col-md-2">
+                <div class="form-group-custom">
+                    <label>Type <span class="text-danger">*</span></label>
+                    <select @bind="newEntry.Type" class="form-control-custom">
+                        <option value="Debit">Debit</option>
+                        <option value="Credit">Credit</option>
+                    </select>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="form-group-custom">
+                    <label>Account <span class="text-danger">*</span></label>
+                    <AbraqAccount.Components.Common.AccountSearch 
+                        Placeholder="Search Account Name" 
+                        SearchFunc="SearchAccountsForNew"
+                        OnAccountSelected="OnAccountSelectedForNew"
+                        InitialValue="@newEntry.AccountName"
+                        CssClass="form-control-custom" />
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="form-group-custom">
+                    <label>Payment Type <span class="text-danger">*</span></label>
+                    <select @bind="newEntry.PaymentType" class="form-control-custom">
+                        <option value="">Select</option>
+                        <option value="Cash">Cash</option>
+                        <option value="Cheque">Cheque</option>
+                        <option value="NEFT">NEFT</option>
+                        <option value="RTGS">RTGS</option>
+                        <option value="UPI">UPI</option>
+                    </select>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="form-group-custom">
+                    <label>Amount <span class="text-danger">*</span></label>
+                    <input type="number" step="0.01" @bind="newEntry.Amount" class="form-control-custom" placeholder="Enter Amount" />
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="form-group-custom">
+                    <label>Ref. No. Cheque/UTR</label>
+                    <input type="text" @bind="newEntry.RefNo" class="form-control-custom" placeholder="Enter Ref. No. Cheque/UTR" />
+                </div>
+            </div>
+        </div>
+        <div class="row mb-3">
+            <div class="col-12">
+                <div class="form-group-custom">
+                    <label>Narration</label>
+                    <textarea @bind="newEntry.Narration" class="form-control-custom" rows="2" placeholder="Enter Narration"></textarea>
+                </div>
+            </div>
+        </div>
+        <div class="d-flex justify-content-end gap-2 mb-4">
+            <button type="button" class="btn-add-custom" @onclick="AddNewRow">Add</button>
+            <button type="button" class="btn-clear-row-custom" @onclick="ClearNewEntry">Clear</button>
+        </div>
+    </div>
+
+    <!-- Details Table -->
+    <div class="details-table-section">
+        <div class="section-subtitle mb-3">Payment Settlement Details</div>
+        <div class="table-responsive">
+            <table class="table table-custom-bordered">
+                <thead>
+                    <tr>
+                        <th>Unit</th>
+                        <th>Type</th>
+                        <th>Account</th>
+                        <th>Debit(Rs)</th>
+                        <th>Credit(Rs)</th>
+                        <th>Payment Type</th>
+                        <th>Ref. No. / Bill No</th>
+                        <th>Narration</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (!uiEntries.Any())
+                    {
+                        <tr>
+                            <td colspan="9" class="text-center text-muted py-4">No entries added yet. Use the form above to add entries.</td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var entry in uiEntries)
+                        {
+                            <tr>
+                                <td>@entry.Unit</td>
+                                <td>@entry.Type</td>
+                                <td>@entry.AccountName</td>
+                                <td class="text-end">@entry.Debit.ToString("N2")</td>
+                                <td class="text-end">@entry.Credit.ToString("N2")</td>
+                                <td>@entry.PaymentType</td>
+                                <td>@entry.RefNo</td>
+                                <td>@entry.Narration</td>
+                                <td>
+                                    <button class="btn-delete-row" @onclick="() => RemoveEntry(entry)">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <td colspan="3" class="text-end fw-bold">Total</td>
+                        <td class="text-end fw-bold">@TotalDebit.ToString("N2")</td>
+                        <td class="text-end fw-bold">@TotalCredit.ToString("N2")</td>
+                        <td colspan="4"></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+
+    <div class="form-footer-actions">
+        <button type="button" class="btn-save-custom" @onclick="SubmitForm" disabled="@(isSubmitting || !IsBalanced)">
+            @if (isSubmitting) { <span class="spinner-border spinner-border-sm me-1"></span> }
+            Save
+        </button>
+        <button type="button" class="btn-cancel-custom" @onclick="Cancel">Cancel</button>
+    </div>
+</div>
+
+<style>
+    .form-container { background: white; padding: 1.5rem; border: 1px solid #e0e0e0; border-radius: 4px; }
+    .form-section-title { font-size: 1.1rem; font-weight: 500; color: #495057; margin-bottom: 2rem; padding-bottom: 0.75rem; border-bottom: 2px solid #ffc107; }
+    .section-subtitle { font-size: 1rem; font-weight: 600; color: #444; border-bottom: 1px solid #eee; padding-bottom: 0.5rem; }
+    .form-group-custom { margin-bottom: 1rem; }
+    .form-group-custom label { display: block; font-size: 0.85rem; font-weight: 600; color: #333; margin-bottom: 0.4rem; }
+    .form-control-custom { width: 100%; padding: 0.5rem 0.75rem; border: 1px solid #ced4da; border-radius: 4px; font-size: 0.9rem; }
+    .btn-add-custom { background-color: #28a745; color: white; border: none; padding: 0.5rem 2rem; border-radius: 4px; font-weight: 500; }
+    .btn-clear-row-custom { background-color: #f8f9fa; color: #333; border: 1px solid #ced4da; padding: 0.5rem 2rem; border-radius: 4px; font-weight: 500; }
+    .table-custom-bordered { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    .table-custom-bordered th { background: #f8f9fa; padding: 0.75rem; border: 1px solid #dee2e6; text-align: left; }
+    .table-custom-bordered td { padding: 0.75rem; border: 1px solid #dee2e6; }
+    .btn-delete-row { background: none; border: none; color: #dc3545; cursor: pointer; }
+    .form-footer-actions { display: flex; justify-content: flex-end; gap: 0.5rem; padding-top: 1.5rem; border-top: 1px solid #f0f0f0; margin-top: 2rem; }
+    .btn-save-custom { background-color: #6c757d; color: white; border: none; padding: 0.5rem 2rem; border-radius: 4px; font-weight: 500; }
+    .btn-cancel-custom { background-color: #e9ecef; color: #495057; border: none; padding: 0.5rem 2rem; border-radius: 4px; font-weight: 500; }
+</style>
+
+<style>
+    .form-card { background: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    .form-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid #eee; }
+    .header-fields { background: #f8f9fa; padding: 1rem; border-radius: 4px; margin-bottom: 1.5rem; }
+    .entries-section { overflow-x: auto; }
+</style>
+
+@code {
+    [Parameter] public string? PANumber { get; set; }
+    private PaymentSettlementBatchModel model = new() { SettlementDate = DateTime.Now };
+    private List<UIEntry> uiEntries = new();
+    private UIEntry newEntry = new() { Type = "Debit", PaymentType = "" };
+    private string selectedUnit = "Unit 1";
+    private List<string> unitList = new() { "Unit 1", "Unit 2", "Abraq Agro Fresh LLP" };
+    private bool IsEdit => !string.IsNullOrEmpty(PANumber);
+    private bool isSubmitting;
+    private string? errorMessage;
+    private IEnumerable<LookupItem>? entryProfiles;
+    private int? selectedProfileId;
+
+    private decimal TotalDebit => uiEntries.Sum(e => e.Debit);
+    private decimal TotalCredit => uiEntries.Sum(e => e.Credit);
+    private bool IsBalanced => Math.Abs(TotalDebit - TotalCredit) < 0.01m && uiEntries.Count > 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        entryProfiles = await SettlementService.GetEntryProfilesAsync();
+        
+        if (IsEdit)
+        {
+            var entries = await SettlementService.GetSettlementEntriesByPANumberAsync(PANumber!);
+            if (entries != null && entries.Any())
+            {
+                model.SettlementDate = entries.First().SettlementDate;
+                selectedProfileId = entries.First().EntryForId;
+                selectedUnit = entries.First().Unit ?? "Unit 1";
+
+                foreach (var e in entries)
+                {
+                    uiEntries.Add(new UIEntry {
+                        Type = e.Type,
+                        AccountId = e.AccountId,
+                        AccountType = e.AccountType,
+                        AccountName = e.AccountName,
+                        PaymentType = e.PaymentType,
+                        Debit = e.Type == "Debit" ? e.Amount : 0,
+                        Credit = e.Type == "Credit" ? e.Amount : 0,
+                        Amount = e.Amount,
+                        RefNo = e.RefNo ?? "",
+                        Narration = e.Narration ?? "",
+                        Unit = e.Unit
+                    });
+                }
+            }
+        }
+    }
+
+    private async Task<IEnumerable<LookupItem>> SearchAccountsForNew(string term)
+    {
+        return await SettlementService.GetAccountsAsync(term, selectedProfileId, newEntry.Type);
+    }
+
+    private void OnAccountSelectedForNew(LookupItem account)
+    {
+        newEntry.AccountId = account.Id;
+        newEntry.AccountType = account.Type ?? "SubGroupLedger";
+        newEntry.AccountName = account.Name;
+    }
+
+    private void AddNewRow()
+    {
+        if (newEntry.AccountId == 0 || newEntry.Amount <= 0)
+        {
+            errorMessage = "Please select account and enter amount.";
+            return;
+        }
+
+        var entryToAdd = new UIEntry
+        {
+            Unit = selectedUnit,
+            Type = newEntry.Type,
+            AccountId = newEntry.AccountId,
+            AccountType = newEntry.AccountType,
+            AccountName = newEntry.AccountName,
+            PaymentType = newEntry.PaymentType,
+            Amount = newEntry.Amount,
+            Debit = newEntry.Type == "Debit" ? newEntry.Amount : 0,
+            Credit = newEntry.Type == "Credit" ? newEntry.Amount : 0,
+            RefNo = newEntry.RefNo,
+            Narration = newEntry.Narration
+        };
+
+        uiEntries.Add(entryToAdd);
+        ClearNewEntry();
+        errorMessage = null;
+    }
+
+    private void ClearNewEntry()
+    {
+        newEntry = new UIEntry { Type = "Debit", PaymentType = "" };
+    }
+
+    private void RemoveEntry(UIEntry entry)
+    {
+        uiEntries.Remove(entry);
+    }
+
+    private void OnProfileChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out int profileId))
+        {
+            selectedProfileId = profileId;
+        }
+        else
+        {
+            selectedProfileId = null;
+        }
+    }
+
+    public async Task SubmitForm()
+    {
+        if (!IsBalanced)
+        {
+            errorMessage = "Entries are not balanced. (Debit must equal Credit)";
+            return;
+        }
+
+        isSubmitting = true;
+        errorMessage = null;
+
+        model.Entries = uiEntries.Select(e => new PaymentSettlementItemModel
+        {
+            Type = e.Type,
+            AccountId = e.AccountId,
+            AccountType = e.AccountType,
+            PaymentType = e.PaymentType,
+            Amount = e.Amount,
+            RefNo = e.RefNo,
+            Narration = e.Narration,
+            EntryForId = selectedProfileId,
+            EntryForName = entryProfiles?.FirstOrDefault(p => p.Id == selectedProfileId)?.Name,
+            Unit = e.Unit
+        }).ToList();
+
+        var currentUser = "Admin";
+
+        var result = IsEdit 
+            ? await SettlementService.UpdateSettlementAsync(model, PANumber!, currentUser)
+            : await SettlementService.CreateMultipleSettlementsAsync(model, currentUser);
+
+        if (result.success)
+        {
+            Navigation.NavigateTo("transactions/entries?noteType=Payment");
+        }
+        else
+        {
+            errorMessage = result.message;
+        }
+        isSubmitting = false;
+    }
+
+    private void Cancel()
+    {
+        Navigation.NavigateTo("transactions/entries?noteType=Payment");
+    }
+
+    private class UIEntry
+    {
+        public string Type { get; set; } = "Debit";
+        public int AccountId { get; set; }
+        public string AccountType { get; set; } = "";
+        public string AccountName { get; set; } = "";
+        public string PaymentType { get; set; } = "";
+        public decimal Amount { get; set; }
+        public decimal Debit { get; set; }
+        public decimal Credit { get; set; }
+        public string RefNo { get; set; } = "";
+        public string Narration { get; set; } = "";
+        public string? Unit { get; set; }
+    }
+}

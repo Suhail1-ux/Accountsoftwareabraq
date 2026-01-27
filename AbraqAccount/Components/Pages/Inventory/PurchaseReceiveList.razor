@@ -1,0 +1,161 @@
+@page "/inventory/purchase-receives"
+@using AbraqAccount.Models
+@using AbraqAccount.Services.Interfaces
+@inject IPurchaseTransactionService TransactionService
+@inject NavigationManager Navigation
+
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="mb-0">Purchase Receives (GRN)</h2>
+        <button class="btn btn-primary" @onclick="CreateNew">
+            <i class="bi bi-plus-lg"></i> Create GRN
+        </button>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-2">
+                    <label class="form-label">Receipt No</label>
+                    <input type="text" class="form-control" placeholder="PR#" @bind="receiptNo" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">PO Number</label>
+                    <input type="text" class="form-control" placeholder="PO#" @bind="poNumber" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Vendor Name</label>
+                    <input type="text" class="form-control" placeholder="Vendor..." @bind="vendorName" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">From Date</label>
+                    <input type="date" class="form-control" @bind="fromDate" />
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button class="btn btn-secondary w-100" @onclick="Search">Search</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (receives == null)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    }
+    else if (!receives.Any())
+    {
+        <div class="alert alert-info">No purchase receives found.</div>
+    }
+    else
+    {
+        <div class="card shadow-sm">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Received Date</th>
+                            <th>Receipt No</th>
+                            <th>PO#</th>
+                            <th>Vendor</th>
+                            <th>Bill No/Date</th>
+                            <th class="text-end">Amount</th>
+                            <th class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var rec in receives)
+                        {
+                            <tr>
+                                <td>@rec.ReceivedDate.ToString("dd MMM yyyy")</td>
+                                <td><span class="badge bg-secondary">@rec.ReceiptNo</span></td>
+                                <td>@rec.PONumber</td>
+                                <td>@rec.Vendor?.VendorName</td>
+                                <td>@rec.BillNo (@rec.BillDate.ToString("dd MMM yyyy"))</td>
+                                <td class="text-end fw-bold text-primary">@rec.Amount?.ToString("N2")</td>
+                                <td class="text-end">
+                                    @if (!string.IsNullOrEmpty(rec.ScannedCopyBillPath))
+                                    {
+                                        <a href="@rec.ScannedCopyBillPath" target="_blank" class="btn btn-sm btn-outline-info me-1" title="View Bill">
+                                            <i class="bi bi-file-earmark-text"></i>
+                                        </a>
+                                    }
+                                    <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => Edit(rec.Id)">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            @if (totalPages > 1)
+            {
+                <div class="card-footer bg-white">
+                    <nav>
+                        <ul class="pagination pagination-sm justify-content-center mb-0">
+                            <li class="page-item @(currentPage == 1 ? "disabled" : "")">
+                                <button class="page-link" @onclick="() => GoToPage(currentPage - 1)">Previous</button>
+                            </li>
+                            @for (int i = 1; i <= totalPages; i++)
+                            {
+                                var pageNum = i;
+                                <li class="page-item @(currentPage == pageNum ? "active" : "")">
+                                    <button class="page-link" @onclick="() => GoToPage(pageNum)">@pageNum</button>
+                                </li>
+                            }
+                            <li class="page-item @(currentPage == totalPages ? "disabled" : "")">
+                                <button class="page-link" @onclick="() => GoToPage(currentPage + 1)">Next</button>
+                            </li>
+                        </ul>
+                    </nav>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private List<PurchaseReceive>? receives;
+    private string? receiptNo;
+    private string? poNumber;
+    private string? vendorName;
+    private DateTime? fromDate;
+    private DateTime? toDate;
+
+    private int currentPage = 1;
+    private int pageSize = 10;
+    private int totalPages;
+    private int totalCount;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadReceives();
+    }
+
+    private async Task LoadReceives()
+    {
+        var result = await TransactionService.GetPurchaseReceivesAsync(receiptNo, poNumber, vendorName, "", fromDate, toDate, currentPage, pageSize);
+        receives = result.receives;
+        totalCount = result.totalCount;
+        totalPages = result.totalPages;
+    }
+
+    private async Task Search()
+    {
+        currentPage = 1;
+        await LoadReceives();
+    }
+
+    private async Task GoToPage(int page)
+    {
+        currentPage = page;
+        await LoadReceives();
+    }
+
+    private void CreateNew() => Navigation.NavigateTo("/inventory/purchase-receives/create");
+    private void Edit(int id) => Navigation.NavigateTo($"/inventory/purchase-receives/edit/{id}");
+}

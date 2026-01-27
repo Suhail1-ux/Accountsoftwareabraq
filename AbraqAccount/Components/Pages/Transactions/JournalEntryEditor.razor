@@ -1,0 +1,20 @@
+@page "/transactions/journal-entry/create"
+@page "/transactions/journal-entry/edit/{VoucherNoEncoded}"
+@using AbraqAccount.Components.Pages.Transactions.SubComponents
+@using System.Net
+
+<div class="container-fluid py-4">
+    <div class="row">
+        <div class="col-12">
+            <JournalEntryForm VoucherNo="@VoucherNo" />
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string? VoucherNoEncoded { get; set; }
+    
+    private string? VoucherNo => !string.IsNullOrEmpty(VoucherNoEncoded) 
+        ? WebUtility.UrlDecode(VoucherNoEncoded) 
+        : null;
+}

@@ -1,0 +1,15 @@
+@page "/inventory/packing-special-rates/create"
+@page "/inventory/packing-special-rates/edit/{Id:int}"
+@using AbraqAccount.Components.Pages.Inventory.SubComponents
+
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <PackingSpecialRateForm Id="@Id" />
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public int? Id { get; set; }
+}

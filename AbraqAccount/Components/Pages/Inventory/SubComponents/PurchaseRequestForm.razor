@@ -1,0 +1,179 @@
+@using AbraqAccount.Models
+@using AbraqAccount.Services.Interfaces
+@inject IPurchaseTransactionService TransactionService
+@inject NavigationManager Navigation
+
+<div class="form-card">
+    <div class="form-header">
+        <h3>@(IsEdit ? "Edit" : "New") Purchase Request</h3>
+        <div class="header-actions">
+            @if (IsEdit)
+            {
+                <span class="badge bg-info me-3">PR#: @model.PORequestNo</span>
+            }
+            <button class="btn btn-primary" @onclick="SubmitForm" disabled="@isSubmitting">
+                @if (isSubmitting)
+                {
+                    <span class="spinner-border spinner-border-sm" role="status"></span>
+                }
+                Save
+            </button>
+            <button class="btn btn-secondary" @onclick="Cancel">Cancel</button>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger">@errorMessage</div>
+    }
+
+    <div class="row g-3">
+        <div class="col-md-3">
+            <div class="form-group mb-3">
+                <label class="form-label text-danger">Requested By *</label>
+                <AbraqAccount.Components.Common.AccountSearch 
+                    Placeholder="Search User..." 
+                    SearchFunc="TransactionService.GetUsersAsync"
+                    OnAccountSelected="OnRequestedBySelected"
+                    InitialValue="@model.RequestedBy?.Username" />
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="form-group mb-3">
+                <label class="form-label text-danger">Request Date *</label>
+                <input type="date" @bind="model.RequestDate" class="form-control" />
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="form-group mb-3">
+                <label class="form-label text-danger">Request Type *</label>
+                <select @bind="model.RequestType" class="form-select">
+                    <option value="">SELECT</option>
+                    <option value="Normal">Normal</option>
+                    <option value="Urgent">Urgent</option>
+                    <option value="Low Priority">Low Priority</option>
+                </select>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="form-group mb-3">
+                <label class="form-label text-danger">Assign To *</label>
+                <AbraqAccount.Components.Common.AccountSearch 
+                    Placeholder="Search User..." 
+                    SearchFunc="TransactionService.GetUsersAsync"
+                    OnAccountSelected="OnAssignedToSelected"
+                    InitialValue="@model.AssignedTo?.Username" />
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <div class="form-group mb-3">
+                <label class="form-label">Remarks</label>
+                <textarea @bind="model.Remarks" class="form-control" rows="2" placeholder="General remarks..."></textarea>
+            </div>
+        </div>
+    </div>
+
+    <div class="items-section mt-4">
+        <h5>Request Items</h5>
+        <div class="table-responsive">
+            <table class="table table-bordered align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width: 250px;">Item Name</th>
+                        <th style="width: 100px;">UOM</th>
+                        <th style="width: 100px;">Qty</th>
+                        <th style="width: 200px;">Use Of Item</th>
+                        <th>Remarks</th>
+                        <th style="width: 100px;">Options</th>
+                        <th style="width: 40px;"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in model.Items)
+                    {
+                        <tr>
+                            <td><input type="text" @bind="item.ItemName" class="form-control form-control-sm" placeholder="Search/Enter name" /></td>
+                            <td><input type="text" @bind="item.UOM" class="form-control form-control-sm" placeholder="UOM" /></td>
+                            <td><input type="number" step="1" @bind="item.Qty" class="form-control form-control-sm text-end" /></td>
+                            <td><input type="text" @bind="item.UseOfItem" class="form-control form-control-sm" placeholder="Usage..." /></td>
+                            <td><input type="text" @bind="item.ItemRemarks" class="form-control form-control-sm" /></td>
+                            <td class="small">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" @bind="item.IsReturnable" id="ret_@item.GetHashCode()">
+                                    <label class="form-check-label" for="ret_@item.GetHashCode()">Returnable</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" @bind="item.IsReusable" id="reu_@item.GetHashCode()">
+                                    <label class="form-check-label" for="reu_@item.GetHashCode()">Reusable</label>
+                                </div>
+                            </td>
+                            <td>
+                                <button class="btn btn-outline-danger btn-sm p-0 px-1" @onclick="() => model.Items.Remove(item)">
+                                    <i class="bi bi-dash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <button class="btn btn-outline-primary btn-sm" @onclick="AddItem">
+            <i class="bi bi-plus"></i> Add Item
+        </button>
+    </div>
+</div>
+
+<style>
+    .form-card { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.05); }
+    .form-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; padding-bottom: 1rem; border-bottom: 1px solid #eee; }
+</style>
+
+@code {
+    [Parameter] public int? Id { get; set; }
+    private PurchaseRequest model = new() { RequestDate = DateTime.Now, Status = "Pending" };
+    private bool IsEdit => Id.HasValue;
+    private bool isSubmitting;
+    private string? errorMessage;
+
+    protected override void OnInitialized()
+    {
+        if (!IsEdit) AddItem();
+    }
+
+    private void AddItem() => model.Items.Add(new PurchaseRequestItem { CreatedAt = DateTime.Now });
+
+    private void OnRequestedBySelected(LookupItem lookup)
+    {
+        model.RequestedById = lookup.Id;
+        model.RequestedBy = new User { Id = lookup.Id, Username = lookup.Name };
+    }
+
+    private void OnAssignedToSelected(LookupItem lookup)
+    {
+        model.AssignedToId = lookup.Id;
+        model.AssignedTo = new User { Id = lookup.Id, Username = lookup.Name };
+    }
+
+    private async Task SubmitForm()
+    {
+        if (model.RequestedById == 0) { errorMessage = "Requested By is required."; return; }
+        if (model.AssignedToId == 0) { errorMessage = "Assign To is required."; return; }
+        if (string.IsNullOrWhiteSpace(model.RequestType)) { errorMessage = "Request Type is required."; return; }
+        if (!model.Items.Any(i => !string.IsNullOrEmpty(i.ItemName))) { errorMessage = "At least one item is required."; return; }
+
+        isSubmitting = true;
+        errorMessage = null;
+
+        var result = await TransactionService.CreatePurchaseRequestAsync(model);
+
+        if (result.success) Navigation.NavigateTo("/inventory/purchase-requests");
+        else errorMessage = result.message;
+        
+        isSubmitting = false;
+    }
+
+    private void Cancel() => Navigation.NavigateTo("/inventory/purchase-requests");
+}

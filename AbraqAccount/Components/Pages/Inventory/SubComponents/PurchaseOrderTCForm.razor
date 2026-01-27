@@ -1,0 +1,123 @@
+@using AbraqAccount.Models
+@using AbraqAccount.Services.Interfaces
+@inject IPurchaseMasterService PurchaseService
+@inject NavigationManager Navigation
+
+<div class="form-card">
+    <div class="form-header">
+        <h3>@(IsEdit ? "Edit" : "Add") Purchase Order T&C</h3>
+        <div class="header-actions">
+            <button class="btn btn-primary" @onclick="SubmitForm" disabled="@isSubmitting">
+                @if (isSubmitting)
+                {
+                    <span class="spinner-border spinner-border-sm" role="status"></span>
+                }
+                Save
+            </button>
+            <button class="btn btn-secondary" @onclick="Cancel">Cancel</button>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger">@errorMessage</div>
+    }
+
+    <div class="row g-3">
+        <div class="col-md-6">
+            <div class="form-group mb-3">
+                <label class="form-label">T&C Type</label>
+                <select @bind="model.TCType" class="form-select">
+                    <option value="">--- Select Type ---</option>
+                    <option value="Annexure">Annexure</option>
+                    <option value="Other">Other</option>
+                </select>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="form-group mb-3">
+                <label class="form-label">Caption</label>
+                <input type="text" @bind="model.Caption" class="form-control" placeholder="Enter caption..." />
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <div class="form-group mb-3">
+                <label class="form-label">Terms & Conditions</label>
+                <textarea @bind="model.TermsAndConditions" class="form-control" rows="8" placeholder="Enter full terms and conditions text..."></textarea>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <div class="form-group mb-3">
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" @bind="model.IsActive" id="activeSwitch">
+                    <label class="form-check-label" for="activeSwitch">Active Status</label>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .form-card { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.05); }
+    .form-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; padding-bottom: 1rem; border-bottom: 1px solid #eee; }
+</style>
+
+@code {
+    [Parameter] public int? Id { get; set; }
+    private PurchaseOrderTC model = new() { IsActive = true, CreatedAt = DateTime.Now };
+    private bool IsEdit => Id.HasValue;
+    private bool isSubmitting;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (IsEdit)
+        {
+            var existing = await PurchaseService.GetPurchaseOrderTCByIdAsync(Id!.Value);
+            if (existing != null)
+            {
+                model = existing;
+            }
+            else
+            {
+                errorMessage = "T&C not found.";
+            }
+        }
+    }
+
+    private async Task SubmitForm()
+    {
+        if (string.IsNullOrWhiteSpace(model.TCType)) { errorMessage = "T&C Type is required."; return; }
+        if (string.IsNullOrWhiteSpace(model.Caption)) { errorMessage = "Caption is required."; return; }
+        if (string.IsNullOrWhiteSpace(model.TermsAndConditions)) { errorMessage = "Terms & Conditions text is required."; return; }
+
+        isSubmitting = true;
+        errorMessage = null;
+
+        var user = "Admin";
+        var result = IsEdit 
+            ? await PurchaseService.UpdatePurchaseOrderTCAsync(Id!.Value, model, user)
+            : await PurchaseService.CreatePurchaseOrderTCAsync(model, user);
+
+        if (result.success)
+        {
+            Navigation.NavigateTo("/inventory/po-terms");
+        }
+        else
+        {
+            errorMessage = result.message;
+        }
+        isSubmitting = false;
+    }
+
+    private void Cancel()
+    {
+        Navigation.NavigateTo("/inventory/po-terms");
+    }
+}

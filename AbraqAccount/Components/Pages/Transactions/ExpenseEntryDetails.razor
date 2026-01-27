@@ -1,0 +1,10 @@
+@page "/transactions/expense-entry/view/{Id:int}"
+@using AbraqAccount.Components.Pages.Transactions.SubComponents
+
+<div class="p-0">
+    <ExpenseEntryForm Id="@Id" IsReadOnly="true" />
+</div>
+
+@code {
+    [Parameter] public int Id { get; set; }
+}

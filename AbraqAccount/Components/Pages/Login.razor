@@ -1,0 +1,264 @@
+@page "/login"
+@using AbraqAccount.Components.Layout
+@using AbraqAccount.Models
+@using AbraqAccount.Services.Interfaces
+@using Microsoft.AspNetCore.Http
+@inject IAccountService AccountService
+@inject NavigationManager NavigationManager
+@inject IHttpContextAccessor HttpContextAccessor
+
+@layout EmptyLayout
+
+<PageTitle>Login - AbraqAccount</PageTitle>
+
+<style>
+    :root {
+        --primary-green: #2ecc71;
+        --secondary-green: #27ae60;
+        --accent-orange: #f39c12;
+        --glass-bg: rgba(255, 255, 255, 0.9);
+        --glass-border: rgba(255, 255, 255, 0.2);
+    }
+
+    body, html {
+        height: 100%;
+        margin: 0;
+        font-family: 'Outfit', sans-serif;
+        background: #000;
+    }
+
+    .login-bg {
+        background-image: linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.5)), url('images/login-bg.png');
+        height: 100vh;
+        background-position: center;
+        background-repeat: no-repeat;
+        background-size: cover;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        animation: fadeIn 1.5s ease-in-out;
+    }
+
+    @@keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+
+    .login-card {
+        background: var(--glass-bg);
+        backdrop-filter: blur(15px);
+        -webkit-backdrop-filter: blur(15px);
+        border: 1px solid var(--glass-border);
+        border-radius: 24px;
+        padding: 3rem;
+        width: 100%;
+        max-width: 480px;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        transform: translateY(0);
+        transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        animation: slideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    @@keyframes slideUp {
+        from { transform: translateY(40px); opacity: 0; }
+        to { transform: translateY(0); opacity: 1; }
+    }
+
+    .logo-header {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        margin-bottom: 2rem;
+    }
+
+    .logo-text {
+        font-size: 2.2rem;
+        font-weight: 800;
+        color: #1a1a1a;
+        letter-spacing: -1.5px;
+    }
+
+    .logo-box {
+        width: 50px;
+        height: 50px;
+        background: linear-gradient(135deg, var(--primary-green), var(--secondary-green));
+        color: white;
+        font-size: 26px;
+        font-weight: 800;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 12px;
+        box-shadow: 0 10px 20px rgba(46, 204, 113, 0.3);
+    }
+
+    .logo-suffix {
+        color: var(--primary-green);
+        font-size: 2.2rem;
+        font-weight: 700;
+        font-style: italic;
+    }
+
+    .form-title {
+        font-size: 1.8rem;
+        font-weight: 700;
+        color: #1a1a1a;
+        margin-bottom: 0.5rem;
+        text-align: center;
+    }
+
+    .form-subtitle {
+        color: #636e72;
+        text-align: center;
+        margin-bottom: 2.5rem;
+        font-size: 1rem;
+    }
+
+    .form-control, .form-select {
+        background: #f8f9fa;
+        border: 2px solid #edeff2;
+        border-radius: 14px;
+        padding: 0.8rem 1rem;
+        font-size: 1rem;
+        transition: all 0.3s ease;
+        height: auto;
+    }
+
+    .form-control:focus, .form-select:focus {
+        background: white;
+        border-color: var(--primary-green);
+        box-shadow: 0 0 0 4px rgba(46, 204, 113, 0.15);
+        outline: none;
+    }
+
+    .btn-green {
+        background: linear-gradient(135deg, var(--primary-green), var(--secondary-green));
+        color: white;
+        border: none;
+        padding: 1.1rem;
+        font-size: 1.1rem;
+        font-weight: 700;
+        border-radius: 16px;
+        transition: all 0.3s ease;
+        box-shadow: 0 12px 24px rgba(46, 204, 113, 0.3);
+        margin-top: 1rem;
+    }
+
+    .btn-green:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 15px 30px rgba(46, 204, 113, 0.4);
+        color: white;
+    }
+
+    .alert-danger {
+        background: #fff5f5;
+        border: none;
+        border-left: 4px solid #ff7675;
+        color: #d63031;
+        border-radius: 12px;
+        padding: 1.2rem;
+        margin-bottom: 2rem;
+        font-weight: 500;
+        box-shadow: 0 4px 12px rgba(255, 118, 117, 0.1);
+    }
+
+    .copyright {
+        margin-top: 3rem;
+        text-align: center;
+        color: #636e72;
+        font-size: 0.9rem;
+        font-weight: 500;
+    }
+
+    .login-card:hover {
+        transform: translateY(-5px);
+    }
+</style>
+
+<div class="login-bg">
+        <div class="login-card">
+            <div class="logo-header">
+                <span class="logo-text">ABRAQ</span>
+                <div class="logo-box">A</div>
+                <span class="logo-suffix">agró</span>
+            </div>
+
+            <h2 class="form-title">Login to Account</h2>
+            <p class="form-subtitle">Welcome back! Please enter your details.</p>
+
+            @if (HttpContextAccessor.HttpContext?.Request.Query.ContainsKey("error") == true)
+            {
+                <div class="alert-danger d-flex align-items-center gap-3">
+                    <i class="bi bi-exclamation-octagon-fill fs-4"></i>
+                    <div>@HttpContextAccessor.HttpContext?.Request.Query["error"]</div>
+                </div>
+            }
+
+            <form action="account/login" method="post">
+                <AntiforgeryToken />
+                
+                <div class="form-floating mb-3">
+                    <input name="username" class="form-control" id="floatingInput" placeholder="User Name" required />
+                    <label for="floatingInput">User Name</label>
+                </div>
+
+                <div class="form-floating mb-3">
+                    <input name="password" type="password" class="form-control" id="floatingPassword" placeholder="Password" required />
+                    <label for="floatingPassword">Password</label>
+                </div>
+
+                <div class="row g-3 mb-3">
+                    <div class="col-md">
+                        <div class="form-floating">
+                            <select name="company" class="form-select" id="floatingCompany">
+                                <option value="A-Abraq Agro Fres">A-Abraq Agro Fresh LLP</option>
+                            </select>
+                            <label for="floatingCompany">Company</label>
+                        </div>
+                    </div>
+                    <div class="col-md">
+                        <div class="form-floating">
+                            <select name="year" class="form-select" id="floatingYear">
+                                <option value="25-26">2025-2026</option>
+                            </select>
+                            <label for="floatingYear">Financial Year</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-check mb-4 d-flex align-items-center gap-2">
+                    <input type="checkbox" name="rememberMe" class="form-check-input" id="flexCheckDefault" />
+                    <label class="form-check-label text-muted" for="flexCheckDefault" style="font-weight: 500; cursor: pointer;">
+                        Stay signed in on this device
+                    </label>
+                </div>
+
+                <button type="submit" class="btn btn-green w-100">
+                    Sign In <i class="bi bi-arrow-right-short ms-1"></i>
+                </button>
+            </form>
+
+            <div class="copyright">
+                &copy; @DateTime.Now.Year Abraq Agro Fresh LLP <br>
+                Empowering Agricultural Excellence
+            </div>
+        </div>
+    </div>
+@code {
+    private LoginViewModel loginModel = new();
+
+    protected override void OnInitialized()
+    {
+        // Check if already logged in (SSR check)
+        var context = HttpContextAccessor.HttpContext;
+        if (context != null)
+        {
+            var userId = context.Session.GetString("UserId");
+            if (!string.IsNullOrEmpty(userId))
+            {
+                NavigationManager.NavigateTo("dashboard");
+            }
+        }
+    }
+}

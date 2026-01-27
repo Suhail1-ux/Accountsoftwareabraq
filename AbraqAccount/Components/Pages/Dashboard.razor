@@ -1,0 +1,244 @@
+@page "/dashboard"
+@using Microsoft.AspNetCore.Http
+@using AbraqAccount.Services.Interfaces
+@inject IDashboardService DashboardService
+@inject IHttpContextAccessor HttpContextAccessor
+@layout DashboardLayout
+
+<div class="container-fluid">
+    <!-- Dashboard Header -->
+    <div class="dashboard-header">
+        <div class="dashboard-title-section">
+            <h1>DashBoard</h1>
+            <div class="subtitle">Control panel</div>
+        </div>
+        <div class="auto-refresh-section">
+            <label>Auto Refresh Dashboard?</label>
+            <div class="switch">
+                <input type="checkbox" @bind="autoRefresh">
+                <span class="slider"></span>
+            </div>
+            <span>@(autoRefresh ? "ON" : "OFF")</span>
+        </div>
+    </div>
+
+    <!-- Breadcrumbs -->
+    <div class="breadcrumbs">
+        <a href="dashboard">Home</a>
+        <span>&gt;</span>
+        <span>DashBoard</span>
+    </div>
+
+    <!-- Dashboard Cards -->
+    <div class="row">
+        <!-- Inward Card -->
+        <div class="col-md-6">
+            <div class="dashboard-card">
+                <div class="card-header-custom">
+                    <h5>Inward (PreInward-27)</h5>
+                    <div class="card-header-actions">
+                        <button type="button" title="Calendar">
+                            <i class="bi bi-calendar"></i>
+                        </button>
+                        <button type="button" title="More" style="font-size: 0.9rem;">
+                            More >>
+                        </button>
+                        <button type="button" title="Refresh">
+                            <i class="bi bi-arrow-clockwise"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="table-container">
+                    <table class="table-custom">
+                        <thead>
+                            <tr>
+                                <th>Inward No</th>
+                                <th>I/w Date</th>
+                                <th>Grower</th>
+                                <th>Qty</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Empty table for now as in original -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Material Order Card -->
+        <div class="col-md-6">
+            <div class="dashboard-card">
+                <div class="card-header-custom">
+                    <h5>Material Order (Pending-3)</h5>
+                    <div class="card-header-actions">
+                        <button type="button" title="Calendar">
+                            <i class="bi bi-calendar"></i>
+                        </button>
+                        <button type="button" title="More" style="font-size: 0.9rem;">
+                            More >>
+                        </button>
+                        <button type="button" title="Refresh">
+                            <i class="bi bi-arrow-clockwise"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="table-container">
+                    <table class="table-custom">
+                        <thead>
+                            <tr>
+                                <th>Mo No</th>
+                                <th>Mo Date</th>
+                                <th>Grower</th>
+                                <th>Qty</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>DO/22/00711</td>
+                                <td>05/07/2023</td>
+                                <td>Tariq Fruit Company</td>
+                                <td>7</td>
+                                <td><span class="badge bg-warning text-dark">Pending</span></td>
+                            </tr>
+                            <tr>
+                                <td>DO/22/00407</td>
+                                <td>19/03/2023</td>
+                                <td>Ab Majeed Sheikh And Sons</td>
+                                <td>1171</td>
+                                <td><span class="badge bg-warning text-dark">Pending</span></td>
+                            </tr>
+                            <tr>
+                                <td>DO/22/00407</td>
+                                <td>19/03/2023</td>
+                                <td>I.F.A</td>
+                                <td>1171</td>
+                                <td><span class="badge bg-warning text-dark">Pending</span></td>
+                            </tr>
+                            <tr>
+                                <td>DO/22/00407</td>
+                                <td>19/03/2023</td>
+                                <td>Mohd Ayoub Sheikh and Sons</td>
+                                <td>1171</td>
+                                <td><span class="badge bg-warning text-dark">Pending</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .dashboard-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+        padding: 1.5rem;
+        background-color: white;
+        margin: -2rem -2rem 1.5rem -2rem;
+        border-bottom: 1px solid #e0e0e0;
+    }
+
+    .dashboard-title-section h1 {
+        font-size: 2rem;
+        font-weight: bold;
+        margin: 0;
+        color: #333;
+    }
+
+    .dashboard-title-section .subtitle {
+        font-size: 0.9rem;
+        color: #666;
+        margin-top: 0.25rem;
+    }
+
+    .auto-refresh-section {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .auto-refresh-section label {
+        margin: 0;
+        font-size: 0.9rem;
+        color: #666;
+    }
+
+    .switch {
+        position: relative;
+        display: inline-block;
+        width: 50px;
+        height: 24px;
+    }
+
+    .switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+    }
+
+    .slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: #ccc;
+        transition: .4s;
+        border-radius: 24px;
+    }
+
+    .slider:before {
+        position: absolute;
+        content: "";
+        height: 18px;
+        width: 18px;
+        left: 3px;
+        bottom: 3px;
+        background-color: white;
+        transition: .4s;
+        border-radius: 50%;
+    }
+
+    input:checked + .slider {
+        background-color: #28a745;
+    }
+
+    input:checked + .slider:before {
+        transform: translateX(26px);
+    }
+
+    .breadcrumbs {
+        margin-bottom: 1.5rem;
+        font-size: 0.9rem;
+        color: #666;
+        background-color: white;
+        padding: 1rem 1.5rem;
+        margin: 0 -2rem 1.5rem -2rem;
+    }
+
+    .breadcrumbs a {
+        color: #007bff;
+        text-decoration: none;
+    }
+
+    .breadcrumbs span {
+        margin: 0 0.5rem;
+        color: #999;
+    }
+</style>
+
+@code {
+    private bool autoRefresh = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await DashboardService.GetDashboardDataAsync();
+    }
+}

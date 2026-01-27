@@ -1,0 +1,116 @@
+@page "/inventory/packing-recipes"
+@using AbraqAccount.Models
+@using AbraqAccount.Services.Interfaces
+@inject IPackingService PackingService
+@inject NavigationManager Navigation
+
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="mb-0">Packing Recipes</h2>
+        <button class="btn btn-primary" @onclick="CreateNew">
+            <i class="bi bi-plus-lg"></i> Add New Recipe
+        </button>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="bi bi-search"></i></span>
+                        <input type="text" class="form-control" placeholder="Search by name or code..." 
+                               @bind="searchTerm" @bind:event="oninput" @onkeyup="HandleSearch" />
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (recipes == null)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    }
+    else if (!recipes.Any())
+    {
+        <div class="alert alert-info">No packing recipes found.</div>
+    }
+    else
+    {
+        <div class="card shadow-sm">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Code</th>
+                            <th>Recipe Name</th>
+                            <th>UOM</th>
+                            <th class="text-end">Cost Unit</th>
+                            <th class="text-end">Labour Cost</th>
+                            <th class="text-end">Total Value</th>
+                            <th>Status</th>
+                            <th class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var recipe in recipes)
+                        {
+                            <tr>
+                                <td><span class="badge bg-secondary">@recipe.RecipeCode</span></td>
+                                <td class="fw-bold">@recipe.RecipeName</td>
+                                <td>@recipe.RecipeUOMName</td>
+                                <td class="text-end">@recipe.CostUnit.ToString("N2")</td>
+                                <td class="text-end">@recipe.LabourCost.ToString("N2")</td>
+                                <td class="text-end text-primary fw-bold">@recipe.Value.ToString("N2")</td>
+                                <td>
+                                    @if (recipe.IsActive)
+                                    {
+                                        <span class="badge bg-success-subtle text-success">Active</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-danger-subtle text-danger">Inactive</span>
+                                    }
+                                </td>
+                                <td class="text-end">
+                                    <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => Edit(recipe.Id)">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private List<PackingRecipe>? recipes;
+    private string searchTerm = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadRecipes();
+    }
+
+    private async Task LoadRecipes()
+    {
+        recipes = await PackingService.GetPackingRecipesAsync(searchTerm);
+    }
+
+    private async Task HandleSearch(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" || searchTerm.Length > 2 || searchTerm.Length == 0)
+        {
+            await LoadRecipes();
+        }
+    }
+
+    private void CreateNew() => Navigation.NavigateTo("/inventory/packing-recipes/create");
+    private void Edit(int id) => Navigation.NavigateTo($"/inventory/packing-recipes/edit/{id}");
+}

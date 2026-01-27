@@ -1,0 +1,185 @@
+@page "/inventory/item-groups"
+@using AbraqAccount.Models
+@using AbraqAccount.Services.Interfaces
+@inject IPurchaseMasterService PurchaseService
+@inject NavigationManager Navigation
+
+<div class="item-group-list-container">
+    <div class="row align-items-center mb-4">
+        <div class="col">
+            <h4 class="m-0 text-dark fw-bold">Purchase Item Group <small class="text-muted fw-normal">Control panel</small></h4>
+        </div>
+        <div class="col-auto">
+            <span class="text-muted small"><i class="bi bi-house"></i> Home &gt; Purchase Item Group</span>
+        </div>
+    </div>
+
+    <!-- List Section -->
+    <div class="card shadow-sm border-0">
+        <div class="card-header bg-white py-3 border-0 d-flex justify-content-between align-items-center">
+            <h5 class="card-title mb-0 text-dark fw-bold">Purchase Item Group - List</h5>
+            <div class="d-flex gap-2">
+                <div class="input-group input-group-sm" style="width: 250px;">
+                    <input type="text" class="form-control" placeholder="Enter Search Criteria" @bind="searchTerm" @bind:event="oninput" @onkeyup="HandleSearch" />
+                    <span class="input-group-text bg-white border-start-0 text-muted"><i class="bi bi-search"></i></span>
+                </div>
+                <button class="btn btn-search-icon" @onclick="LoadGroups"><i class="bi bi-search"></i></button>
+                <button class="btn btn-add-icon" @onclick="CreateNew"><i class="bi bi-plus-lg"></i></button>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-custom table-hover m-0">
+                    <thead>
+                        <tr>
+                            <th>Code <i class="bi bi-chevron-expand small text-muted"></i></th>
+                            <th>Inventory Item Group Name <i class="bi bi-chevron-expand small text-muted"></i></th>
+                            <th class="text-center">Status <i class="bi bi-chevron-expand small text-muted"></i></th>
+                            <th class="text-center">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (groups == null)
+                        {
+                            <tr><td colspan="4" class="text-center py-5"><div class="spinner-border text-primary spinner-border-sm"></div> Loading...</td></tr>
+                        }
+                        else if (!groups.Any())
+                        {
+                            <tr><td colspan="4" class="text-center py-5 text-muted">No item groups found.</td></tr>
+                        }
+                        else
+                        {
+                            @foreach (var group in groups)
+                            {
+                                <tr>
+                                    <td>@group.Code</td>
+                                    <td class="fw-medium">@group.Name</td>
+                                    <td class="text-center">
+                                        @if (group.IsActive)
+                                        {
+                                            <i class="bi bi-check-circle-fill text-success"></i>
+                                        }
+                                        else
+                                        {
+                                            <i class="bi bi-x-circle-fill text-danger"></i>
+                                        }
+                                    </td>
+                                    <td class="text-center">
+                                        <div class="d-flex justify-content-center gap-3">
+                                            <button class="btn btn-action-icon" title="Edit" @onclick="() => Edit(group.Id)"><i class="bi bi-pencil"></i></button>
+                                            <button class="btn btn-action-icon" title="View"><i class="bi bi-eye"></i></button>
+                                            <button class="btn btn-action-icon" title="Info" @onclick="() => ViewHistory(group)"><i class="bi bi-info-circle"></i></button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (selectedGroupForHistory != null)
+{
+    <div class="modal fade show d-block" style="background: rgba(0,0,0,0.5)">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">History: @selectedGroupForHistory.Name</h5>
+                    <button type="button" class="btn-close" @onclick="CloseHistory"></button>
+                </div>
+                <div class="modal-body">
+                    @if (history == null)
+                    {
+                        <div class="text-center py-3">
+                            <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                        </div>
+                    }
+                    else
+                    {
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Action</th>
+                                    <th>User</th>
+                                    <th>Date</th>
+                                    <th>Remarks</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (dynamic h in history)
+                                {
+                                    <tr>
+                                        <td>@h.action</td>
+                                        <td>@h.user</td>
+                                        <td>@h.dateTime</td>
+                                        <td>@h.remarks</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CloseHistory">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .item-group-list-container { background: #f4f7f6; min-height: 100vh; padding: 25px; }
+    
+    .table-custom thead th { background: #f8f9fa; border-bottom: 2px solid #dee2e6; color: #495057; font-size: 0.85rem; padding: 15px 10px; white-space: nowrap; }
+    .table-custom tbody td { padding: 15px 10px; font-size: 0.9rem; color: #333; vertical-align: middle; border-bottom: 1px solid #f2f2f2; }
+    
+    .btn-search-icon { background: #6c757d; color: white; border: none; width: 32px; height: 32px; border-radius: 4px; display: flex; align-items: center; justify-content: center; }
+    .btn-add-icon { background: #6c757d; color: white; border: none; width: 32px; height: 32px; border-radius: 4px; display: flex; align-items: center; justify-content: center; }
+    
+    .btn-action-icon { padding: 0; border: none; background: transparent; color: #6c757d; transition: all 0.2s; font-size: 1rem; }
+    .btn-action-icon:hover { color: #333; }
+</style>
+
+@code {
+    private List<PurchaseItemGroup>? groups;
+    private string searchTerm = "";
+    private PurchaseItemGroup? selectedGroupForHistory;
+    private IEnumerable<object>? history;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadGroups();
+    }
+
+    private async Task LoadGroups()
+    {
+        groups = await PurchaseService.GetPurchaseItemGroupsAsync(searchTerm);
+    }
+
+    private async Task HandleSearch(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await LoadGroups();
+        }
+    }
+
+    private void CreateNew() => Navigation.NavigateTo("/inventory/item-groups/create");
+    private void Edit(int id) => Navigation.NavigateTo($"/inventory/item-groups/edit/{id}");
+
+    private async Task ViewHistory(PurchaseItemGroup group)
+    {
+        selectedGroupForHistory = group;
+        history = null;
+        history = await PurchaseService.GetPurchaseItemGroupHistoryAsync(group.Id);
+    }
+
+    private void CloseHistory()
+    {
+        selectedGroupForHistory = null;
+        history = null;
+    }
+}

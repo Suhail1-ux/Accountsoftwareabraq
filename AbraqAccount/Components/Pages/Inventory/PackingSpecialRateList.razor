@@ -1,0 +1,131 @@
+@page "/inventory/packing-special-rates"
+@using AbraqAccount.Models
+@using AbraqAccount.Services.Interfaces
+@inject IPackingService PackingService
+@inject NavigationManager Navigation
+
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="mb-0">Packing Special Rates</h2>
+        <button class="btn btn-primary" @onclick="CreateNew">
+            <i class="bi bi-plus-lg"></i> Add Special Rate
+        </button>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label">Grower Group</label>
+                    <input type="text" class="form-control" placeholder="Search group..." 
+                           @bind="groupSearch" @onkeyup="HandleSearch" />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Grower Name</label>
+                    <input type="text" class="form-control" placeholder="Search name..." 
+                           @bind="nameSearch" @onkeyup="HandleSearch" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Status</label>
+                    <select class="form-select" @onchange="OnStatusChanged">
+                        <option value="ALL">ALL</option>
+                        <option value="Active">Active</option>
+                        <option value="Inactive">Inactive</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (rates == null)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    }
+    else if (!rates.Any())
+    {
+        <div class="alert alert-info">No special rates found.</div>
+    }
+    else
+    {
+        <div class="card shadow-sm">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Effective Date</th>
+                            <th>Grower Group</th>
+                            <th>Grower/Farmer</th>
+                            <th>Items Count</th>
+                            <th>Status</th>
+                            <th class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var rate in rates)
+                        {
+                            <tr>
+                                <td>@rate.EffectiveDate.ToString("dd MMM yyyy")</td>
+                                <td>@(rate.GrowerGroup?.GroupName ?? "N/A")</td>
+                                <td>@(rate.Farmer?.FarmerName ?? "N/A")</td>
+                                <td><span class="badge bg-secondary">@rate.Details.Count</span></td>
+                                <td>
+                                    @if (rate.IsActive)
+                                    {
+                                        <span class="badge bg-success-subtle text-success">Active</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-danger-subtle text-danger">Inactive</span>
+                                    }
+                                </td>
+                                <td class="text-end">
+                                    <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => Edit(rate.Id)">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private List<PackingSpecialRate>? rates;
+    private string groupSearch = "";
+    private string nameSearch = "";
+    private string status = "ALL";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadRates();
+    }
+
+    private async Task LoadRates()
+    {
+        rates = await PackingService.GetPackingSpecialRatesAsync(groupSearch, nameSearch, status);
+    }
+
+    private async Task HandleSearch(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await LoadRates();
+        }
+    }
+
+    private async Task OnStatusChanged(ChangeEventArgs e)
+    {
+        status = e.Value?.ToString() ?? "ALL";
+        await LoadRates();
+    }
+
+    private void CreateNew() => Navigation.NavigateTo("/inventory/packing-special-rates/create");
+    private void Edit(int id) => Navigation.NavigateTo($"/inventory/packing-special-rates/edit/{id}");
+}

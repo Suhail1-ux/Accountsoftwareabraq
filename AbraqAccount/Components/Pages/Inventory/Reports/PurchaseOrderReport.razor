@@ -1,0 +1,186 @@
+@page "/inventory/reports/purchase-order-report"
+@using AbraqAccount.Models
+@using AbraqAccount.Services.Interfaces
+@using Microsoft.AspNetCore.Mvc.Rendering
+@inject IPurchaseOrderService POService
+
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="mb-0">Purchase Order Report</h2>
+        <div class="actions">
+            <button class="btn btn-outline-success me-2" @onclick="ExportExcel">
+                <i class="bi bi-file-earmark-excel"></i> Export Excel
+            </button>
+            <button class="btn btn-outline-danger" @onclick="ExportPdf">
+                <i class="bi bi-file-earmark-pdf"></i> Export PDF
+            </button>
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-white">
+            <h5 class="mb-0">Report Filters</h5>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-2">
+                    <label class="form-label">From Date</label>
+                    <input type="date" @bind="filter.FromDate" class="form-control" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">To Date</label>
+                    <input type="date" @bind="filter.ToDate" class="form-control" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Vendor Name</label>
+                    <input type="text" @bind="filter.VendorName" class="form-control" placeholder="Search Vendor..." />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Item Group</label>
+                    <input type="text" @bind="filter.ItemGroup" class="form-control" placeholder="Search Group..." />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">UOM</label>
+                    <select @bind="filter.UOM" class="form-select">
+                        <option value="">SELECT</option>
+                        @if (uomOptions != null)
+                        {
+                            @foreach (var opt in uomOptions)
+                            {
+                                <option value="@opt.Value">@opt.Text</option>
+                            }
+                        }
+                    </select>
+                </div>
+            </div>
+            <div class="row g-3 mt-1">
+                <div class="col-md-3">
+                    <label class="form-label">Status</label>
+                    <select @bind="filter.Status" class="form-select">
+                        <option value="">ALL</option>
+                        <option value="UnApproved">UnApproved</option>
+                        <option value="Approved">Approved</option>
+                        <option value="Cancelled">Cancelled</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Billing To</label>
+                    <input type="text" @bind="filter.BillingTo" class="form-control" placeholder="Search Billing Address..." />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Delivery Address</label>
+                    <input type="text" @bind="filter.DeliveryAddress" class="form-control" placeholder="Search Delivery Address..." />
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button class="btn btn-primary w-100" @onclick="GenerateReport">
+                        <i class="bi bi-play-fill"></i> View Report
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    }
+    else if (reportData == null)
+    {
+         <div class="alert alert-light text-center border">Select filters and click "View Report" to see results.</div>
+    }
+    else if (!reportData.Any())
+    {
+        <div class="alert alert-info">No data found for the selected criteria.</div>
+    }
+    else
+    {
+        <div class="card shadow-sm">
+            <div class="table-responsive">
+                <table class="table table-bordered table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Date</th>
+                            <th>PO Number</th>
+                            <th>Vendor</th>
+                            <th class="text-end">Qty</th>
+                            <th class="text-end">Tax</th>
+                            <th class="text-end">Total Amount</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var order in reportData)
+                        {
+                            <tr>
+                                <td>@order.PODate.ToString("dd MMM yyyy")</td>
+                                <td><span class="badge bg-secondary">@order.PONumber</span></td>
+                                <td>@order.Vendor?.VendorName</td>
+                                <td class="text-end">@order.POQty.ToString("N2")</td>
+                                <td class="text-end">@order.TaxAmount.ToString("N2")</td>
+                                <td class="text-end fw-bold text-primary">@order.TotalAmount.ToString("N2")</td>
+                                <td>@order.Status</td>
+                            </tr>
+                        }
+                    </tbody>
+                    <tfoot class="table-light fw-bold">
+                        <tr>
+                            <td colspan="3" class="text-end">TOTALS:</td>
+                            <td class="text-end">@reportData.Sum(o => o.POQty).ToString("N2")</td>
+                            <td class="text-end">@reportData.Sum(o => o.TaxAmount).ToString("N2")</td>
+                            <td class="text-end text-primary">@reportData.Sum(o => o.TotalAmount).ToString("N2")</td>
+                            <td></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private List<PurchaseOrder>? reportData;
+    private bool isLoading;
+    private List<SelectListItem>? uomOptions;
+
+    private ReportFilter filter = new() { 
+        FromDate = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1),
+        ToDate = DateTime.Now
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        dynamic viewBag = new System.Dynamic.ExpandoObject();
+        await POService.LoadReportDropdownsAsync(viewBag);
+        uomOptions = ((SelectList)viewBag.UOMList).ToList();
+    }
+
+    private async Task GenerateReport()
+    {
+        isLoading = true;
+        reportData = await POService.GetPurchaseOrderReportAsync(
+            filter.FromDate, filter.ToDate, filter.VendorName, 
+            filter.ItemGroup, filter.ItemName, filter.UOM, 
+            filter.BillingTo, filter.DeliveryAddress, filter.Status);
+        isLoading = false;
+    }
+
+    private void ExportExcel() { /* TODO */ }
+    private void ExportPdf() { /* TODO */ }
+
+    public class ReportFilter
+    {
+        public DateTime FromDate { get; set; }
+        public DateTime ToDate { get; set; }
+        public string? VendorName { get; set; }
+        public string? ItemGroup { get; set; }
+        public string? ItemName { get; set; }
+        public string? UOM { get; set; }
+        public string? BillingTo { get; set; }
+        public string? DeliveryAddress { get; set; }
+        public string? Status { get; set; }
+    }
+}

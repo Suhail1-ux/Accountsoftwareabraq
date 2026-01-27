@@ -1,0 +1,196 @@
+@page "/inventory/items"
+@using AbraqAccount.Models
+@using AbraqAccount.Services.Interfaces
+@inject IPurchaseMasterService PurchaseService
+@inject NavigationManager Navigation
+
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="mb-0">Purchase Items</h2>
+        <button class="btn btn-primary" @onclick="CreateNew">
+            <i class="bi bi-plus-lg"></i> Add New Item
+        </button>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="bi bi-search"></i></span>
+                        <input type="text" class="form-control" placeholder="Search by name, code, group or billing name..." 
+                               @bind="searchTerm" @bind:event="oninput" @onkeyup="HandleSearch" />
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (items == null)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    }
+    else if (!items.Any())
+    {
+        <div class="alert alert-info">No purchase items found.</div>
+    }
+    else
+    {
+        <div class="card shadow-sm">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Code</th>
+                            <th>Item Name</th>
+                            <th>Group</th>
+                            <th>UOM</th>
+                            <th>Type</th>
+                            <th>Status</th>
+                            <th class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in items)
+                        {
+                            <tr>
+                                <td><span class="badge bg-secondary">@item.Code</span></td>
+                                <td>
+                                    <div class="fw-bold">@item.ItemName</div>
+                                    @if (!string.IsNullOrEmpty(item.BillingName))
+                                    {
+                                        <small class="text-muted">Billing: @item.BillingName</small>
+                                    }
+                                </td>
+                                <td>@(item.PurchaseItemGroup?.Name ?? "N/A")</td>
+                                <td>@item.UOM</td>
+                                <td><small class="badge bg-light text-dark">@item.InventoryType</small></td>
+                                <td>
+                                    @if (item.IsActive)
+                                    {
+                                        <span class="badge bg-success-subtle text-success">Active</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-danger-subtle text-danger">Inactive</span>
+                                    }
+                                </td>
+                                <td class="text-end">
+                                    <button class="btn btn-sm btn-outline-info me-1" @onclick="() => ViewHistory(item)" title="History">
+                                        <i class="bi bi-clock-history"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => Edit(item.Id)">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-danger" @onclick="() => Delete(item)" title="Delete">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+</div>
+
+@if (selectedItemForHistory != null)
+{
+    <div class="modal fade show d-block" style="background: rgba(0,0,0,0.5)">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">History: @selectedItemForHistory.ItemName</h5>
+                    <button type="button" class="btn-close" @onclick="CloseHistory"></button>
+                </div>
+                <div class="modal-body">
+                    @if (history == null)
+                    {
+                        <div class="text-center py-3">
+                            <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                        </div>
+                    }
+                    else
+                    {
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Action</th>
+                                    <th>User</th>
+                                    <th>Date</th>
+                                    <th>Remarks</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (dynamic h in history)
+                                {
+                                    <tr>
+                                        <td>@h.action</td>
+                                        <td>@h.user</td>
+                                        <td>@h.dateTime</td>
+                                        <td>@h.remarks</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CloseHistory">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<PurchaseItem>? items;
+    private string searchTerm = "";
+    private PurchaseItem? selectedItemForHistory;
+    private IEnumerable<object>? history;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadItems();
+    }
+
+    private async Task LoadItems()
+    {
+        items = await PurchaseService.GetPurchaseItemsAsync(searchTerm);
+    }
+
+    private async Task HandleSearch(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" || searchTerm.Length > 2 || searchTerm.Length == 0)
+        {
+            await LoadItems();
+        }
+    }
+
+    private void CreateNew() => Navigation.NavigateTo("/inventory/items/create");
+    private void Edit(int id) => Navigation.NavigateTo($"/inventory/items/edit/{id}");
+
+    private async Task ViewHistory(PurchaseItem item)
+    {
+        selectedItemForHistory = item;
+        history = null;
+        history = await PurchaseService.GetPurchaseItemHistoryAsync(item.Id);
+    }
+
+    private void CloseHistory()
+    {
+        selectedItemForHistory = null;
+        history = null;
+    }
+
+    private async Task Delete(PurchaseItem item)
+    {
+        var result = await PurchaseService.DeletePurchaseItemAsync(item.Id);
+        if (result.success) await LoadItems();
+    }
+}

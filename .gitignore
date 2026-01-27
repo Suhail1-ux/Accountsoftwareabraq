@@ -1,0 +1,56 @@
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Build results
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleasePublic/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+
+# NuGet
+*.nupkg
+# The packages folder can be checked in if restore is not used.
+# packages/
+
+# Visual Studio Code
+.vscode/
+
+# Rider
+.idea/
+
+# Other
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Dotnet
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# ASP.NET Core
+**/appsettings.Development.json
+**/appsettings.Production.json
+# Be careful not to exclude appsettings.json if it contains only config structure, 
+# but often it contains connection strings so it might be safer to ignore or template it.
+# For now, excluding Development.json is usually safe.
+
+# User-specific files
+*.rsuser
+*.suo
+*.user
+*.userosscache
+*.sln.docstates

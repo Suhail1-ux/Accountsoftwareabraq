@@ -1,0 +1,270 @@
+@using AbraqAccount.Models
+@using AbraqAccount.Services.Interfaces
+@inject IDebitNoteService DebitNoteService
+@inject NavigationManager Navigation
+
+<div class="form-container">
+    <div class="form-section-title">
+        Debit Note - @(IsEdit ? "Edit" : "Add")
+    </div>
+
+    <EditForm Model="model" OnValidSubmit="SubmitForm">
+        <DataAnnotationsValidator />
+        
+        <div class="row mb-3">
+            <div class="col-md-3">
+                <div class="form-group-custom">
+                    <label>Unit <span class="text-danger">*</span></label>
+                    <select @bind="model.Unit" class="form-control-custom">
+                        <option value="">Select</option>
+                        @foreach (var unit in unitList)
+                        {
+                            <option value="@unit">@unit</option>
+                        }
+                    </select>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="form-group-custom">
+                    <label>Entry For</label>
+                    <select @onchange="OnEntryForChanged" class="form-control-custom">
+                        <option value="">Select Entry For</option>
+                        @if (entryProfiles != null)
+                        {
+                            @foreach (var profile in entryProfiles)
+                            {
+                                <option value="@profile.Id" selected="@(model.EntryForId == profile.Id)">@profile.Name</option>
+                            }
+                        }
+                    </select>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="form-group-custom">
+                    <label>Credit Account <span class="text-danger">*</span></label>
+                    <AbraqAccount.Components.Common.AccountSearch 
+                        Placeholder="Search Account Name" 
+                        SearchFunc='(t) => SearchAccounts(t, "Credit")'
+                        OnAccountSelected="OnCreditAccountSelected"
+                        InitialValue="@model.CreditAccountName"
+                        CssClass="form-control-custom" />
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="form-group-custom">
+                    <label>Debit Account <span class="text-danger">*</span></label>
+                    <AbraqAccount.Components.Common.AccountSearch 
+                        Placeholder="Search Account Name" 
+                        SearchFunc='(t) => SearchAccounts(t, "Debit")'
+                        OnAccountSelected="OnDebitAccountSelected"
+                        InitialValue="@model.DebitAccountName"
+                        CssClass="form-control-custom" />
+                </div>
+            </div>
+        </div>
+
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="form-group-custom">
+                    <label>Debit Note Date</label>
+                    <input type="date" @bind="model.DebitNoteDate" class="form-control-custom" />
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="form-group-custom">
+                    <label>Amount <span class="text-danger">*</span></label>
+                    <input type="number" step="0.01" @bind="model.Amount" class="form-control-custom" placeholder="Enter Amount" />
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="form-group-custom">
+                    <label>Narration</label>
+                    <textarea @bind="model.Narration" class="form-control-custom" rows="1" placeholder="Enter Narration"></textarea>
+                </div>
+            </div>
+        </div>
+
+        <div class="d-flex justify-content-end mb-4">
+            <button type="button" class="btn-clear-custom" @onclick="ClearForm">Clear</button>
+        </div>
+
+        <div class="form-footer-actions">
+            <button type="button" class="btn-save-custom" @onclick="SubmitForm" disabled="@isSubmitting">
+                @if (isSubmitting) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                Save
+            </button>
+            <button type="button" class="btn-cancel-custom" @onclick="Cancel">Cancel</button>
+        </div>
+    </EditForm>
+</div>
+
+<style>
+    .form-container {
+        background: white;
+        padding: 1.5rem;
+        border: 1px solid #e0e0e0;
+        border-radius: 4px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+    .form-section-title {
+        font-size: 1.1rem;
+        font-weight: 500;
+        color: #495057;
+        margin-bottom: 2rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 1px solid #f0f0f0;
+    }
+    .form-group-custom {
+        margin-bottom: 1rem;
+    }
+    .form-group-custom label {
+        display: block;
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: #333;
+        margin-bottom: 0.5rem;
+    }
+    .form-control-custom {
+        width: 100%;
+        padding: 0.6rem 0.75rem;
+        border: 1px solid #ced4da;
+        border-radius: 4px;
+        font-size: 0.9rem;
+    }
+    .form-control-custom:focus {
+        border-color: #80bdff;
+        outline: 0;
+        box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
+    }
+    .btn-clear-custom {
+        background-color: #e9ecef;
+        border: none;
+        padding: 0.5rem 2rem;
+        border-radius: 4px;
+        color: #495057;
+        font-weight: 500;
+    }
+    .form-footer-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.5rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid #f0f0f0;
+    }
+    .btn-save-custom {
+        background-color: #6c757d;
+        color: white;
+        border: none;
+        padding: 0.5rem 2rem;
+        border-radius: 4px;
+        font-weight: 500;
+    }
+    .btn-cancel-custom {
+        background-color: #e9ecef;
+        color: #495057;
+        border: none;
+        padding: 0.5rem 2rem;
+        border-radius: 4px;
+        font-weight: 500;
+    }
+</style>
+
+@code {
+    [Parameter] public int? Id { get; set; }
+    private DebitNote model = new() { DebitNoteDate = DateTime.Now };
+    private bool IsEdit => Id.HasValue;
+    private bool isSubmitting;
+    private string? errorMessage;
+    private List<string> unitList = new() { "Unit 1", "Unit 2", "Abraq Agro Fresh LLP" };
+    private IEnumerable<LookupItem>? entryProfiles;
+
+    protected override async Task OnInitializedAsync()
+    {
+        entryProfiles = await DebitNoteService.GetEntryProfilesAsync();
+        
+        if (IsEdit)
+        {
+            var existing = await DebitNoteService.GetDebitNoteByIdAsync(Id!.Value);
+            if (existing != null)
+            {
+                model = existing;
+            }
+            else
+            {
+                errorMessage = "Debit Note not found.";
+            }
+        }
+    }
+
+    private async Task<IEnumerable<LookupItem>> SearchAccounts(string term, string side)
+    {
+        return await DebitNoteService.GetAccountsAsync(term, model.EntryForId, side);
+    }
+
+    private void OnCreditAccountSelected(LookupItem account)
+    {
+        model.CreditAccountId = account.Id;
+        model.CreditAccountType = account.Type ?? "BankMaster";
+        model.CreditAccountName = account.Name;
+    }
+
+    private void OnDebitAccountSelected(LookupItem account)
+    {
+        model.DebitAccountId = account.Id;
+        model.DebitAccountType = account.Type ?? "BankMaster";
+        model.DebitAccountName = account.Name;
+    }
+
+    private void OnEntryForChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out int profileId))
+        {
+            model.EntryForId = profileId;
+            var profile = entryProfiles?.FirstOrDefault(p => p.Id == profileId);
+            model.EntryForName = profile?.Name;
+        }
+        else
+        {
+            model.EntryForId = null;
+            model.EntryForName = null;
+        }
+    }
+
+    public async Task SubmitForm()
+    {
+        isSubmitting = true;
+        errorMessage = null;
+
+        if (model.CreditAccountId == 0 || model.DebitAccountId == 0)
+        {
+            errorMessage = "Please select both Credit and Debit accounts.";
+            isSubmitting = false;
+            return;
+        }
+
+        var result = IsEdit 
+            ? await DebitNoteService.UpdateDebitNoteAsync(model)
+            : await DebitNoteService.CreateDebitNoteAsync(model);
+
+        if (result.success)
+        {
+            Navigation.NavigateTo("transactions/entries?noteType=Debit");
+        }
+        else
+        {
+            errorMessage = result.message;
+        }
+        isSubmitting = false;
+    }
+
+    private void ClearForm()
+    {
+        model = new() { DebitNoteDate = DateTime.Now };
+        errorMessage = null;
+    }
+
+    private void Cancel()
+    {
+        Navigation.NavigateTo("transactions/entries?noteType=Debit");
+    }
+}

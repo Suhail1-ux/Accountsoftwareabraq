@@ -1,0 +1,153 @@
+@page "/inventory/material-issues"
+@using AbraqAccount.Models
+@using AbraqAccount.Services.Interfaces
+@inject IInventoryService InvService
+@inject NavigationManager Navigation
+
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="mb-0">Material Issues</h2>
+        <button class="btn btn-primary" @onclick="CreateNew">
+            <i class="bi bi-plus-lg"></i> New Issue
+        </button>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-2">
+                    <label class="form-label">Issue No</label>
+                    <input type="text" class="form-control" placeholder="MI#" @bind="issueNo" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Delivered To</label>
+                    <input type="text" class="form-control" placeholder="Name..." @bind="deliveredTo" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Order By</label>
+                    <input type="text" class="form-control" placeholder="User..." @bind="orderBy" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">From Date</label>
+                    <input type="date" class="form-control" @bind="fromDate" />
+                </div>
+                <div class="col-md-1 d-flex align-items-end">
+                    <button class="btn btn-secondary w-100" @onclick="Search">Search</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (issues == null)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    }
+    else if (!issues.Any())
+    {
+        <div class="alert alert-info">No material issues found.</div>
+    }
+    else
+    {
+        <div class="card shadow-sm">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Date</th>
+                            <th>Issue No</th>
+                            <th>Delivered To</th>
+                            <th>Order By</th>
+                            <th class="text-end">Qty</th>
+                            <th class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var iss in issues)
+                        {
+                            <tr>
+                                <td>@iss.OrderDate.ToString("dd MMM yyyy")</td>
+                                <td><span class="badge bg-secondary">@iss.MaterialIssueNo</span></td>
+                                <td>@iss.DeliveredTo</td>
+                                <td>@iss.OrderBy</td>
+                                <td class="text-end fw-bold">@iss.Qty?.ToString("N2")</td>
+                                <td class="text-end">
+                                    <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => Edit(iss.Id)">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            @if (totalPages > 1)
+            {
+                <div class="card-footer bg-white">
+                    <nav>
+                        <ul class="pagination pagination-sm justify-content-center mb-0">
+                            <li class="page-item @(currentPage == 1 ? "disabled" : "")">
+                                <button class="page-link" @onclick="() => GoToPage(currentPage - 1)">Previous</button>
+                            </li>
+                            @for (int i = 1; i <= totalPages; i++)
+                            {
+                                var pageNum = i;
+                                <li class="page-item @(currentPage == pageNum ? "active" : "")">
+                                    <button class="page-link" @onclick="() => GoToPage(pageNum)">@pageNum</button>
+                                </li>
+                            }
+                            <li class="page-item @(currentPage == totalPages ? "disabled" : "")">
+                                <button class="page-link" @onclick="() => GoToPage(currentPage + 1)">Next</button>
+                            </li>
+                        </ul>
+                    </nav>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private List<MaterialIssue>? issues;
+    private string? issueNo;
+    private string? deliveredTo;
+    private string? orderBy;
+    private DateTime? fromDate;
+    private DateTime? toDate;
+
+    private int currentPage = 1;
+    private int pageSize = 10;
+    private int totalPages;
+    private int totalCount;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadIssues();
+    }
+
+    private async Task LoadIssues()
+    {
+        var result = await InvService.GetMaterialIssuesAsync(issueNo, "", deliveredTo, orderBy, "", fromDate, toDate, currentPage, pageSize);
+        issues = result.issues;
+        totalCount = result.totalCount;
+        totalPages = result.totalPages;
+    }
+
+    private async Task Search()
+    {
+        currentPage = 1;
+        await LoadIssues();
+    }
+
+    private async Task GoToPage(int page)
+    {
+        currentPage = page;
+        await LoadIssues();
+    }
+
+    private void CreateNew() => Navigation.NavigateTo("/inventory/material-issues/create");
+    private void Edit(int id) => Navigation.NavigateTo($"/inventory/material-issues/edit/{id}");
+}

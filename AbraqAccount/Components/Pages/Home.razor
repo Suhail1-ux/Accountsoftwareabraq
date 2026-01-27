@@ -1,0 +1,21 @@
+﻿@page "/"
+@using Microsoft.AspNetCore.Http
+@inject IHttpContextAccessor HttpContextAccessor
+@inject NavigationManager NavigationManager
+
+@code {
+    protected override void OnInitialized()
+    {
+        var context = HttpContextAccessor.HttpContext;
+        if (context != null)
+        {
+            var userId = context.Session.GetString("UserId");
+            if (!string.IsNullOrEmpty(userId))
+            {
+                NavigationManager.NavigateTo("dashboard");
+                return;
+            }
+        }
+        NavigationManager.NavigateTo("login");
+    }
+}

@@ -1,0 +1,165 @@
+@using AbraqAccount.Models
+@using AbraqAccount.Services.Interfaces
+@inject IInventoryService InvService
+@inject NavigationManager Navigation
+
+<div class="form-card">
+    <div class="form-header">
+        <h3>@(IsEdit ? "Edit" : "New") Material Issue</h3>
+        <div class="header-actions">
+            @if (IsEdit)
+            {
+                <span class="badge bg-info me-3">MI#: @model.MaterialIssueNo</span>
+            }
+            <button class="btn btn-primary" @onclick="SubmitForm" disabled="@isSubmitting">
+                @if (isSubmitting)
+                {
+                    <span class="spinner-border spinner-border-sm" role="status"></span>
+                }
+                Save
+            </button>
+            <button class="btn btn-secondary" @onclick="Cancel">Cancel</button>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger">@errorMessage</div>
+    }
+
+    <div class="row g-3">
+        <div class="col-md-3">
+            <div class="form-group mb-3">
+                <label class="form-label text-danger">Order Date *</label>
+                <input type="date" @bind="model.OrderDate" class="form-control" />
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="form-group mb-3">
+                <label class="form-label text-danger">Delivery Date *</label>
+                <input type="date" @bind="model.DeliveryDate" class="form-control" />
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="form-group mb-3">
+                <label class="form-label text-danger">Order By *</label>
+                <input type="text" @bind="model.OrderBy" class="form-control" placeholder="Requested by..." />
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="form-group mb-3">
+                <label class="form-label text-danger">Delivered To *</label>
+                <input type="text" @bind="model.DeliveredTo" class="form-control" placeholder="Recipient..." />
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-md-6">
+            <div class="form-group mb-3">
+                <label class="form-label">Vehicle Info</label>
+                <input type="text" @bind="model.VehicleInfo" class="form-control" placeholder="Vehicle Details..." />
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="form-group mb-3">
+                <label class="form-label">Remarks</label>
+                <input type="text" @bind="model.Remarks" class="form-control" placeholder="General remarks..." />
+            </div>
+        </div>
+    </div>
+
+    <div class="items-section mt-4">
+        <h5>Issue Items</h5>
+        <div class="table-responsive">
+            <table class="table table-bordered align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width: 30% text-danger">Item Name *</th>
+                        <th style="width: 15%">UOM</th>
+                        <th style="width: 15%">Balance Qty</th>
+                        <th style="width: 15% text-danger">Issue Qty *</th>
+                        <th style="width: 15%">Returnable?</th>
+                        <th style="width: 40px"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in model.Items)
+                    {
+                        <tr>
+                            <td class="position-static">
+                                <AbraqAccount.Components.Common.AccountSearch 
+                                    Placeholder="Search Item..." 
+                                    SearchFunc="InvService.GetPurchaseItemsAsync"
+                                    OnAccountSelected="(acc) => OnItemSelected(item, acc)"
+                                    InitialValue="@item.ItemName" />
+                            </td>
+                            <td><input type="text" @bind="item.UOM" class="form-control form-control-sm" disabled /></td>
+                            <td><input type="number" @bind="item.BalanceQty" class="form-control form-control-sm text-end" disabled /></td>
+                            <td><input type="number" step="0.01" @bind="item.IssuedQty" class="form-control form-control-sm text-end" /></td>
+                            <td class="text-center">
+                                <input class="form-check-input" type="checkbox" @bind="item.IsReturnable">
+                            </td>
+                            <td>
+                                <button class="btn btn-outline-danger btn-sm p-0 px-1" @onclick="() => model.Items.Remove(item)">
+                                    <i class="bi bi-dash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <button class="btn btn-outline-primary btn-sm" @onclick="AddItem">
+            <i class="bi bi-plus"></i> Add Item
+        </button>
+    </div>
+</div>
+
+<style>
+    .form-card { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.05); }
+    .form-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; padding-bottom: 1rem; border-bottom: 1px solid #eee; }
+</style>
+
+@code {
+    [Parameter] public int? Id { get; set; }
+    private MaterialIssue model = new() { OrderDate = DateTime.Now, DeliveryDate = DateTime.Now };
+    private bool IsEdit => Id.HasValue;
+    private bool isSubmitting;
+    private string? errorMessage;
+
+    protected override void OnInitialized()
+    {
+        if (!IsEdit) AddItem();
+    }
+
+    private void AddItem() => model.Items.Add(new MaterialIssueItem { CreatedAt = DateTime.Now });
+
+    private void OnItemSelected(MaterialIssueItem item, LookupItem lookup)
+    {
+        item.PurchaseItemId = lookup.Id;
+        item.ItemName = lookup.Name;
+        item.UOM = lookup.UOM;
+        // Balance Qty would normally be fetched from a service that calculates stock
+        item.BalanceQty = 0; // Placeholder
+    }
+
+    private async Task SubmitForm()
+    {
+        if (string.IsNullOrWhiteSpace(model.OrderBy)) { errorMessage = "Order By is required."; return; }
+        if (string.IsNullOrWhiteSpace(model.DeliveredTo)) { errorMessage = "Delivered To is required."; return; }
+        if (!model.Items.Any(i => !string.IsNullOrEmpty(i.ItemName) && i.IssuedQty > 0)) { errorMessage = "At least one item with quantity is required."; return; }
+
+        isSubmitting = true;
+        errorMessage = null;
+
+        var result = await InvService.CreateMaterialIssueAsync(model);
+
+        if (result.success) Navigation.NavigateTo("/inventory/material-issues");
+        else errorMessage = result.message;
+        
+        isSubmitting = false;
+    }
+
+    private void Cancel() => Navigation.NavigateTo("/inventory/material-issues");
+}

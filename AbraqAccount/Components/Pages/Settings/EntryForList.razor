@@ -1,0 +1,235 @@
+@page "/settings/entry-for"
+@using AbraqAccount.Models
+@using AbraqAccount.Services.Interfaces
+@inject ISettingsService SettingsService
+@inject NavigationManager Navigation
+
+<div class="entry-for-container">
+    <!-- Header -->
+    <div class="page-header border-bottom mb-4">
+        <h4 class="m-0 fw-bold py-3 px-4 bg-white">Entry For</h4>
+    </div>
+
+    <div class="px-4">
+        <div class="row g-4">
+            <!-- Left Column: Selection and Adding -->
+            <div class="col-lg-4">
+                <!-- Select Transaction Card -->
+                <div class="card shadow-sm border-0 mb-4">
+                    <div class="card-header bg-white py-3 border-0">
+                        <h6 class="m-0 fw-bold text-dark">Select Transaction Entry Type</h6>
+                    </div>
+                    <div class="card-body p-3 pt-0">
+                        <div class="mb-2">
+                             <select class="form-select form-select-custom" @bind="SelectedType">
+                                <option value="">-- Select Transaction Type --</option>
+                                <option value="CreditNote">Credit Note</option>
+                                <option value="DebitNote">Debit Note</option>
+                                <option value="ReceiptEntry">Receipt Entry</option>
+                                <option value="PaymentSettlement">Payment Settlement</option>
+                                <option value="JournalEntryBook">Journal Entry</option>
+                                <option value="GrowerBook">Grower Book</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Add Account Card (Conditional) -->
+                @if (!string.IsNullOrEmpty(SelectedType))
+                {
+                    <div class="card shadow-sm border-0 animate-fade-in">
+                        <div class="card-header bg-white py-3 border-0">
+                            <h6 class="m-0 fw-bold text-dark">Add Account</h6>
+                        </div>
+                        <div class="card-body p-3 pt-0">
+                            <div class="mb-3">
+                                <label class="form-label small fw-bold">Account Name</label>
+                                <input type="text" class="form-control form-control-custom" 
+                                       placeholder="Enter Account Name (e.g. Suhaim)" 
+                                       @bind="newAccountName" />
+                            </div>
+                            <button class="btn btn-primary w-100 py-2 fw-bold" @onclick="HandleAdd" disabled="@isSubmitting">
+                                @if (isSubmitting) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                                Add Account
+                            </button>
+                            @if (!string.IsNullOrEmpty(errorMessage))
+                            {
+                                <div class="text-danger small mt-2">@errorMessage</div>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+
+            <!-- Right Column: List Table (Conditional) -->
+            <div class="col-lg-8">
+                @if (!string.IsNullOrEmpty(SelectedType))
+                {
+                    <div class="card shadow-sm border-0 animate-fade-in">
+                        <div class="card-header bg-white py-3 border-0">
+                            <h6 class="m-0 fw-bold text-dark">Configured Accounts</h6>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-hover m-0 table-custom">
+                                    <thead>
+                                        <tr>
+                                            <th style="width: 80%">Account Name</th>
+                                            <th class="text-center">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @if (filteredEntries == null || !filteredEntries.Any())
+                                        {
+                                            <tr>
+                                                <td colspan="2" class="text-center py-4 text-muted small">No accounts configured for @SelectedType</td>
+                                            </tr>
+                                        }
+                                        else
+                                        {
+                                            @foreach (var entry in filteredEntries)
+                                            {
+                                                var isNull = string.IsNullOrEmpty(entry.AccountName) || entry.AccountName.Trim().ToLower() == "null";
+                                                <tr>
+                                                    <td class="align-middle">@(isNull ? entry.TransactionType : entry.AccountName)</td>
+                                                    <td class="text-center align-middle">
+                                                        <button class="btn btn-danger btn-sm p-1 rounded-1" 
+                                                                title="Delete" 
+                                                                @onclick="() => HandleDelete(entry.Id)">
+                                                            <i class="bi bi-trash small"></i>
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            }
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .entry-for-container { background: #f4f7f6; min-height: 100vh; padding-bottom: 50px; }
+    .form-select-custom, .form-control-custom { border: 1px solid #ced4da; border-radius: 4px; padding: 8px 12px; font-size: 0.9rem; }
+    .form-select-custom:focus, .form-control-custom:focus { border-color: #0d6efd; box-shadow: none; }
+    
+    .table-custom thead th { background: #f8f9fa; border-bottom: 1px solid #dee2e6; color: #333; font-size: 0.85rem; padding: 12px 15px; font-weight: 700; }
+    .table-custom tbody td { padding: 12px 15px; font-size: 0.9rem; color: #444; border-bottom: 1px solid #f2f2f2; }
+    
+    .animate-fade-in { animation: fadeIn 0.3s ease-in-out; }
+    @@keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+    
+    .btn-primary { background-color: #0d6efd; border: none; }
+    .btn-primary:hover { background-color: #0b5ed7; }
+</style>
+
+@code {
+    private string _selectedType = "";
+    private string SelectedType 
+    {
+        get => _selectedType;
+        set {
+            _selectedType = value;
+            UpdateFilteredList();
+        }
+    }
+
+    private string newAccountName = "";
+    private List<EntryForAccount>? allEntries;
+    private List<EntryForAccount>? filteredEntries;
+    private bool isSubmitting;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAllEntries();
+    }
+
+    private async Task LoadAllEntries()
+    {
+        allEntries = await SettingsService.GetEntryForAccountsAsync();
+        UpdateFilteredList();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void UpdateFilteredList()
+    {
+        if (allEntries == null)
+        {
+            filteredEntries = new List<EntryForAccount>();
+            return;
+        }
+
+        if (string.IsNullOrEmpty(SelectedType))
+        {
+            filteredEntries = new List<EntryForAccount>();
+        }
+        else
+        {
+            var typeEntries = allEntries
+                .Where(e => !string.IsNullOrEmpty(e.TransactionType) && 
+                           e.TransactionType.Trim().Equals(SelectedType.Trim(), StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            var hasNonNull = typeEntries.Any(e => !string.IsNullOrEmpty(e.AccountName) && e.AccountName.Trim().ToLower() != "null");
+
+            if (hasNonNull)
+            {
+                // If we have real accounts, hide the "null" ones
+                filteredEntries = typeEntries
+                    .Where(e => !string.IsNullOrEmpty(e.AccountName) && e.AccountName.Trim().ToLower() != "null")
+                    .OrderBy(e => e.AccountName)
+                    .ToList();
+            }
+            else
+            {
+                // Otherwise show what we have (usually just the "null" record)
+                filteredEntries = typeEntries.OrderBy(e => e.AccountName).ToList();
+            }
+        }
+        StateHasChanged();
+    }
+
+    private async Task HandleAdd()
+    {
+        if (string.IsNullOrWhiteSpace(newAccountName))
+        {
+            errorMessage = "Account Name is required.";
+            return;
+        }
+
+        isSubmitting = true;
+        errorMessage = null;
+
+        var model = new EntryForAccount
+        {
+            TransactionType = SelectedType,
+            AccountName = newAccountName,
+            CreatedAt = DateTime.Now
+        };
+
+        var result = await SettingsService.CreateEntryForAccountAsync(model);
+        if (result.success)
+        {
+            newAccountName = "";
+            await LoadAllEntries();
+        }
+        else
+        {
+            errorMessage = result.message;
+        }
+
+        isSubmitting = false;
+    }
+
+    private async Task HandleDelete(int id)
+    {
+        await SettingsService.DeleteEntryForAccountAsync(id);
+        await LoadAllEntries();
+    }
+}

@@ -1,0 +1,215 @@
+@page "/inventory/po-terms"
+@using AbraqAccount.Models
+@using AbraqAccount.Services.Interfaces
+@inject IPurchaseMasterService PurchaseService
+@inject NavigationManager Navigation
+
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="mb-0">Purchase Order T&Cs</h2>
+        <button class="btn btn-primary" @onclick="CreateNew">
+            <i class="bi bi-plus-lg"></i> Add New T&C
+        </button>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="bi bi-search"></i></span>
+                        <input type="text" class="form-control" placeholder="Search by caption, type or content..." 
+                               @bind="searchTerm" @bind:event="oninput" @onkeyup="HandleSearch" />
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (tcs == null)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    }
+    else if (!tcs.Any())
+    {
+        <div class="alert alert-info">No terms and conditions found.</div>
+    }
+    else
+    {
+        <div class="card shadow-sm">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Type</th>
+                            <th>Caption</th>
+                            <th>Terms & Conditions</th>
+                            <th>Status</th>
+                            <th class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var tc in tcs)
+                        {
+                            <tr>
+                                <td><span class="badge bg-light text-dark">@tc.TCType</span></td>
+                                <td class="fw-bold">@tc.Caption</td>
+                                <td>
+                                    <div class="text-truncate" style="max-width: 300px;">@tc.TermsAndConditions</div>
+                                </td>
+                                <td>
+                                    @if (tc.IsActive)
+                                    {
+                                        <span class="badge bg-success-subtle text-success">Active</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-danger-subtle text-danger">Inactive</span>
+                                    }
+                                </td>
+                                <td class="text-end">
+                                    <button class="btn btn-sm btn-outline-info me-1" @onclick="() => ViewHistory(tc)" title="History">
+                                        <i class="bi bi-clock-history"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => Edit(tc.Id)">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            @if (totalPages > 1)
+            {
+                <div class="card-footer bg-white">
+                    <nav>
+                        <ul class="pagination pagination-sm justify-content-center mb-0">
+                            <li class="page-item @(currentPage == 1 ? "disabled" : "")">
+                                <button class="page-link" @onclick="() => GoToPage(currentPage - 1)">Previous</button>
+                            </li>
+                            @for (int i = 1; i <= totalPages; i++)
+                            {
+                                var pageNum = i;
+                                <li class="page-item @(currentPage == pageNum ? "active" : "")">
+                                    <button class="page-link" @onclick="() => GoToPage(pageNum)">@pageNum</button>
+                                </li>
+                            }
+                            <li class="page-item @(currentPage == totalPages ? "disabled" : "")">
+                                <button class="page-link" @onclick="() => GoToPage(currentPage + 1)">Next</button>
+                            </li>
+                        </ul>
+                    </nav>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@if (selectedTCForHistory != null)
+{
+    <div class="modal fade show d-block" style="background: rgba(0,0,0,0.5)">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">History: @selectedTCForHistory.Caption</h5>
+                    <button type="button" class="btn-close" @onclick="CloseHistory"></button>
+                </div>
+                <div class="modal-body">
+                    @if (history == null)
+                    {
+                        <div class="text-center py-3">
+                            <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                        </div>
+                    }
+                    else
+                    {
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Action</th>
+                                    <th>User</th>
+                                    <th>Date</th>
+                                    <th>Remarks</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (dynamic h in history)
+                                {
+                                    <tr>
+                                        <td>@h.action</td>
+                                        <td>@h.user</td>
+                                        <td>@h.dateTime</td>
+                                        <td>@h.remarks</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CloseHistory">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<PurchaseOrderTC>? tcs;
+    private string searchTerm = "";
+    private int currentPage = 1;
+    private int pageSize = 10;
+    private int totalPages;
+    private int totalCount;
+    private PurchaseOrderTC? selectedTCForHistory;
+    private IEnumerable<object>? history;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadTCs();
+    }
+
+    private async Task LoadTCs()
+    {
+        var result = await PurchaseService.GetPurchaseOrderTCsAsync(searchTerm, currentPage, pageSize);
+        tcs = result.tcs;
+        totalCount = result.totalCount;
+        totalPages = result.totalPages;
+    }
+
+    private async Task HandleSearch(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            currentPage = 1;
+            await LoadTCs();
+        }
+    }
+
+    private async Task GoToPage(int page)
+    {
+        currentPage = page;
+        await LoadTCs();
+    }
+
+    private void CreateNew() => Navigation.NavigateTo("/inventory/po-terms/create");
+    private void Edit(int id) => Navigation.NavigateTo($"/inventory/po-terms/edit/{id}");
+
+    private async Task ViewHistory(PurchaseOrderTC tc)
+    {
+        selectedTCForHistory = tc;
+        history = null;
+        history = await PurchaseService.GetPurchaseOrderTCHistoryAsync(tc.Id);
+    }
+
+    private void CloseHistory()
+    {
+        selectedTCForHistory = null;
+        history = null;
+    }
+}

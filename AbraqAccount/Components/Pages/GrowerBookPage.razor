@@ -1,0 +1,222 @@
+@page "/grower-book/index"
+@using AbraqAccount.Components.Layout
+@using AbraqAccount.Models
+@using AbraqAccount.Services.Interfaces
+@using AbraqAccount.Components.Pages.Transactions.SubComponents
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+@layout DashboardLayout
+
+<div class="container-fluid">
+    <div class="transaction-header">
+        <h2 class="page-title">Grower Book Control Panel</h2>
+        <div class="header-actions">
+            @if (mode == "Form")
+            {
+                <button class="btn-save-header me-2" @onclick="SubmitCurrentForm">Save</button>
+                <button class="btn-back-header" @onclick="BackToList">
+                    <i class="bi bi-arrow-left"></i>
+                </button>
+            }
+            else
+            {
+                <button class="add-button" @onclick="AddNew" title="Add New">
+                    <i class="bi bi-plus-lg"></i>
+                </button>
+            }
+        </div>
+    </div>
+
+    <div class="tabs-container">
+        <div class="tabs">
+            <button class="tab" @onclick="@(() => Navigation.NavigateTo("transactions/entries?noteType=Debit"))">Debit Note</button>
+            <button class="tab" @onclick="@(() => Navigation.NavigateTo("transactions/entries?noteType=Credit"))">Credit Note</button>
+            <button class="tab" @onclick="@(() => Navigation.NavigateTo("transactions/entries?noteType=Receipt"))">Receipt Entry</button>
+            <button class="tab" @onclick="@(() => Navigation.NavigateTo("transactions/entries?noteType=Payment"))">Payment Settlements</button>
+            <button class="tab" @onclick="@(() => Navigation.NavigateTo("transactions/entries?noteType=Journal"))">Journal Entry Book</button>
+            <button class="tab active">Grower Book</button>
+        </div>
+    </div>
+
+    <div class="content-container">
+        @if (mode == "List")
+        {
+            <GrowerBookList OnEdit="EditEntry" />
+        }
+        else if (mode == "Form")
+        {
+            <GrowerBookForm @ref="form" VoucherNo="@editVoucher" />
+        }
+    </div>
+</div>
+
+<style>
+    .transaction-header {
+        background-color: #f8f9fa;
+        padding: 1.5rem 2rem;
+        margin: -2rem -2rem 0 -2rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 2px solid #ffc107;
+    }
+
+    .page-title {
+        font-size: 1.25rem;
+        font-weight: 500;
+        color: #333;
+        margin: 0;
+    }
+
+    .btn-save-header {
+        background-color: #6c757d;
+        color: white;
+        border: none;
+        padding: 0.4rem 1.5rem;
+        border-radius: 4px;
+        font-size: 0.9rem;
+        font-weight: 500;
+        transition: background-color 0.2s;
+    }
+
+    .btn-save-header:hover {
+        background-color: #5a6268;
+    }
+
+    .btn-back-header {
+        background-color: #e9ecef;
+        color: #495057;
+        border: none;
+        width: 36px;
+        height: 36px;
+        border-radius: 4px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-back-header:hover {
+        background-color: #dee2e6;
+        color: #212529;
+    }
+
+    .add-button {
+        width: 38px;
+        height: 38px;
+        background-color: #4a5568;
+        border: none;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        font-size: 1.1rem;
+        color: white;
+        transition: background-color 0.2s;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .add-button:hover {
+        background-color: #2d3748;
+    }
+
+    .tabs-container {
+        background: white;
+        margin: 0 -2rem 1.5rem -2rem;
+        padding: 0 2rem;
+        border-bottom: 1px solid #dee2e6;
+    }
+
+    .tabs {
+        display: flex;
+        gap: 0;
+    }
+
+    .tab {
+        padding: 1.25rem 2.5rem;
+        background: none;
+        border: none;
+        border-bottom: 3px solid transparent;
+        cursor: pointer;
+        font-size: 0.95rem;
+        font-weight: 500;
+        color: #6c757d;
+        transition: all 0.2s;
+        text-decoration: none;
+    }
+
+    .tab:hover {
+        color: #007bff;
+        background-color: rgba(0, 123, 255, 0.05);
+    }
+
+    .tab.active {
+        color: #007bff;
+        border-bottom-color: #007bff;
+        font-weight: 600;
+    }
+
+    .content-container {
+        padding: 0;
+    }
+    
+    /* Reuse form styles from components usually */
+    .transaction-form {
+        background: white;
+        padding: 1.5rem;
+        border: 1px solid #e0e0e0;
+        border-radius: 4px;
+    }
+    .form-header {
+        margin-bottom: 1.5rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid #eee;
+    }
+    .form-title { font-size: 1.1rem; color: #333; margin: 0; font-weight: 600; }
+    .form-label { font-weight: 500; font-size: 0.9rem; color: #555; }
+</style>
+
+@code {
+    private string mode = "List";
+    private string? editVoucher;
+    private GrowerBookForm? form;
+
+    [SupplyParameterFromQuery]
+    public string? action { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (action == "create")
+        {
+            AddNew();
+        }
+    }
+
+    private void AddNew()
+    {
+        mode = "Form";
+        editVoucher = null;
+    }
+
+    private void EditEntry(string voucherNo)
+    {
+        mode = "Form";
+        editVoucher = voucherNo;
+    }
+
+    private void BackToList()
+    {
+        mode = "List";
+        editVoucher = null;
+    }
+
+    private async Task SubmitCurrentForm()
+    {
+        if (form != null)
+        {
+            await form.SubmitForm();
+            BackToList();
+        }
+    }
+}

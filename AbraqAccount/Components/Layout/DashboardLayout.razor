@@ -1,0 +1,101 @@
+@inherits LayoutComponentBase
+@using Microsoft.AspNetCore.Http
+@inject IHttpContextAccessor HttpContextAccessor
+@inject NavigationManager NavigationManager
+
+<div class="page">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <NavMenu />
+    </aside>
+
+    <!-- Top Navbar -->
+    <nav class="top-navbar">
+        <div class="navbar-left">
+            <div class="logo-container">
+                <span class="logo-text">ABRAQ</span>
+                <div class="logo-green-a">A</div>
+                <span class="logo-agro">agró</span>
+            </div>
+        </div>
+        <div class="navbar-center">
+            <div class="company-info">
+                <strong>Company:</strong> ABRAQ AGRO FRESH LLP
+            </div>
+            <div class="company-info">
+                <strong>Unit:</strong> Abraq Agro Fresh LLP
+            </div>
+            <div class="company-info">
+                <strong>Financial Year:</strong> 25-26 <i class="bi bi-chevron-down"></i>
+            </div>
+        </div>
+        <div class="navbar-right">
+            <div class="user-dropdown-wrapper">
+                <div class="user-dropdown" @onclick="ToggleDropdown">
+                    <div class="user-icon">
+                        <i class="bi bi-person"></i>
+                    </div>
+                    <span>@username</span>
+                    <i class="bi bi-chevron-down"></i>
+                </div>
+                <div class="dropdown-menu @(showDropdown ? "show" : "")">
+                    <div class="dropdown-item">
+                        <i class="bi bi-person"></i> Profile
+                    </div>
+                    <div class="dropdown-divider"></div>
+                    <form action="account/logout" method="post" style="margin: 0;">
+                        <button type="submit" class="dropdown-item logout">
+                            <i class="bi bi-box-arrow-right"></i> Logout
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Orange Separator Line -->
+    <div class="orange-separator"></div>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="content-wrapper">
+            @Body
+        </div>
+    </main>
+</div>
+
+@code {
+    private string username = "Unknown";
+    private bool showDropdown = false;
+
+    protected override void OnInitialized()
+    {
+        try
+        {
+            var context = HttpContextAccessor.HttpContext;
+            if (context != null && context.Session != null)
+            {
+                username = context.Session.GetString("Username") ?? "Unknown";
+                if (string.IsNullOrEmpty(context.Session.GetString("UserId")))
+                {
+                    // Only redirect during static render or if we are certain
+                    NavigationManager.NavigateTo("login");
+                }
+            }
+        }
+        catch (InvalidOperationException)
+        {
+            // Session is often not available during interactive circuit establishment
+            // We should rely on the initial static render's values or state preservation
+        }
+        catch (Exception)
+        {
+            // Silently ignore or handle other exceptions to prevent circuit crash
+        }
+    }
+
+    private void ToggleDropdown()
+    {
+        showDropdown = !showDropdown;
+    }
+}

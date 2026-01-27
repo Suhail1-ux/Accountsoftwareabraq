@@ -1,0 +1,183 @@
+@page "/reports/ledger"
+@using AbraqAccount.Models
+@using AbraqAccount.Services.Interfaces
+@inject IGeneralEntryService GenService
+@inject NavigationManager Navigation
+
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="mb-0">Account Ledger</h2>
+        <div class="actions">
+            <button class="btn btn-outline-success me-2" @onclick="ExportExcel">
+                <i class="bi bi-file-earmark-excel"></i> Export Excel
+            </button>
+            <button class="btn btn-outline-danger" @onclick="ExportPdf">
+                <i class="bi bi-file-earmark-pdf"></i> Export PDF
+            </button>
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label">Account Type</label>
+                    <select @bind="accountType" class="form-select">
+                        <option value="SubGroupLedger">Ledger (SubGroup)</option>
+                        <option value="BankMaster">Bank/Cash Account</option>
+                        <option value="Farmer">Farmer (Grower)</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Select Account</label>
+                    <AbraqAccount.Components.Common.AccountSearch 
+                        Placeholder="Search Account..." 
+                        SearchFunc="SearchAccounts"
+                        OnAccountSelected="OnAccountSelected"
+                        InitialValue="@selectedAccountName" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">From Date</label>
+                    <input type="date" @bind="fromDate" class="form-control" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">To Date</label>
+                    <input type="date" @bind="toDate" class="form-control" />
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button class="btn btn-primary w-100" @onclick="GenerateReport" disabled="@(selectedAccountId == 0)">
+                        <i class="bi bi-play-fill"></i> View Ledger
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    }
+    else if (reportData == null)
+    {
+         <div class="alert alert-light text-center border">Select an account and dates to view the ledger.</div>
+    }
+    else
+    {
+        <div class="card shadow-sm">
+            <div class="table-responsive">
+                <table class="table table-bordered table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Date</th>
+                            <th>Voucher</th>
+                            <th>Particulars</th>
+                            <th class="text-end">Debit (-)</th>
+                            <th class="text-end">Credit (+)</th>
+                            <th class="text-end">Balance</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @{
+                            decimal runningBalance = 0; // In a real app, calculate opening balance
+                        }
+                        <tr class="table-info fw-bold">
+                            <td colspan="3" class="text-center">OPENING BALANCE</td>
+                            <td class="text-end"></td>
+                            <td class="text-end"></td>
+                            <td class="text-end">@runningBalance.ToString("N2")</td>
+                        </tr>
+                        @foreach (var entry in reportData)
+                        {
+                            bool isOurDebit = (entry.DebitAccountId == selectedAccountId && entry.DebitAccountType == accountType);
+                            decimal debit = isOurDebit ? entry.Amount : 0;
+                            decimal credit = isOurDebit ? 0 : entry.Amount;
+                            runningBalance += (credit - debit);
+
+                            <tr>
+                                <td>@entry.EntryDate.ToString("dd MMM yyyy")</td>
+                                <td>
+                                    <small class="text-muted d-block">@entry.VoucherType</small>
+                                    <span class="badge bg-secondary">@entry.VoucherNo</span>
+                                </td>
+                                <td>
+                                    @if (isOurDebit)
+                                    {
+                                        <span class="text-muted small">To:</span> @(entry.CreditBankMasterInfo?.AccountName ?? entry.CreditAccountName ?? "N/A")
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted small">By:</span> @(entry.DebitBankMasterInfo?.AccountName ?? entry.DebitAccountName ?? "N/A")
+                                    }
+                                    @if (!string.IsNullOrEmpty(entry.Narration))
+                                    {
+                                        <div class="small mt-1 text-muted border-top pt-1">@entry.Narration</div>
+                                    }
+                                </td>
+                                <td class="text-end text-danger">@(debit > 0 ? debit.ToString("N2") : "-")</td>
+                                <td class="text-end text-success">@(credit > 0 ? credit.ToString("N2") : "-")</td>
+                                <td class="text-end fw-bold">@runningBalance.ToString("N2")</td>
+                            </tr>
+                        }
+                    </tbody>
+                    <tfoot class="table-light fw-bold">
+                        <tr>
+                            <td colspan="3" class="text-end">CLOSING BALANCE:</td>
+                            <td class="text-end text-danger">@reportData.Where(e => (e.DebitAccountId == selectedAccountId && e.DebitAccountType == accountType)).Sum(e => e.Amount).ToString("N2")</td>
+                            <td class="text-end text-success">@reportData.Where(e => (e.CreditAccountId == selectedAccountId && e.CreditAccountType == accountType)).Sum(e => e.Amount).ToString("N2")</td>
+                            <td class="text-end text-primary">@runningBalance.ToString("N2")</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private List<GeneralEntry>? reportData;
+    private bool isLoading;
+    
+    private string accountType = "SubGroupLedger";
+    private int selectedAccountId;
+    private string? selectedAccountName;
+    private DateTime fromDate = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
+    private DateTime toDate = DateTime.Now;
+
+    private void OnAccountSelected(LookupItem lookup)
+    {
+        selectedAccountId = lookup.Id;
+        selectedAccountName = lookup.Name;
+    }
+
+    private async Task<IEnumerable<LookupItem>> SearchAccounts(string searchTerm)
+    {
+        if (accountType == "Farmer")
+        {
+             var farmers = await GenService.GetFarmersByGroupAsync(null, searchTerm);
+             return farmers.Select(f => {
+                 dynamic d = f;
+                 return new LookupItem { Id = d.id, Name = d.name };
+             });
+        }
+        else
+        {
+            return await GenService.GetAccountsAsync(searchTerm, null, null);
+        }
+    }
+
+    private async Task GenerateReport()
+    {
+        if (selectedAccountId == 0) return;
+        
+        isLoading = true;
+        reportData = await GenService.GetLedgerReportAsync(selectedAccountId, accountType, fromDate, toDate);
+        isLoading = false;
+    }
+
+    private void ExportExcel() { /* TODO */ }
+    private void ExportPdf() { /* TODO */ }
+}

@@ -1,0 +1,335 @@
+@page "/master/bank-master"
+@using AbraqAccount.Models
+@using AbraqAccount.Services.Interfaces
+@using Microsoft.AspNetCore.Http
+@using Microsoft.AspNetCore.Mvc.Rendering
+@inject IBankMasterService BankMasterService
+@inject IHttpContextAccessor HttpContextAccessor
+@inject IJSRuntime JS
+@layout DashboardLayout
+
+<div class="container-fluid">
+    <div class="bank-master-header">
+        <div class="bank-master-title-section">
+            <h1>Accounts <small class="subtitle" style="color: #999; font-size: 0.9rem; font-weight: normal;">Control panel</small></h1>
+        </div>
+        <div style="display: flex; gap: 0.5rem; align-items: center;">
+            <button class="btn btn-outline-info btn-sm" @onclick="RunMigration" title="Run Database Migration">
+                <i class="bi bi-gear-fill"></i> Migrate
+            </button>
+            <button type="button" class="add-button" @onclick="OpenCreateModal" title="Add New Account">
+                <i class="bi bi-plus-lg"></i>
+            </button>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(successMessage))
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert" style="margin: 1rem 0;">
+            @successMessage
+            <button type="button" class="btn-close" @onclick="() => successMessage = null"></button>
+        </div>
+    }
+
+    <div class="table-card">
+        <div class="table-wrapper">
+            <table class="table-bank-master">
+                <thead>
+                    <tr>
+                        <th>Account Name</th>
+                        <th>Group</th>
+                        <th>Address</th>
+                        <th>Phone</th>
+                        <th>Email</th>
+                        <th>Bank Account No</th>
+                        <th>IFSC</th>
+                        <th>Branch Name</th>
+                        <th>Status</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (banks == null)
+                    {
+                        <tr><td colspan="10" style="text-align: center; padding: 2rem;">Loading...</td></tr>
+                    }
+                    else if (!banks.Any())
+                    {
+                        <tr>
+                            <td colspan="10" style="text-align: center; padding: 2rem; color: #999;">
+                                No accounts found. <button class="btn-link" @onclick="OpenCreateModal">Create a new account</button>
+                            </td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var account in banks)
+                        {
+                            <tr>
+                                <td>@account.AccountName</td>
+                                <td>@(account.Group?.Name ?? "-")</td>
+                                <td>@(account.Address ?? "-")</td>
+                                <td>@(account.Phone ?? "-")</td>
+                                <td>@(account.Email ?? "-")</td>
+                                <td>@(account.AccountNumber ?? "-")</td>
+                                <td>@(account.IfscCode ?? "-")</td>
+                                <td>@(account.BranchName ?? "-")</td>
+                                <td>
+                                    <span class="badge @(account.Status == "Active" ? "badge-active" : "badge-inactive")">
+                                        @account.Status
+                                    </span>
+                                </td>
+                                <td>
+                                    <div class="action-icons">
+                                        <button type="button" @onclick="() => OpenEditModal(account)" class="action-icon" title="Edit">
+                                            <i class="bi bi-pencil-square"></i>
+                                        </button>
+                                        <button type="button" @onclick="() => DeleteBank(account.Id)" class="action-icon text-danger" title="Delete">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Form Modal -->
+@if (showFormModal)
+{
+    <div class="modal-overlay show">
+        <div class="form-modal" style="max-width: 800px;">
+            <div class="modal-header">
+                <h3>@(editingBank.Id == 0 ? "Create Account" : "Edit Account")</h3>
+                <button type="button" class="modal-close" @onclick="CloseFormModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <EditForm Model="editingBank" OnValidSubmit="SaveBank">
+                    <DataAnnotationsValidator />
+                    
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Account Name<span class="required">*</span></label>
+                            <InputText @bind-Value="editingBank.AccountName" class="form-control" placeholder="Enter Account Name" />
+                            <ValidationMessage For="() => editingBank.AccountName" class="text-danger" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Group<span class="required">*</span></label>
+                            <select @bind="editingBank.GroupId" class="form-control" required>
+                                <option value="0">-- Select Group --</option>
+                                @if (groups != null)
+                                {
+                                    @foreach (var g in groups)
+                                    {
+                                        <option value="@g.Value">@g.Text</option>
+                                    }
+                                }
+                            </select>
+                            @if (editingBank.GroupId == 0 && submitted)
+                            {
+                                <span class="text-danger">Group is required.</span>
+                            }
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Status<span class="required">*</span></label>
+                            <select @bind="editingBank.Status" class="form-control">
+                                <option value="Active">Active</option>
+                                <option value="Inactive">Inactive</option>
+                            </select>
+                        </div>
+                        
+                        <div class="col-12">
+                            <label class="form-label">Address</label>
+                            <InputTextArea @bind-Value="editingBank.Address" class="form-control" placeholder="Enter Address" />
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label">Phone</label>
+                            <InputText @bind-Value="editingBank.Phone" class="form-control" placeholder="Enter Phone" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Email</label>
+                            <InputText @bind-Value="editingBank.Email" class="form-control" type="email" placeholder="Enter Email" />
+                            <ValidationMessage For="() => editingBank.Email" class="text-danger" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Bank Account No</label>
+                            <InputText @bind-Value="editingBank.AccountNumber" class="form-control" placeholder="Enter Bank Account No" />
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label class="form-label">IFSC</label>
+                            <InputText @bind-Value="editingBank.IfscCode" class="form-control" placeholder="Enter IFSC Code" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Branch Name</label>
+                            <InputText @bind-Value="editingBank.BranchName" class="form-control" placeholder="Enter Branch Name" />
+                        </div>
+                    </div>
+
+                    <div class="mt-4 d-flex justify-content-end gap-2">
+                        <button type="button" class="btn btn-secondary" @onclick="CloseFormModal">Cancel</button>
+                        <button type="submit" class="btn btn-primary" @onclick="() => submitted = true">Save changes</button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .bank-master-header {
+        display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;
+        padding: 1.5rem; background-color: white; margin: -2rem -2rem 1.5rem -2rem; border-bottom: 1px solid #e0e0e0;
+    }
+    .bank-master-title-section h1 { font-size: 2rem; font-weight: bold; margin: 0; color: #333; }
+    
+    .add-button {
+        width: 40px; height: 40px; background-color: #6c757d; border: none; border-radius: 4px;
+        display: flex; align-items: center; justify-content: center; cursor: pointer;
+        font-size: 1.25rem; color: white; transition: background-color 0.3s;
+    }
+    .add-button:hover { background-color: #5a6268; }
+
+    .table-card { background: white; border: 1px solid #e0e0e0; border-radius: 4px; padding: 1.5rem; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    .table-wrapper { overflow-x: auto; }
+    .table-bank-master { width: 100%; border-collapse: collapse; }
+    .table-bank-master th { padding: 0.75rem; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #dee2e6; white-space: nowrap; }
+    .table-bank-master td { padding: 0.75rem; border-bottom: 1px solid #dee2e6; color: #555; }
+    
+    .badge { padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 1rem; font-weight: 500; }
+    .badge-active { background-color: #28a745; color: white; }
+    .badge-inactive { background-color: #dc3545; color: white; }
+
+    .action-icons { display: flex; gap: 0.75rem; }
+    .action-icon { background: none; border: none; color: #6c757d; font-size: 1.1rem; cursor: pointer; padding: 0; }
+    .action-icon:hover { color: #007bff; }
+    .action-icon.text-danger:hover { color: #dc3545; }
+
+    .required { color: red; margin-left: 2px; }
+
+    /* Modal */
+    .modal-overlay {
+        display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+        background-color: rgba(0,0,0,0.5); z-index: 2000; align-items: center; justify-content: center;
+    }
+    .modal-overlay.show { display: flex; }
+    .form-modal {
+        background-color: white; border-radius: 4px; width: 90%; max-height: 90vh;
+        display: flex; flex-direction: column; box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    .modal-header {
+        background-color: #6c757d; color: white; padding: 1rem 1.5rem; display: flex;
+        justify-content: space-between; align-items: center; border-radius: 4px 4px 0 0;
+    }
+    .modal-header h3 { margin: 0; font-size: 1.25rem; }
+    .modal-close { background: none; border: none; color: white; font-size: 1.5rem; cursor: pointer; }
+    .modal-body { padding: 1.5rem; overflow-y: auto; flex: 1; }
+</style>
+
+@code {
+    private IEnumerable<BankMaster>? banks;
+    private List<SelectListItem>? groups;
+    private BankMaster editingBank = new();
+    private bool showFormModal = false;
+    private string? successMessage;
+    private bool submitted = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+        groups = (await BankMasterService.GetGroupsSelectListAsync()).ToList();
+    }
+
+    private async Task LoadData()
+    {
+        banks = await BankMasterService.GetAllActiveBankMastersAsync();
+    }
+
+    private void OpenCreateModal()
+    {
+        editingBank = new BankMaster();
+        submitted = false;
+        showFormModal = true;
+    }
+
+    private void OpenEditModal(BankMaster bank)
+    {
+        editingBank = new BankMaster
+        {
+            Id = bank.Id,
+            AccountName = bank.AccountName,
+            GroupId = bank.GroupId,
+            Address = bank.Address,
+            Phone = bank.Phone,
+            Email = bank.Email,
+            AccountNumber = bank.AccountNumber,
+            IfscCode = bank.IfscCode,
+            BranchName = bank.BranchName,
+            Status = bank.Status,
+            CreatedBy = bank.CreatedBy,
+            CreatedDate = bank.CreatedDate,
+            IsActive = bank.IsActive
+        };
+        submitted = false;
+        showFormModal = true;
+    }
+
+    private void CloseFormModal()
+    {
+        showFormModal = false;
+    }
+
+    private async Task SaveBank()
+    {
+        if (editingBank.GroupId == 0) return;
+
+        var username = HttpContextAccessor.HttpContext?.Session.GetString("Username") ?? "Unknown";
+        
+        if (editingBank.Id == 0)
+        {
+            await BankMasterService.CreateBankMasterAsync(editingBank, username);
+            successMessage = "Account created successfully!";
+        }
+        else
+        {
+            await BankMasterService.UpdateBankMasterAsync(editingBank.Id, editingBank);
+            successMessage = "Account updated successfully!";
+        }
+
+        showFormModal = false;
+        await LoadData();
+    }
+
+    private async Task DeleteBank(int id)
+    {
+        bool confirmed = await JS.InvokeAsync<bool>("confirm", "Are you sure you want to delete this account?");
+        if (confirmed)
+        {
+            var result = await BankMasterService.DeleteBankMasterAsync(id);
+            if (result)
+            {
+                successMessage = "Account deleted successfully!";
+                await LoadData();
+            }
+        }
+    }
+
+    private async Task RunMigration()
+    {
+        var result = await BankMasterService.MigrateDatabaseAsync();
+        if (result.success)
+        {
+            await JS.InvokeVoidAsync("alert", "Migration completed successfully:\n" + string.Join("\n", result.steps));
+            await LoadData();
+        }
+        else
+        {
+            await JS.InvokeVoidAsync("alert", "Migration failed: " + result.message);
+        }
+    }
+}

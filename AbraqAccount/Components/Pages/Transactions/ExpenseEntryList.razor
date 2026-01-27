@@ -1,0 +1,239 @@
+@page "/transactions/expense-entry"
+@using AbraqAccount.Models
+@using AbraqAccount.Services.Interfaces
+@inject IExpensesIncurredService ExpenseService
+@inject NavigationManager Navigation
+
+<div class="expense-list-container">
+    <div class="row align-items-center mb-4">
+        <div class="col">
+            <h4 class="m-0 text-dark fw-bold">Expense Entry <small class="text-muted fw-normal">Control Panel</small></h4>
+        </div>
+        <div class="col-auto">
+            <span class="text-muted small"><i class="bi bi-house"></i> Home &gt; Expense Entry</span>
+        </div>
+    </div>
+
+    <!-- Filter Section -->
+    <div class="filter-card card shadow-sm border-0 mb-4">
+        <div class="card-body p-4">
+            <div class="row gx-3 gy-4">
+                <div class="col-md-3">
+                    <label class="filter-label">Expense Entry Number</label>
+                    <input type="text" class="form-control-custom" placeholder="Expense Entry Num." @bind="voucherNo" />
+                </div>
+                <div class="col-md-3">
+                    <label class="filter-label">Credit Account</label>
+                    <input type="text" class="form-control-custom" placeholder="Search by Credit Account" @bind="vendorName" />
+                </div>
+                <div class="col-md-2">
+                    <label class="filter-label">Status</label>
+                    <select class="form-control-custom" @bind="status">
+                        <option value="">All Status</option>
+                        <option value="UnApproved">UnApproved</option>
+                        <option value="Approved">Approved</option>
+                    </select>
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button class="btn btn-search w-100" @onclick="Search"><i class="bi bi-search me-2"></i>Search</button>
+                    <button class="btn btn-link text-dark ms-2" @onclick="ClearFilters">Clear</button>
+                </div>
+                <div class="col-md-2 d-flex align-items-end justify-content-end">
+                    <button class="btn btn-add-new" @onclick="CreateNew"><i class="bi bi-plus"></i></button>
+                </div>
+
+                <div class="col-md-3 mt-3">
+                    <label class="filter-label">From Date</label>
+                    <div class="position-relative">
+                        <input type="date" class="form-control-custom" @bind="fromDate" />
+                    </div>
+                </div>
+                <div class="col-md-3 mt-3">
+                    <label class="filter-label">To Date</label>
+                    <div class="position-relative">
+                        <input type="date" class="form-control-custom" @bind="toDate" />
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- List Section -->
+    <div class="card shadow-sm border-0">
+        <div class="card-header bg-white py-3 border-0">
+            <h5 class="card-title mb-0 text-dark fw-bold">Expense Entry - List</h5>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-custom table-hover m-0">
+                    <thead>
+                        <tr>
+                            <th>Expense Entry No. <i class="bi bi-chevron-expand small text-muted"></i></th>
+                            <th>Received Date <i class="bi bi-chevron-expand small text-muted"></i></th>
+                            <th>Delivery Date <i class="bi bi-chevron-expand small text-muted"></i></th>
+                            <th>Debit Account <i class="bi bi-chevron-expand small text-muted"></i></th>
+                            <th>Credit Account <i class="bi bi-chevron-expand small text-muted"></i></th>
+                            <th>Unit <i class="bi bi-chevron-expand small text-muted"></i></th>
+                            <th>Expense Entry Qty. <i class="bi bi-chevron-expand small text-muted"></i></th>
+                            <th class="text-end">Amount <i class="bi bi-chevron-expand small text-muted"></i></th>
+                            <th class="text-end">Tax Amount <i class="bi bi-chevron-expand small text-muted"></i></th>
+                            <th class="text-end">Total Amount <i class="bi bi-chevron-expand small text-muted"></i></th>
+                            <th>Status <i class="bi bi-chevron-expand small text-muted"></i></th>
+                            <th class="text-center">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (expenses == null)
+                        {
+                            <tr><td colspan="12" class="text-center py-5"><div class="spinner-border text-primary spinner-border-sm"></div> Loading...</td></tr>
+                        }
+                        else if (!expenses.Any())
+                        {
+                            <tr><td colspan="12" class="text-center py-5 text-muted">No expense entries found.</td></tr>
+                        }
+                        else
+                        {
+                            @foreach (var exp in expenses)
+                            {
+                                var totalQty = exp.Items?.Sum(i => i.Qty) ?? 0;
+                                var taxAmt = (exp.Items?.Sum(i => i.GSTAmount) ?? 0) + (exp.MiscCharges?.Sum(m => m.GSTAmount) ?? 0);
+                                <tr>
+                                    <td><span class="fw-medium text-primary cursor-pointer" @onclick="() => Edit(exp.Id)">@exp.VoucherNo</span></td>
+                                    <td>@exp.ExpenseDate?.ToString("dd-MM-yyyy")</td>
+                                    <td>@exp.BillDate?.ToString("dd-MM-yyyy")</td>
+                                    <td>@exp.DebitAccountName</td>
+                                    <td>@exp.VendorName</td>
+                                    <td>@exp.Unit</td>
+                                    <td>@(totalQty > 0 ? totalQty.ToString("N0") : "-")</td>
+                                    <td class="text-end">@((exp.Amount ?? 0).ToString("N2"))</td>
+                                    <td class="text-end">@taxAmt.ToString("N2")</td>
+                                    <td class="text-end fw-bold">@((exp.Amount ?? 0).ToString("N2"))</td>
+                                    <td>
+                                        <span class="status-badge @(exp.Status == "Approved" ? "approved" : "unapproved")">
+                                            @exp.Status
+                                        </span>
+                                    </td>
+                                    <td class="text-center">
+                                        <div class="d-flex justify-content-center gap-2">
+                                            <button class="btn btn-action-icon" title="Edit" @onclick="() => Edit(exp.Id)"><i class="bi bi-pencil"></i></button>
+                                            <button class="btn btn-action-icon" title="View" @onclick="() => View(exp.Id)"><i class="bi bi-eye"></i></button>
+                                            <button class="btn btn-action-icon text-danger" title="Delete" @onclick="() => Delete(exp.Id)"><i class="bi bi-trash"></i></button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            @if (totalPages > 1)
+            {
+                <div class="card-footer bg-white border-0 py-3">
+                    <nav>
+                        <ul class="pagination pagination-sm justify-content-end mb-0">
+                            <li class="page-item @(currentPage == 1 ? "disabled" : "")">
+                                <button class="page-link" @onclick="() => GoToPage(currentPage - 1)">Previous</button>
+                            </li>
+                            @for (int i = 1; i <= totalPages; i++)
+                            {
+                                var pageNum = i;
+                                <li class="page-item @(currentPage == pageNum ? "active" : "")">
+                                    <button class="page-link" @onclick="() => GoToPage(pageNum)">@pageNum</button>
+                                </li>
+                            }
+                            <li class="page-item @(currentPage == totalPages ? "disabled" : "")">
+                                <button class="page-link" @onclick="() => GoToPage(currentPage + 1)">Next</button>
+                            </li>
+                        </ul>
+                    </nav>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+<style>
+    .expense-list-container { background: #f4f7f6; min-height: 100vh; padding: 25px; }
+    .filter-card { background: #e9ecef40; border-radius: 8px; }
+    .filter-label { display: block; font-size: 0.8rem; font-weight: 600; color: #555; margin-bottom: 8px; }
+    .form-control-custom { width: 100%; padding: 8px 12px; border: 1px solid #ced4da; border-radius: 4px; font-size: 0.85rem; background: white; }
+    .btn-search { background: #6c757d; color: white; border: none; padding: 8px 25px; border-radius: 4px; font-weight: 500; font-size: 0.9rem; }
+    .btn-add-new { background: #6c757d; color: white; border: none; width: 36px; height: 36px; border-radius: 4px; display: flex; align-items: center; justify-content: center; }
+    .btn-add-new i { font-size: 1.2rem; }
+    
+    .table-custom thead th { background: #f8f9fa; border-bottom: 2px solid #dee2e6; color: #495057; font-size: 0.8rem; padding: 12px 10px; white-space: nowrap; }
+    .table-custom tbody td { padding: 12px 10px; font-size: 0.85rem; color: #333; vertical-align: middle; border-bottom: 1px solid #f2f2f2; }
+    
+    .status-badge { padding: 4px 10px; border-radius: 4px; font-size: 0.75rem; font-weight: 500; }
+    .status-badge.approved { background: #d4edda; color: #155724; }
+    .status-badge.unapproved { background: #fff3cd; color: #856404; }
+    
+    .btn-action-icon { padding: 4px 8px; border: none; background: transparent; color: #6c757d; transition: all 0.2s; }
+    .btn-action-icon:hover { color: #333; background: #e9ecef; border-radius: 4px; }
+    
+    .pagination .page-link { border: none; margin: 0 2px; border-radius: 4px; color: #666; font-size: 0.85rem; }
+    .pagination .page-item.active .page-link { background: #6c757d; }
+</style>
+
+@code {
+    private IEnumerable<ExpensesIncurred>? expenses;
+    private string? voucherNo;
+    private string? vendorName;
+    private string? status;
+    private DateTime? fromDate;
+    private DateTime? toDate;
+
+    private int currentPage = 1;
+    private int pageSize = 10;
+    private int totalPages;
+    private int totalCount;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadExpenses();
+    }
+
+    private async Task LoadExpenses()
+    {
+        // Calling service with expanded params to include items and misc for qty/tax calculation
+        var result = await ExpenseService.GetExpensesAsync(voucherNo, fromDate, toDate, null, null, null, vendorName, status, currentPage, pageSize);
+        expenses = result.expenses;
+        totalCount = result.totalCount;
+        totalPages = result.totalPages;
+    }
+
+    private async Task Search()
+    {
+        currentPage = 1;
+        await LoadExpenses();
+    }
+
+    private async Task ClearFilters()
+    {
+        voucherNo = null;
+        vendorName = null;
+        status = null;
+        fromDate = null;
+        toDate = null;
+        await Search();
+    }
+
+    private async Task GoToPage(int page)
+    {
+        currentPage = page;
+        await LoadExpenses();
+    }
+
+    private async Task Delete(int id)
+    {
+        if (await ExpenseService.DeleteExpenseAsync(id))
+        {
+            await LoadExpenses();
+        }
+    }
+
+    private void CreateNew() => Navigation.NavigateTo("/transactions/expense-entry/create");
+    private void Edit(int id) => Navigation.NavigateTo($"/transactions/expense-entry/edit/{id}");
+    private void View(int id) => Navigation.NavigateTo($"/transactions/expense-entry/view/{id}");
+}

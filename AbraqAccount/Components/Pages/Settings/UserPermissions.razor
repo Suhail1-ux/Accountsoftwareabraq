@@ -1,0 +1,171 @@
+@page "/settings/permissions"
+@using AbraqAccount.Models
+@using AbraqAccount.Services.Interfaces
+@inject IUserPermissionService PermissionService
+
+<div class="container-fluid py-4">
+    <div class="row">
+        <!-- User Selection -->
+        <div class="col-md-3">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0">Users</h5>
+                </div>
+                <div class="list-group list-group-flush">
+                    @if (users == null)
+                    {
+                        <div class="text-center p-3"><div class="spinner-border spinner-border-sm"></div></div>
+                    }
+                    else
+                    {
+                        @foreach (var user in users)
+                        {
+                            <button class="list-group-item list-group-item-action @(selectedUserId == user.Id ? "active" : "")" 
+                                    @onclick="() => SelectUser(user.Id)">
+                                <i class="bi bi-person-circle me-2"></i> @user.Username
+                            </button>
+                        }
+                    }
+                </div>
+            </div>
+        </div>
+
+        <!-- Permissions Grid -->
+        <div class="col-md-9">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        @(selectedUserId > 0 ? $"Permissions for {users?.FirstOrDefault(u => u.Id == selectedUserId)?.Username}" : "Select a user to manage permissions")
+                    </h5>
+                    @if (selectedUserId > 0)
+                    {
+                        <button class="btn btn-primary btn-sm" @onclick="SavePermissions" disabled="@isSaving">
+                            @if (isSaving) { <span class="spinner-border spinner-border-sm"></span> }
+                            Save Changes
+                        </button>
+                    }
+                </div>
+                <div class="card-body p-0">
+                    @if (selectedUserId > 0)
+                    {
+                        @if (menus == null || userPermissions == null)
+                        {
+                            <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+                        }
+                        else
+                        {
+                            <div class="table-responsive">
+                                <table class="table table-hover align-middle mb-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Menu / Feature</th>
+                                            <th class="text-center">View</th>
+                                            <th class="text-center">Create</th>
+                                            <th class="text-center">Edit</th>
+                                            <th class="text-center">Delete</th>
+                                            <th class="text-center">Print</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var menu in menus.OrderBy(m => m.Name))
+                                        {
+                                            var perm = GetOrCreatePermission(menu.Id);
+                                            <tr>
+                                                <td>
+                                                    <div class="fw-bold">@menu.Name</div>
+                                                    <small class="text-muted">@menu.ControllerName/@menu.ActionName</small>
+                                                </td>
+                                                <td class="text-center">
+                                                    <input type="checkbox" class="form-check-input" @bind="perm.CanView" />
+                                                </td>
+                                                <td class="text-center">
+                                                    <input type="checkbox" class="form-check-input" @bind="perm.CanCreate" />
+                                                </td>
+                                                <td class="text-center">
+                                                    <input type="checkbox" class="form-check-input" @bind="perm.CanEdit" />
+                                                </td>
+                                                <td class="text-center">
+                                                    <input type="checkbox" class="form-check-input" @bind="perm.CanDelete" />
+                                                </td>
+                                                <td class="text-center">
+                                                    <input type="checkbox" class="form-check-input" @bind="perm.CanPrint" />
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <div class="text-center py-5 text-muted">
+                            <i class="bi bi-shield-lock display-1 mb-3 d-block"></i>
+                            <p>Please select a user from the left panel to manage their access rights.</p>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (!string.IsNullOrEmpty(statusMessage))
+{
+    <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
+        <div class="toast show @(statusMessage.Contains("error") ? "bg-danger text-white" : "bg-success text-white")" role="alert">
+            <div class="toast-body">@statusMessage</div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<User>? users;
+    private List<Menu>? menus;
+    private List<UserPermission>? userPermissions;
+    private int selectedUserId;
+    private bool isSaving;
+    private string? statusMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        users = await PermissionService.GetAllUsersAsync();
+        menus = await PermissionService.GetAllMenusAsync();
+    }
+
+    private async Task SelectUser(int userId)
+    {
+        selectedUserId = userId;
+        userPermissions = await PermissionService.GetPermissionsForUserAsync(userId);
+    }
+
+    private UserPermission GetOrCreatePermission(int menuId)
+    {
+        var perm = userPermissions?.FirstOrDefault(p => p.MenuId == menuId);
+        if (perm == null)
+        {
+            perm = new UserPermission { UserId = selectedUserId, MenuId = menuId };
+            userPermissions?.Add(perm);
+        }
+        return perm;
+    }
+
+    private async Task SavePermissions()
+    {
+        if (userPermissions == null) return;
+        isSaving = true;
+        statusMessage = null;
+
+        var result = await PermissionService.UpdatePermissionsAsync(selectedUserId, userPermissions);
+        
+        if (result.success) statusMessage = "Permissions updated successfully!";
+        else statusMessage = "Error: " + result.message;
+
+        isSaving = false;
+        StateHasChanged();
+        
+        await Task.Delay(3000);
+        statusMessage = null;
+        StateHasChanged();
+    }
+}

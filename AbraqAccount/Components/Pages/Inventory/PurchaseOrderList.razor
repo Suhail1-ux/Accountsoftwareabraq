@@ -1,0 +1,177 @@
+@page "/inventory/purchase-orders"
+@using AbraqAccount.Models
+@using AbraqAccount.Services.Interfaces
+@inject IPurchaseOrderService POService
+@inject NavigationManager Navigation
+
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="mb-0">Purchase Orders</h2>
+        <button class="btn btn-primary" @onclick="CreateNew">
+            <i class="bi bi-plus-lg"></i> Create Purchase Order
+        </button>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-2">
+                    <label class="form-label">PO Number</label>
+                    <input type="text" class="form-control" placeholder="PO#" @bind="poNumber" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Vendor Name</label>
+                    <input type="text" class="form-control" placeholder="Vendor..." @bind="vendorName" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Status</label>
+                    <select class="form-select" @bind="status">
+                        <option value="">ALL</option>
+                        <option value="UnApproved">UnApproved</option>
+                        <option value="Approved">Approved</option>
+                        <option value="Cancelled">Cancelled</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">From Date</label>
+                    <input type="date" class="form-control" @bind="fromDate" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">To Date</label>
+                    <input type="date" class="form-control" @bind="toDate" />
+                </div>
+                <div class="col-md-1 d-flex align-items-end">
+                    <button class="btn btn-secondary w-100" @onclick="Search">Search</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (orders == null)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    }
+    else if (!orders.Any())
+    {
+        <div class="alert alert-info">No purchase orders found.</div>
+    }
+    else
+    {
+        <div class="card shadow-sm">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>PO Date</th>
+                            <th>PO Number</th>
+                            <th>Vendor</th>
+                            <th class="text-end">Qty</th>
+                            <th class="text-end">Total Amount</th>
+                            <th>Status</th>
+                            <th class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var order in orders)
+                        {
+                            <tr>
+                                <td>@order.PODate.ToString("dd MMM yyyy")</td>
+                                <td><span class="badge bg-secondary">@order.PONumber</span></td>
+                                <td>
+                                    <div class="fw-bold">@(order.Vendor?.VendorName ?? "N/A")</div>
+                                    <small class="text-muted">@(order.Vendor?.VendorCode ?? "")</small>
+                                </td>
+                                <td class="text-end">@order.POQty.ToString("N2")</td>
+                                <td class="text-end fw-bold text-primary">@order.TotalAmount.ToString("N2")</td>
+                                <td>
+                                    <span class="badge @GetStatusBadgeClass(order.Status)">@order.Status</span>
+                                </td>
+                                <td class="text-end">
+                                    <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => Edit(order.Id)">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            @if (totalPages > 1)
+            {
+                <div class="card-footer bg-white">
+                    <nav>
+                        <ul class="pagination pagination-sm justify-content-center mb-0">
+                            <li class="page-item @(currentPage == 1 ? "disabled" : "")">
+                                <button class="page-link" @onclick="() => GoToPage(currentPage - 1)">Previous</button>
+                            </li>
+                            @for (int i = 1; i <= totalPages; i++)
+                            {
+                                var pageNum = i;
+                                <li class="page-item @(currentPage == pageNum ? "active" : "")">
+                                    <button class="page-link" @onclick="() => GoToPage(pageNum)">@pageNum</button>
+                                </li>
+                            }
+                            <li class="page-item @(currentPage == totalPages ? "disabled" : "")">
+                                <button class="page-link" @onclick="() => GoToPage(currentPage + 1)">Next</button>
+                            </li>
+                        </ul>
+                    </nav>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private List<PurchaseOrder>? orders;
+    private string? poNumber;
+    private string? vendorName;
+    private string status = "";
+    private DateTime? fromDate;
+    private DateTime? toDate;
+
+    private int currentPage = 1;
+    private int pageSize = 10;
+    private int totalPages;
+    private int totalCount;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadOrders();
+    }
+
+    private async Task LoadOrders()
+    {
+        var result = await POService.GetPurchaseOrdersAsync(poNumber, vendorName, status, fromDate, toDate, currentPage, pageSize);
+        orders = result.orders;
+        totalCount = result.totalCount;
+        totalPages = result.totalPages;
+    }
+
+    private async Task Search()
+    {
+        currentPage = 1;
+        await LoadOrders();
+    }
+
+    private async Task GoToPage(int page)
+    {
+        currentPage = page;
+        await LoadOrders();
+    }
+
+    private string GetStatusBadgeClass(string? status) => status switch
+    {
+        "Approved" => "bg-success-subtle text-success",
+        "UnApproved" => "bg-warning-subtle text-warning",
+        "Cancelled" => "bg-danger-subtle text-danger",
+        _ => "bg-light text-dark"
+    };
+
+    private void CreateNew() => Navigation.NavigateTo("/inventory/purchase-orders/create");
+    private void Edit(int id) => Navigation.NavigateTo($"/inventory/purchase-orders/edit/{id}");
+}
