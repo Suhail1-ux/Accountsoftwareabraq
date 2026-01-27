@@ -315,17 +315,16 @@ public class PurchaseMasterService : IPurchaseMasterService
 
         viewBag.PurchaseItemGroupId = new SelectList(itemGroups, "Id", "Name");
         
-        viewBag.UOMOptions = new List<SelectListItem>
-        {
-            new SelectListItem { Value = "Pieces", Text = "Pieces" },
-            new SelectListItem { Value = "Number", Text = "Number" },
-            new SelectListItem { Value = "Kg", Text = "Kg" },
-            new SelectListItem { Value = "Gram", Text = "Gram" },
-            new SelectListItem { Value = "Liter", Text = "Liter" },
-            new SelectListItem { Value = "Meter", Text = "Meter" },
-            new SelectListItem { Value = "Box", Text = "Box" },
-            new SelectListItem { Value = "Carton", Text = "Carton" }
-        };
+        var uoms = await _context.UOMs
+            .Where(u => u.IsActive)
+            .OrderBy(u => u.UOMName)
+            .ToListAsync();
+
+        viewBag.UOMOptions = uoms.Select(u => new SelectListItem 
+        { 
+            Value = u.UOMName, 
+            Text = u.UOMName 
+        }).ToList();
 
         viewBag.GSTOptions = new List<SelectListItem>
         {
