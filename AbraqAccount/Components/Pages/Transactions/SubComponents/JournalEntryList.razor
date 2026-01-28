@@ -112,15 +112,15 @@
                             </td>
                             <td>
                                 <div class="action-icons">
-                                    @if (group.Status == "Approved")
+                                    @if(group.Status == "Approved")
                                     {
-                                        <button class="action-icon approved-icon" @onclick="() => Unapprove(group.VoucherNo)" title="Unapprove">
+                                        <button class="action-icon approved-icon" @onclick="() => ConfirmUnapprove(group.VoucherNo)" title="Unapprove">
                                             <i class="bi bi-check-circle-fill"></i>
                                         </button>
                                     }
                                     else
                                     {
-                                        <button class="action-icon approve-icon" @onclick="() => Approve(group.VoucherNo)" title="Approve">
+                                        <button class="action-icon approve-icon" @onclick="() => ConfirmApprove(group.VoucherNo)" title="Approve">
                                             <i class="bi bi-hand-thumbs-up"></i>
                                         </button>
                                     }
@@ -139,7 +139,7 @@
                                     </button>
                                     @if (group.Status != "Approved")
                                     {
-                                        <button class="action-icon delete-icon" @onclick="() => Delete(group.VoucherNo)" title="Delete">
+                                        <button class="action-icon delete-icon" @onclick="() => ConfirmDelete(group.VoucherNo)" title="Delete">
                                             <i class="bi bi-trash"></i>
                                         </button>
                                     }
@@ -213,6 +213,9 @@
     .pagination-btn { padding: 0.25rem 0.75rem; border: 1px solid #ddd; background: #fff; cursor: pointer; }
     .pagination-btn:disabled { cursor: not-allowed; opacity: 0.5; }
 </style>
+
+
+<ConfirmationModal @ref="confirmationModal" OnConfirm="HandleConfirmation" />
 
 @code {
     [Parameter] public EventCallback<string> OnEdit { get; set; }
@@ -358,32 +361,48 @@
         // Implement history modal
     }
 
-    private async Task Approve(string voucherNo)
+    private ConfirmationModal? confirmationModal;
+    private string pendingVoucherNo = "";
+    private string pendingAction = "";
+
+    private void ConfirmApprove(string voucherNo)
     {
-        var entries = await GeneralEntryService.GetVoucherEntriesAsync(voucherNo);
-        foreach (var entry in entries)
-        {
-            await GeneralEntryService.ApproveEntryAsync(entry.Id, "Admin");
-        }
-        await LoadData();
+        pendingVoucherNo = voucherNo;
+        pendingAction = "Approve";
+        confirmationModal?.Show("Approve Journal Entry", "Are you sure you want to approve this journal entry?", "Approve", "btn-success");
     }
 
-    private async Task Unapprove(string voucherNo)
+    private void ConfirmUnapprove(string voucherNo)
     {
-        var entries = await GeneralEntryService.GetVoucherEntriesAsync(voucherNo);
-        foreach (var entry in entries)
-        {
-            await GeneralEntryService.UnapproveEntryAsync(entry.Id, "Admin");
-        }
-        await LoadData();
+        pendingVoucherNo = voucherNo;
+        pendingAction = "Unapprove";
+        confirmationModal?.Show("Unapprove Journal Entry", "Are you sure you want to unapprove this journal entry?", "Unapprove", "btn-warning");
     }
 
-    private async Task Delete(string voucherNo)
+    private void ConfirmDelete(string voucherNo)
     {
-        var entries = await GeneralEntryService.GetVoucherEntriesAsync(voucherNo);
+        pendingVoucherNo = voucherNo;
+        pendingAction = "Delete";
+        confirmationModal?.Show("Delete Journal Entry", "Are you sure you want to delete this journal entry?", "Delete", "btn-danger");
+    }
+
+    private async Task HandleConfirmation()
+    {
+        var entries = await GeneralEntryService.GetVoucherEntriesAsync(pendingVoucherNo);
         foreach (var entry in entries)
         {
-            await GeneralEntryService.DeleteEntryAsync(entry.Id, "Admin");
+            if (pendingAction == "Approve")
+            {
+                await GeneralEntryService.ApproveEntryAsync(entry.Id, "Admin");
+            }
+            else if (pendingAction == "Unapprove")
+            {
+                await GeneralEntryService.UnapproveEntryAsync(entry.Id, "Admin");
+            }
+            else if (pendingAction == "Delete")
+            {
+                await GeneralEntryService.DeleteEntryAsync(entry.Id, "Admin");
+            }
         }
         await LoadData();
     }

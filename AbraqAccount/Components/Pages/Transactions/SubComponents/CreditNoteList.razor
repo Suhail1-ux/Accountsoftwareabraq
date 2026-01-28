@@ -140,16 +140,16 @@
                                     </NavLink>
                                     @if (item.Status == "Approved")
                                     {
-                                        <button class="action-icon approved-icon" @onclick="() => Unapprove(item.Id)" title="Unapprove">
+                                        <button class="action-icon approved-icon" @onclick="() => ConfirmUnapprove(item.Id)" title="Unapprove">
                                             <i class="bi bi-check-circle-fill"></i>
                                         </button>
                                     }
                                     else
                                     {
-                                        <button class="action-icon approve-icon" @onclick="() => Approve(item.Id)" title="Approve">
+                                        <button class="action-icon approve-icon" @onclick="() => ConfirmApprove(item.Id)" title="Approve">
                                             <i class="bi bi-hand-thumbs-up"></i>
                                         </button>
-                                        <button class="action-icon delete-icon" @onclick="() => Delete(item.Id)" title="Delete">
+                                        <button class="action-icon delete-icon" @onclick="() => ConfirmDelete(item.Id)" title="Delete">
                                             <i class="bi bi-trash"></i>
                                         </button>
                                     }
@@ -230,6 +230,8 @@
     .pagination-btn { padding: 0.25rem 0.75rem; border: 1px solid #ddd; background: #fff; cursor: pointer; }
     .pagination-btn:disabled { cursor: not-allowed; opacity: 0.5; }
 </style>
+
+<ConfirmationModal @ref="confirmationModal" OnConfirm="HandleConfirmation" />
 
 @code {
     [Parameter] public EventCallback<int> OnEdit { get; set; }
@@ -379,21 +381,45 @@
     }
 
 
-    private async Task Approve(int id)
+    private ConfirmationModal? confirmationModal;
+    private int pendingId;
+    private string pendingAction = "";
+
+    private void ConfirmApprove(int id)
     {
-        await CreditNoteService.ApproveCreditNoteAsync(id);
-        await LoadData();
+        pendingId = id;
+        pendingAction = "Approve";
+        confirmationModal?.Show("Approve Credit Note", "Are you sure you want to approve this credit note?", "Approve", "btn-success");
     }
 
-    private async Task Unapprove(int id)
+    private void ConfirmUnapprove(int id)
     {
-        await CreditNoteService.UnapproveCreditNoteAsync(id);
-        await LoadData();
+        pendingId = id;
+        pendingAction = "Unapprove";
+        confirmationModal?.Show("Unapprove Credit Note", "Are you sure you want to unapprove this credit note?", "Unapprove", "btn-warning");
     }
 
-    private async Task Delete(int id)
+    private void ConfirmDelete(int id)
     {
-        await CreditNoteService.DeleteCreditNoteAsync(id);
+        pendingId = id;
+        pendingAction = "Delete";
+        confirmationModal?.Show("Delete Credit Note", "Are you sure you want to delete this credit note?", "Delete", "btn-danger");
+    }
+
+    private async Task HandleConfirmation()
+    {
+        if (pendingAction == "Approve")
+        {
+            await CreditNoteService.ApproveCreditNoteAsync(pendingId);
+        }
+        else if (pendingAction == "Unapprove")
+        {
+            await CreditNoteService.UnapproveCreditNoteAsync(pendingId);
+        }
+        else if (pendingAction == "Delete")
+        {
+            await CreditNoteService.DeleteCreditNoteAsync(pendingId);
+        }
         await LoadData();
     }
 

@@ -23,7 +23,8 @@ public class DebitNoteService : IDebitNoteService
         string? unit, string? debitNoteNo, string? vendor, string? status, 
         DateTime? fromDate, DateTime? toDate, int page, int pageSize)
     {
-        var query = _context.DebitNotes.AsQueryable();
+
+        var query = _context.DebitNotes.Where(d => d.IsActive).AsQueryable();
 
         if (!string.IsNullOrEmpty(unit) && unit != "ALL") query = query.Where(d => d.Unit == unit);
         if (!string.IsNullOrEmpty(debitNoteNo)) query = query.Where(d => d.DebitNoteNo.Contains(debitNoteNo));
