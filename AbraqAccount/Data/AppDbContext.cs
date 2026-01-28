@@ -580,27 +580,31 @@ public class AppDbContext : DbContext
         });
 
 
-        // Map to SQL Server PackingRecipeMaterials table
+        // Map to SQL Server RecipeItems table
         modelBuilder.Entity<PackingRecipeMaterial>(entity =>
         {
-            entity.ToTable("PackingRecipeMaterials");
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.Id).HasColumnName("Id");
-            entity.Property(e => e.PackingRecipeId).HasColumnName("PackingRecipeId").IsRequired();
-            entity.Property(e => e.PurchaseItemId).HasColumnName("PurchaseItemId").IsRequired();
-            entity.Property(e => e.Qty).HasColumnName("Qty").HasColumnType("decimal(18,2)").IsRequired();
-            entity.Property(e => e.UOM).HasColumnName("UOM").HasMaxLength(50).IsRequired();
-            entity.Property(e => e.Value).HasColumnName("Value").HasColumnType("decimal(18,2)").IsRequired();
-            entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
+            entity.ToTable("RecipeItems");
+            entity.HasKey(e => e.RecipeItemId);
+            entity.Property(e => e.RecipeItemId).HasColumnName("RecipeItemId").ValueGeneratedNever();
+            entity.Property(e => e.RecipeId).HasColumnName("RecipeId").IsRequired();
+            entity.Property(e => e.packingitemid).HasColumnName("packingitemid").HasConversion<long>().IsRequired();
+            entity.Property(e => e.qty).HasColumnName("qty");
+            entity.Property(e => e.avgCost).HasColumnName("avgCost").HasColumnType("money");
+            entity.Property(e => e.flagdeleted).HasColumnName("flagdeleted").IsRequired();
+            entity.Property(e => e.endeffdt).HasColumnName("endeffdt");
+            entity.Property(e => e.createddate).HasColumnName("createddate").IsRequired();
+            entity.Property(e => e.createdby).HasColumnName("createdby");
+            entity.Property(e => e.updatedby).HasColumnName("updatedby");
+            entity.Property(e => e.updateddate).HasColumnName("updateddate");
             
             entity.HasOne(e => e.PackingRecipe)
                   .WithMany(p => p.Materials)
-                  .HasForeignKey(e => e.PackingRecipeId)
+                  .HasForeignKey(e => e.RecipeId)
                   .OnDelete(DeleteBehavior.Cascade);
             
             entity.HasOne(e => e.PurchaseItem)
                   .WithMany()
-                  .HasForeignKey(e => e.PurchaseItemId)
+                  .HasForeignKey(e => e.packingitemid)
                   .OnDelete(DeleteBehavior.Restrict);
         });
 

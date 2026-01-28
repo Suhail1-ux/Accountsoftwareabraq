@@ -10,10 +10,12 @@ namespace AbraqAccount.Services.Implementations;
 public class PackingService : IPackingService
 {
     private readonly AppDbContext _context;
+    private readonly IHttpContextAccessor _httpContextAccessor;
 
-    public PackingService(AppDbContext context)
+    public PackingService(AppDbContext context, IHttpContextAccessor httpContextAccessor)
     {
         _context = context;
+        _httpContextAccessor = httpContextAccessor;
     }
 
     public async Task<List<PackingRecipe>> GetPackingRecipesAsync(string? searchTerm)
@@ -58,10 +60,18 @@ public class PackingService : IPackingService
 
             _context.PackingRecipes.Add(model);
             
+            // Get last item ID for sequence
+            var lastItem = await _context.PackingRecipeMaterials
+                .AsNoTracking()
+                .OrderByDescending(m => m.RecipeItemId)
+                .FirstOrDefaultAsync();
+            long nextItemId = (lastItem?.RecipeItemId ?? 0) + 1;
+
             foreach (var material in materials)
             {
-                material.PackingRecipeId = model.Recipeid;
-                material.CreatedAt = DateTime.Now;
+                material.RecipeItemId = nextItemId++;
+                material.RecipeId = model.Recipeid;
+                material.createddate = DateTime.Now;
                 _context.PackingRecipeMaterials.Add(material);
             }
             await _context.SaveChangesAsync();
@@ -77,6 +87,7 @@ public class PackingService : IPackingService
     public async Task<PackingRecipe?> GetPackingRecipeByIdAsync(long id)
     {
         return await _context.PackingRecipes
+            .AsNoTracking()
             .Include(p => p.Materials)
                 .ThenInclude(m => m.PurchaseItem)
             .FirstOrDefaultAsync(m => m.Recipeid == id);
@@ -133,6 +144,7 @@ public class PackingService : IPackingService
 
             // Sync properties from model to existing
             existing.recipename = model.RecipeName;
+            existing.RecipePackageId = model.RecipePackageId;
             existing.ItemWeight = (double)model.CostUnit; 
             existing.labourcost = model.LabourCost;
             existing.HighDensityRate = (double)model.HighDensityRate;
@@ -143,18 +155,26 @@ public class PackingService : IPackingService
             {
                 existing.unitcost = materials.Sum(m => m.Value);
                 
+                // Get last item ID for sequence
+                var lastItem = await _context.PackingRecipeMaterials
+                    .AsNoTracking()
+                    .OrderByDescending(m => m.RecipeItemId)
+                    .FirstOrDefaultAsync();
+                long nextItemId = (lastItem?.RecipeItemId ?? 0) + 1;
+
                 foreach (var material in materials)
                 {
                     if (material.PurchaseItemId > 0)
                     {
                         var newMat = new PackingRecipeMaterial
                         {
-                            PackingRecipeId = existing.Recipeid,
-                            PurchaseItemId = material.PurchaseItemId,
-                            Qty = material.Qty,
-                            UOM = material.UOM ?? "",
-                            Value = material.Value,
-                            CreatedAt = DateTime.Now
+                            RecipeItemId = nextItemId++,
+                            RecipeId = existing.Recipeid,
+                            packingitemid = material.PurchaseItemId,
+                            qty = (double)material.Qty,
+                            avgCost = material.Value,
+                            flagdeleted = false,
+                            createddate = DateTime.Now
                         };
                         _context.PackingRecipeMaterials.Add(newMat);
                     }
@@ -166,6 +186,25 @@ public class PackingService : IPackingService
             }
 
             await _context.SaveChangesAsync();
+
+            // Log History
+            try
+            {
+                var username = _httpContextAccessor.HttpContext?.Session.GetString("Username") ?? "Unknown";
+                var history = new TransactionHistory
+                {
+                    VoucherNo = existing.RecipeCode ?? existing.Recipeid.ToString("D4"),
+                    VoucherType = "PackingRecipe",
+                    Action = model.Recipeid == 0 ? "Insert" : "Edit",
+                    User = username,
+                    ActionDate = DateTime.Now,
+                    Remarks = $"Recipe saved: {existing.recipename}"
+                };
+                _context.TransactionHistories.Add(history);
+                await _context.SaveChangesAsync();
+            }
+            catch { /* Ignore logging errors */ }
+
             return (true, model.Recipeid == 0 ? "Created successfully" : "Updated successfully");
         }
         catch (Exception ex)
@@ -284,13 +323,14 @@ public class PackingService : IPackingService
 
     public async Task LoadRecipeDropdownsAsync(dynamic viewBag)
     {
-        var uomList = await _context.UOMs
+        // Get approved UOMs from Master table (points to RecipePackageId)
+        var units = await _context.UOMs
             .Where(u => u.IsActive && u.IsApproved)
             .OrderBy(u => u.UOMName)
-            .Select(u => new { Value = u.UOMName, Text = u.UOMName })
+            .Select(u => new { Value = u.Id.ToString(), Text = u.UOMName })
             .ToListAsync();
 
-        viewBag.RecipeUOMName = new SelectList(uomList, "Value", "Text");
+        viewBag.RecipeUOMName = new SelectList(units, "Value", "Text");
     }
 
     private List<PackingRecipeMaterial> GetMaterialsFromForm(IFormCollection form)
@@ -491,6 +531,22 @@ public class PackingService : IPackingService
             detailIndex++;
         }
         return details;
+    }
+    public async Task<IEnumerable<object>> GetPackingRecipeHistoryAsync(long id)
+    {
+        var recipe = await _context.PackingRecipes.FindAsync(id);
+        if (recipe == null) return Enumerable.Empty<object>();
+
+        return await _context.TransactionHistories
+            .Where(h => h.VoucherType == "PackingRecipe" && h.VoucherNo == recipe.RecipeCode)
+            .OrderByDescending(h => h.ActionDate)
+            .Select(h => new {
+                action = h.Action,
+                user = h.User,
+                dateTime = h.ActionDate,
+                remarks = h.Remarks
+            })
+            .ToListAsync();
     }
 }
 

@@ -26,4 +26,5 @@ public interface IPackingService
     Task<IEnumerable<LookupItem>> GetPackingItemsForRateAsync();
     Task<IEnumerable<LookupItem>> GetFarmersByGroupAsync(int groupId);
     Task LoadSpecialRateDropdownsAsync(dynamic viewBag);
+    Task<IEnumerable<object>> GetPackingRecipeHistoryAsync(long id);
 }

@@ -43,7 +43,7 @@ public class PackingRecipe
 
     // Legacy fields used by UI (to be mapped in service/context)
     [NotMapped] public string RecipeName { get => recipename ?? ""; set => recipename = value; }
-    [NotMapped] public string RecipeUOMName { get; set; } = string.Empty;
+    [NotMapped] public string? ItemId { get => itemId; set => itemId = value; }
     [NotMapped] public decimal CostUnit { get => (decimal)ItemWeight; set => ItemWeight = (double)value; }
     [NotMapped] public decimal LabourCost { get => labourcost ?? 0; set => labourcost = value; }
     [NotMapped] public decimal Value { get => unitcost ?? 0; set => unitcost = value; }
@@ -56,17 +56,36 @@ public class PackingRecipe
 
 public class PackingRecipeMaterial
 {
-    public int Id { get; set; }
-    public long PackingRecipeId { get; set; }
-    public int PurchaseItemId { get; set; }
-    public decimal Qty { get; set; }
-    public string UOM { get; set; } = string.Empty;
-    public decimal Value { get; set; }
-    public DateTime CreatedAt { get; set; } = DateTime.Now;
-    
+    [Key]
+    public long RecipeItemId { get; set; }
+    public long RecipeId { get; set; }
+    public int packingitemid { get; set; }
+    public double? qty { get; set; }
+    public decimal? avgCost { get; set; }
+    public bool flagdeleted { get; set; }
+    public DateTime? endeffdt { get; set; }
+    public DateTime createddate { get; set; } = DateTime.Now;
+    public int? createdby { get; set; }
+    public int? updatedby { get; set; }
+    public DateTime? updateddate { get; set; }
+
     // Navigation properties
     public PackingRecipe? PackingRecipe { get; set; }
+    [ForeignKey("packingitemid")]
     public PurchaseItem? PurchaseItem { get; set; }
+
+    [NotMapped] public string? MaterialName { get; set; }
+
+    // Legacy fields for UI compatibility
+    [NotMapped] public int PackingRecipeId { get => (int)RecipeId; set => RecipeId = value; }
+    [NotMapped] public int PurchaseItemId { get => packingitemid; set => packingitemid = value; }
+    [NotMapped] public decimal Qty { get => (decimal)(qty ?? 0); set => qty = (double)value; }
+    
+    private string _uom = string.Empty;
+    [NotMapped] public string UOM { get => !string.IsNullOrEmpty(PurchaseItem?.UOM) ? PurchaseItem.UOM : _uom; set => _uom = value; }
+    
+    [NotMapped] public decimal Value { get => avgCost ?? 0; set => avgCost = value; }
+    [NotMapped] public DateTime CreatedAt { get => createddate; set => createddate = value; }
 }
 
 public class PackingRecipeSpecialRate
