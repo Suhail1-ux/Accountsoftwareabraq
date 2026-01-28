@@ -292,29 +292,20 @@
 
     private async Task Approve(int id)
     {
-        if (await JS.InvokeAsync<bool>("confirm", "Are you sure you want to approve this entry?"))
-        {
-            await GeneralEntryService.ApproveEntryAsync(id, "admin"); // Replace with actual user
-            await LoadData();
-        }
+        await GeneralEntryService.ApproveEntryAsync(id, "admin"); // Replace with actual user
+        await LoadData();
     }
 
     private async Task Unapprove(int id)
     {
-        if (await JS.InvokeAsync<bool>("confirm", "Are you sure you want to unapprove this entry?"))
-        {
-            await GeneralEntryService.UnapproveEntryAsync(id, "admin");
-            await LoadData();
-        }
+        await GeneralEntryService.UnapproveEntryAsync(id, "admin");
+        await LoadData();
     }
 
     private async Task Delete(int id)
     {
-        if (await JS.InvokeAsync<bool>("confirm", "Are you sure you want to delete this entry?"))
-        {
-            await GeneralEntryService.DeleteEntryAsync(id, "admin");
-            await LoadData();
-        }
+        await GeneralEntryService.DeleteEntryAsync(id, "admin");
+        await LoadData();
     }
 
     private string GetStatusClass(string? status) => status?.ToLower() switch

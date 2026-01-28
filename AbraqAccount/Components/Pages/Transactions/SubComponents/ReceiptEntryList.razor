@@ -333,36 +333,23 @@
 
     private async Task Approve(int creditId, int debitId)
     {
-        if (await JS.InvokeAsync<bool>("confirm", "Are you sure you want to approve this receipt?"))
-        {
-            // The service has ApproveReceiptEntryAsync(int id, string currentUser)
-            // But usually we approve by voucher or both entries.
-            // In MVC, it was calling approveReceipt(creditId, debitId)
-            // I'll call it for both if they exist
-            if (creditId > 0) await ReceiptEntryService.ApproveReceiptEntryAsync(creditId, "Admin");
-            if (debitId > 0) await ReceiptEntryService.ApproveReceiptEntryAsync(debitId, "Admin");
-            await LoadData();
-        }
+        if (creditId > 0) await ReceiptEntryService.ApproveReceiptEntryAsync(creditId, "Admin");
+        if (debitId > 0) await ReceiptEntryService.ApproveReceiptEntryAsync(debitId, "Admin");
+        await LoadData();
     }
 
     private async Task Unapprove(int creditId, int debitId)
     {
-        if (await JS.InvokeAsync<bool>("confirm", "Are you sure you want to unapprove this receipt?"))
-        {
-            if (creditId > 0) await ReceiptEntryService.UnapproveReceiptEntryAsync(creditId, "Admin");
-            if (debitId > 0) await ReceiptEntryService.UnapproveReceiptEntryAsync(debitId, "Admin");
-            await LoadData();
-        }
+        if (creditId > 0) await ReceiptEntryService.UnapproveReceiptEntryAsync(creditId, "Admin");
+        if (debitId > 0) await ReceiptEntryService.UnapproveReceiptEntryAsync(debitId, "Admin");
+        await LoadData();
     }
 
     private async Task Delete(int creditId, int debitId)
     {
-        if (await JS.InvokeAsync<bool>("confirm", "Are you sure you want to delete this receipt?"))
-        {
-            if (creditId > 0) await ReceiptEntryService.DeleteReceiptEntryAsync(creditId, "Admin");
-            if (debitId > 0) await ReceiptEntryService.DeleteReceiptEntryAsync(debitId, "Admin");
-            await LoadData();
-        }
+        if (creditId > 0) await ReceiptEntryService.DeleteReceiptEntryAsync(creditId, "Admin");
+        if (debitId > 0) await ReceiptEntryService.DeleteReceiptEntryAsync(debitId, "Admin");
+        await LoadData();
     }
 
     private string GetStatusClass(string? status) => status?.ToLower() switch
