@@ -71,7 +71,7 @@
                         <div class="col-lg-3 col-md-6">
                             <label class="form-label-modern">Unit <span class="text-danger">*</span></label>
                             <select @bind="model.Unit" class="form-control-modern">
-                                <option value="">SELECT UNIT</option>
+                                <option value="">Select</option>
                                 @foreach (var unit in unitList)
                                 {
                                     <option value="@unit">@unit</option>
@@ -354,7 +354,7 @@
             <div class="col-lg-2 col-md-6">
                  <div class="total-box">
                     <span class="label">Discount</span>
-                    <input type="number" @bind="model.TotalDiscount" @oninput="() => RecalculateTotals()" class="discount-input" readonly="@IsReadOnly" />
+                    <input type="number" value="@model.TotalDiscount" @oninput="UpdateDiscount" class="discount-input" readonly="@IsReadOnly" />
                 </div>
             </div>
             <div class="col-lg-3 col-md-6">
@@ -468,7 +468,7 @@
     private ExpenseMiscCharge newMisc = new() { CreatedAt = DateTime.Now, Tax = "Select" };
     
     // Data lists
-    private List<string> unitList = new() { "Unit 1", "Unit 2", "Abraq Agro Fresh LLP" };
+    private List<string> unitList = new();
     private List<VehInfo> vehicleList = new();
 
     private bool IsEdit => Id.HasValue;
@@ -480,6 +480,7 @@
 
     protected override async Task OnInitializedAsync()
     {
+        unitList = (await ExpenseService.GetUnitNamesAsync()).ToList();
         vehicleList = (await ExpenseService.GetVehiclesListAsync()).ToList();
 
         if (IsEdit)
@@ -598,6 +599,19 @@
     private void ClearNewMisc()
     {
         newMisc = new ExpenseMiscCharge { CreatedAt = DateTime.Now, Tax = "Select" };
+    }
+
+    private void UpdateDiscount(ChangeEventArgs e)
+    {
+        if (decimal.TryParse(e.Value?.ToString(), out decimal val))
+        {
+            model.TotalDiscount = val;
+        }
+        else
+        {
+            model.TotalDiscount = 0;
+        }
+        RecalculateTotals();
     }
 
     private decimal CalculateTax(decimal amount, string gst)

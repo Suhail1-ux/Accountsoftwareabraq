@@ -36,6 +36,7 @@ public interface IExpensesIncurredService
 
     Task<IEnumerable<string>> GetVehiclesAsync(string? searchTerm);
     Task<IEnumerable<VehInfo>> GetVehiclesListAsync();
+    Task<IEnumerable<string>> GetUnitNamesAsync();
     
     // Helper operations
     Task LoadAccountNamesAsync(ExpensesIncurred expense);

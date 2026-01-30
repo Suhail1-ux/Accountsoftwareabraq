@@ -11,152 +11,153 @@
 
     <EditForm Model="model" OnValidSubmit="SubmitForm">
         <DataAnnotationsValidator />
-        
-    <!-- Header Fields -->
-    <div class="row mb-4">
-        <div class="col-md-4">
-            <div class="form-group-custom">
-                <label class="form-label text-muted">Credit Note Date</label>
-                @if (IsReadOnly)
-                {
-                    <div class="fw-bold fs-6">@model.CreditNoteDate.ToString("dd/MM/yyyy")</div>
-                }
-                else
-                {
-                    <input type="date" @bind="model.CreditNoteDate" class="form-control-custom" />
-                }
-            </div>
-        </div>
-        <div class="col-md-4">
-            <div class="form-group-custom">
-                <label class="form-label text-muted">Entry For</label>
-                @if (IsReadOnly)
-                {
-                    <div class="fw-bold fs-6">@model.EntryForName</div>
-                }
-                else
-                {
-                    <select @onchange="OnProfileChanged" class="form-control-custom">
-                        <option value="">Select Entry For</option>
-                        @if (entryProfiles != null)
-                        {
-                            @foreach (var profile in entryProfiles)
-                            {
-                                <option value="@profile.Id" selected="@(selectedProfileId == profile.Id)">@profile.Name</option>
-                            }
-                        }
-                    </select>
-                }
-            </div>
-        </div>
-        <div class="col-md-4">
-            <div class="form-group-custom">
-                <label class="form-label text-muted">Unit</label>
-                @if (IsReadOnly)
-                {
-                    <div class="fw-bold fs-6">@model.Unit</div>
-                }
-                else
-                {
-                    <select @bind="model.Unit" class="form-control-custom">
-                        <option value="">Select</option>
-                        @foreach (var unit in unitList)
-                        {
-                            <option value="@unit">@unit</option>
-                        }
-                    </select>
-                }
-            </div>
-        </div>
-    </div>
 
-    <!-- Transaction Details Section -->
-    <div class="transaction-details-section">
-        <div class="section-subtitle mb-3">Transaction Details</div>
-
-        <div class="row mb-3">
-            <div class="col-md-4">
-                <div class="form-group-custom">
-                    <label class="form-label text-muted">Grower Credit <span class="text-danger">*</span></label>
-                    @if (IsReadOnly)
-                    {
-                        <div class="fw-bold fs-6">@model.CreditAccountName</div>
-                    }
-                    else
-                    {
-                        <AbraqAccount.Components.Common.AccountSearch 
-                            Placeholder="Search Account Name" 
-                            SearchFunc='async (t) => await SearchAccounts(t, "Credit")'
-                            OnAccountSelected="(acc) => OnAccountSelected(acc, true)"
-                            InitialValue="@model.CreditAccountName"
-                            Disabled="@(selectedProfileId == null || selectedProfileId == 0)"
-                            CssClass="form-control-custom" />
-                    }
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="form-group-custom">
-                    <label class="form-label text-muted">Grower Debit <span class="text-danger">*</span></label>
-                    @if (IsReadOnly)
-                    {
-                        <div class="fw-bold fs-6">@model.DebitAccountName</div>
-                    }
-                    else
-                    {
-                        <AbraqAccount.Components.Common.AccountSearch 
-                            Placeholder="Search Account Name" 
-                            SearchFunc='async (t) => await SearchAccounts(t, "Debit")'
-                            OnAccountSelected="(acc) => OnAccountSelected(acc, false)"
-                            InitialValue="@model.DebitAccountName"
-                            Disabled="@(selectedProfileId == null || selectedProfileId == 0)"
-                            CssClass="form-control-custom" />
-                    }
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="form-group-custom">
-                    <label class="form-label text-muted">Amount <span class="text-danger">*</span></label>
-                    @if (IsReadOnly)
-                    {
-                        <div class="fw-bold fs-6 text-primary">@model.Amount?.ToString("N2")</div>
-                    }
-                    else
-                    {
-                        <input type="number" step="0.01" @bind="model.Amount" class="form-control-custom" placeholder="Enter Amount" />
-                    }
-                </div>
-            </div>
-        </div>
-
+        <!-- Header Fields -->
         <div class="row mb-4">
-            <div class="col-md-12">
+            <div class="col-md-4">
                 <div class="form-group-custom">
-                    <label class="form-label text-muted">Narration</label>
+                    <label class="form-label text-muted">Credit Note Date</label>
                     @if (IsReadOnly)
                     {
-                        <div class="fw-bold fs-6">@(string.IsNullOrEmpty(model.Remarks) ? "-" : model.Remarks)</div>
+                        <div class="fw-bold fs-6">@model.CreditNoteDate.ToString("dd/MM/yyyy")</div>
                     }
                     else
                     {
-                        <textarea @bind="model.Remarks" class="form-control-custom" rows="2" placeholder="Enter Narration"></textarea>
+                        <input type="date" @bind="model.CreditNoteDate" class="form-control-custom" />
+                    }
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="form-group-custom">
+                    <label class="form-label text-muted">Entry For</label>
+                    @if (IsReadOnly)
+                    {
+                        <div class="fw-bold fs-6">@model.EntryForName</div>
+                    }
+                    else
+                    {
+                        <select @onchange="OnProfileChanged" class="form-control-custom">
+                            <option value="">Select Entry For</option>
+                            @if (entryProfiles != null)
+                            {
+                                @foreach (var profile in entryProfiles)
+                                {
+                                    <option value="@profile.Id" selected="@(selectedProfileId == profile.Id)">@profile.Name</option>
+                                }
+                            }
+                        </select>
+                    }
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="form-group-custom">
+                    <label class="form-label text-muted">Unit</label>
+                    @if (IsReadOnly)
+                    {
+                        <div class="fw-bold fs-6">@model.Unit</div>
+                    }
+                    else
+                    {
+                        <select @bind="model.Unit" class="form-control-custom">
+                            <option value="">Select</option>
+                            @foreach (var unit in unitList)
+                            {
+                                <option value="@unit">@unit</option>
+                            }
+                        </select>
                     }
                 </div>
             </div>
         </div>
 
-        @if (!IsReadOnly)
-        {
-        <div class="d-flex justify-content-end mb-4">
-            <button type="button" class="btn-clear-custom" @onclick="ClearForm">Clear</button>
+        <!-- Transaction Details Section -->
+        <div class="transaction-details-section">
+            <div class="section-subtitle mb-3">Transaction Details</div>
+
+            <div class="row mb-3">
+                <div class="col-md-4">
+                    <div class="form-group-custom">
+                        <label class="form-label text-muted">Grower Credit <span class="text-danger">*</span></label>
+                        @if (IsReadOnly)
+                        {
+                            <div class="fw-bold fs-6">@model.CreditAccountName</div>
+                        }
+                        else
+                        {
+                            <AbraqAccount.Components.Common.AccountSearch Placeholder="Search Account Name"
+                                                                          SearchFunc='async (t) => await SearchAccounts(t, "Credit")'
+                                                                          OnAccountSelected="(acc) => OnAccountSelected(acc, true)"
+                                                                          InitialValue="@model.CreditAccountName"
+                                                                          Disabled="@(selectedProfileId == null || selectedProfileId == 0)"
+                                                                          CssClass="form-control-custom" />
+                        }
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="form-group-custom">
+                        <label class="form-label text-muted">Grower Debit <span class="text-danger">*</span></label>
+                        @if (IsReadOnly)
+                        {
+                            <div class="fw-bold fs-6">@model.DebitAccountName</div>
+                        }
+                        else
+                        {
+                            <AbraqAccount.Components.Common.AccountSearch Placeholder="Search Account Name"
+                                                                          SearchFunc='async (t) => await SearchAccounts(t, "Debit")'
+                                                                          OnAccountSelected="(acc) => OnAccountSelected(acc, false)"
+                                                                          InitialValue="@model.DebitAccountName"
+                                                                          Disabled="@(selectedProfileId == null || selectedProfileId == 0)"
+                                                                          CssClass="form-control-custom" />
+                        }
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="form-group-custom">
+                        <label class="form-label text-muted">Amount <span class="text-danger">*</span></label>
+                        @if (IsReadOnly)
+                        {
+                            <div class="fw-bold fs-6 text-primary">@model.Amount?.ToString("N2")</div>
+                        }
+                        else
+                        {
+                            <input type="number" step="0.01" @bind="model.Amount" class="form-control-custom" placeholder="Enter Amount" />
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <div class="row mb-4">
+                <div class="col-md-12">
+                    <div class="form-group-custom">
+                        <label class="form-label text-muted">Narration</label>
+                        @if (IsReadOnly)
+                        {
+                            <div class="fw-bold fs-6">@(string.IsNullOrEmpty(model.Remarks) ? "-" : model.Remarks)</div>
+                        }
+                        else
+                        {
+                            <textarea @bind="model.Remarks" class="form-control-custom" rows="2" placeholder="Enter Narration"></textarea>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            @if (!IsReadOnly)
+            {
+                <div class="d-flex justify-content-end mb-4">
+                    <button type="button" class="btn-clear-custom" @onclick="ClearForm">Clear</button>
+                </div>
+            }
         </div>
-        }
-    </div>
 
         <div class="form-footer-actions">
             @if (!IsReadOnly)
             {
                 <button type="button" class="btn-save-custom" @onclick="SubmitForm" disabled="@isSubmitting">
-                    @if (isSubmitting) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                    @if (isSubmitting)
+                    {
+                        <span class="spinner-border spinner-border-sm me-1"></span>
+                    }
                     Save
                 </button>
                 <button type="button" class="btn-cancel-custom" @onclick="Cancel">Cancel</button>
@@ -172,73 +173,84 @@
 </div>
 
 <style>
-    .form-container.modern-card {
+    .form-container {
         background: white;
-        border-radius: 12px;
-        border: 1px solid var(--border-color);
-        box-shadow: var(--shadow-md) !important;
-    }
-    
-    .form-label-modern {
-        display: block;
-        font-size: 0.7rem;
-        font-weight: 800;
-        color: var(--text-secondary);
-        margin-bottom: 4px;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-    }
-    
-    .form-control-modern {
-        border: 1px solid var(--border-color);
-        border-radius: 8px;
-        padding: 8px 12px;
-        font-size: 0.85rem;
-        width: 100%;
-        transition: all 0.2s;
-        background-color: #fcfdfe;
-    }
-    
-    .form-control-modern:focus {
-        border-color: var(--accent);
-        outline: none;
-        background-color: #fff;
-        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        padding: 1.5rem;
+        border: 1px solid #e0e0e0;
+        border-radius: 4px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
     }
 
-    .btn-modern-save { 
-        background: var(--accent); 
-        color: white; 
-        border: none; 
-        border-radius: 8px; 
-        font-weight: 700; 
-        font-size: 0.9rem; 
-        transition: all 0.2s; 
-    }
-    .btn-modern-save:hover { 
-        background: var(--accent-hover); 
-        box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2); 
-        transform: translateY(-1px); 
-    }
-    
-    .btn-modern-back, .btn-modern-cancel { 
-        background: #fff; 
-        color: var(--text-secondary); 
-        border: 1px solid var(--border-color); 
-        border-radius: 8px; 
-        font-weight: 600; 
-        font-size: 0.9rem; 
-        padding: 8px 16px;
-        transition: all 0.2s; 
-    }
-    .btn-modern-back:hover, .btn-modern-cancel:hover { 
-        background: #f8fafc; 
-        border-color: var(--text-secondary); 
+    .form-section-title {
+        font-size: 1.1rem;
+        font-weight: 500;
+        color: #495057;
+        margin-bottom: 2rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 1px solid #f0f0f0;
     }
 
     .form-group-custom {
-        margin-bottom: 0.75rem;
+        margin-bottom: 1rem;
     }
+
+        .form-group-custom label {
+            display: block;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 0.5rem;
+        }
+
+    .form-control-custom {
+        width: 100%;
+        padding: 0.6rem 0.75rem;
+        border: 1px solid #ced4da;
+        border-radius: 4px;
+        font-size: 0.9rem;
+    }
+
+        .form-control-custom:focus {
+            border-color: #80bdff;
+            outline: 0;
+            box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
+        }
+
+    .btn-clear-custom {
+        background-color: #e9ecef;
+        border: none;
+        padding: 0.5rem 2rem;
+        border-radius: 4px;
+        color: #495057;
+        font-weight: 500;
+    }
+
+    .form-footer-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.5rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid #f0f0f0;
+    }
+
+    .btn-save-custom {
+        background-color: #6c757d;
+        color: white;
+        border: none;
+        padding: 0.5rem 2rem;
+        border-radius: 4px;
+        font-weight: 500;
+    }
+
+    .btn-cancel-custom {
+        background-color: #e9ecef;
+        color: #495057;
+        border: none;
+        padding: 0.5rem 2rem;
+        border-radius: 4px;
+        font-weight: 500;
+    }
+
     .section-subtitle {
         font-size: 1rem;
         font-weight: 600;
@@ -266,7 +278,7 @@
     {
         unitList = (await CreditNoteService.GetUnitNamesAsync()).ToList();
         entryProfiles = await CreditNoteService.GetEntryProfilesAsync();
-        
+
         if (IsEdit)
         {
             var existing = await CreditNoteService.GetCreditNoteByIdAsync(Id!.Value);
@@ -333,7 +345,7 @@
         isSubmitting = true;
         errorMessage = null;
 
-        var result = IsEdit 
+        var result = IsEdit
             ? await CreditNoteService.UpdateCreditNoteAsync(model)
             : await CreditNoteService.CreateCreditNoteAsync(model);
 
