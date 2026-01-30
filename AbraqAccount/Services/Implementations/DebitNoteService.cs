@@ -5,6 +5,8 @@ using AbraqAccount.Services.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using System.Text.Json;
+using AbraqAccount.Models.Common;
+using AbraqAccount.Extensions;
 
 namespace AbraqAccount.Services.Implementations;
 
@@ -12,21 +14,36 @@ public class DebitNoteService : IDebitNoteService
 {
     private readonly AppDbContext _context;
     private readonly IDbContextFactory<AppDbContext> _contextFactory;
+    private readonly IHttpContextAccessor _httpContextAccessor;
 
-    public DebitNoteService(AppDbContext context, IDbContextFactory<AppDbContext> contextFactory)
+    public DebitNoteService(AppDbContext context, IDbContextFactory<AppDbContext> contextFactory, IHttpContextAccessor httpContextAccessor)
     {
         _context = context;
         _contextFactory = contextFactory;
+        _httpContextAccessor = httpContextAccessor;
+    }
+
+    private string GetCurrentUsername()
+    {
+        try
+        {
+            var session = _httpContextAccessor.HttpContext?.Session;
+            if (session == null) return "Admin";
+            var userSession = session.GetObject<UserSession>(SessionKeys.UserSession);
+            return userSession?.Username ?? "Admin";
+        }
+        catch
+        {
+            return "Admin";
+        }
     }
 
     public async Task<(List<DebitNote> notes, int totalCount, int totalPages)> GetDebitNotesAsync(
         string? unit, string? debitNoteNo, string? vendor, string? status, 
         DateTime? fromDate, DateTime? toDate, int page, int pageSize)
     {
-        var allAccounts = await _context.BankMasters.Where(b => b.IsActive).ToListAsync();
-        var accountsDict = allAccounts.ToDictionary(a => a.Id, a => a);
 
-        var query = _context.DebitNotes.AsQueryable();
+        var query = _context.DebitNotes.Where(d => d.IsActive).AsQueryable();
 
         if (!string.IsNullOrEmpty(unit) && unit != "ALL") query = query.Where(d => d.Unit == unit);
         if (!string.IsNullOrEmpty(debitNoteNo)) query = query.Where(d => d.DebitNoteNo.Contains(debitNoteNo));
@@ -34,21 +51,17 @@ public class DebitNoteService : IDebitNoteService
         if (fromDate.HasValue) query = query.Where(d => d.DebitNoteDate >= fromDate.Value);
         if (toDate.HasValue) query = query.Where(d => d.DebitNoteDate <= toDate.Value);
 
+        // Fetch all matching notes first (in-memory filtration for polymorphic names required)
         var allDebitNotes = await query.OrderByDescending(d => d.CreatedAt).ToListAsync();
-        var mappings = await LoadBankMasterIdMappingsAsync();
-
-        foreach (var note in allDebitNotes)
-        {
-            int actualBankMasterId = note.BankMasterId ?? 0;
-            if (mappings.TryGetValue(note.Id, out int mappedBankMasterId)) actualBankMasterId = mappedBankMasterId;
-            
-            if (accountsDict.TryGetValue(actualBankMasterId, out var account)) note.BankMaster = account;
-        }
+        
+        // Populate Polymorphic Names
+        await PopulateAccountNamesAsync(allDebitNotes);
 
         if (!string.IsNullOrEmpty(vendor))
         {
             allDebitNotes = allDebitNotes
-                .Where(d => d.BankMaster != null && d.BankMaster.AccountName.Contains(vendor, StringComparison.OrdinalIgnoreCase))
+                .Where(d => (d.CreditAccountName != null && d.CreditAccountName.Contains(vendor, StringComparison.OrdinalIgnoreCase)) 
+                         || (d.DebitAccountName != null && d.DebitAccountName.Contains(vendor, StringComparison.OrdinalIgnoreCase)))
                 .ToList();
         }
 
@@ -89,60 +102,24 @@ public class DebitNoteService : IDebitNoteService
             debitNote.DebitNoteNo = $"DN{nextNoteNo:D6}";
             debitNote.Amount = details.Sum(d => d.Amount);
             debitNote.CreatedAt = DateTime.Now;
+            debitNote.CreatedBy = GetCurrentUsername();
             debitNote.Status = debitNote.Status ?? "UnApproved";
             debitNote.IsActive = true;
 
-             // Logic to handle BankMasterId via temporary SQL (as in original controller)
-            var defaultFarmerId = await _context.Farmers.Where(f => f.IsActive).Select(f => f.Id).FirstOrDefaultAsync();
-            if (defaultFarmerId == 0) defaultFarmerId = 1; // Fallback
+            // Handle BankMasterId safely: Allow null, do not force 0
+            // if (debitNote.BankMasterId == null) debitNote.BankMasterId = 0; 
 
-            var defaultGroupId = await _context.GrowerGroups.Where(g => g.IsActive).Select(g => g.Id).FirstOrDefaultAsync();
-            if (defaultGroupId == 0) defaultGroupId = 1;
-
-            var sql = @"
-                INSERT INTO [dbo].[DebitNotes] 
-                ([DebitNoteNo], [Unit], [BankMasterId], [CreditAccountId], [CreditAccountType], [DebitAccountId], [DebitAccountType], [GroupId], [FarmerId], [DebitNoteDate], [Amount], [Status], [Narration], [CreatedAt], [IsActive], [EntryForId], [EntryForName])
-                VALUES 
-                ({0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}, {10}, {11}, {12}, {13}, {14}, {15}, {16})
-            ";
-            
-            await _context.Database.ExecuteSqlRawAsync(sql,
-                debitNote.DebitNoteNo,
-                debitNote.Unit,
-                debitNote.BankMasterId,
-                debitNote.CreditAccountId,
-                debitNote.CreditAccountType ?? "",
-                debitNote.DebitAccountId,
-                debitNote.DebitAccountType ?? "",
-                defaultGroupId,
-                defaultFarmerId,
-                debitNote.DebitNoteDate,
-                debitNote.Amount,
-                debitNote.Status,
-                debitNote.Narration,
-                debitNote.CreatedAt,
-                debitNote.IsActive,
-                debitNote.EntryForId,
-                debitNote.EntryForName ?? (object)DBNull.Value
-            );
-
-             var insertedNote = await _context.DebitNotes
-                .Where(d => d.DebitNoteNo == debitNote.DebitNoteNo)
-                .OrderByDescending(d => d.Id)
-                .FirstOrDefaultAsync();
-            
-            if (insertedNote == null) return (false, "Failed to retrieve inserted note.");
-            debitNote.Id = insertedNote.Id;
-
-            await StoreBankMasterIdMappingAsync(insertedNote.Id, debitNote.BankMasterId ?? 0);
-
-             foreach (var detail in details)
+            // Assign details properties
+            foreach (var detail in details)
             {
-                detail.DebitNoteId = debitNote.Id;
                 detail.CreatedAt = DateTime.Now;
-                _context.DebitNoteDetails.Add(detail);
             }
+
+            _context.DebitNotes.Add(debitNote);
             await _context.SaveChangesAsync();
+
+            // Store legacy mapping if needed (keeping original logic)
+            await StoreBankMasterIdMappingAsync(debitNote.Id, debitNote.BankMasterId ?? 0);
 
             return (true, $"Debit Note created successfully! {details.Count} detail(s) added.");
         }
@@ -157,7 +134,10 @@ public class DebitNoteService : IDebitNoteService
          var note = await _context.DebitNotes.FindAsync(id);
          if (note == null) return (false, "Not found");
          
+         var currentUser = GetCurrentUsername();
          note.IsActive = false;
+         note.UpdatedAt = DateTime.Now;
+         note.UpdatedBy = currentUser;
          _context.Update(note);
          await _context.SaveChangesAsync();
          return (true, "Deleted successfully");
@@ -244,6 +224,9 @@ public class DebitNoteService : IDebitNoteService
              });
         }
 
+        note.UpdatedAt = DateTime.Now;
+        note.UpdatedBy = GetCurrentUsername();
+
         await _context.SaveChangesAsync();
         return (true, "Updated successfully");
     }
@@ -253,7 +236,10 @@ public class DebitNoteService : IDebitNoteService
         var note = await _context.DebitNotes.FindAsync(id);
         if (note == null) return (false, "Not found");
         
+        var currentUser = GetCurrentUsername();
         note.Status = "Approved";
+        note.UpdatedAt = DateTime.Now;
+        note.UpdatedBy = currentUser;
         await _context.SaveChangesAsync();
         return (true, "Approved successfully");
     }
@@ -265,7 +251,10 @@ public class DebitNoteService : IDebitNoteService
         
         if (note.Status != "Approved") return (false, "Note is not approved");
 
+        var currentUser = GetCurrentUsername();
         note.Status = "UnApproved";
+        note.UpdatedAt = DateTime.Now;
+        note.UpdatedBy = currentUser;
         await _context.SaveChangesAsync();
         return (true, "Unapproved successfully");
     }
@@ -343,14 +332,8 @@ public class DebitNoteService : IDebitNoteService
 
             if (string.IsNullOrWhiteSpace(type)) return true; 
 
-            // Allow exact match
-            if (ruleValue.Equals(type, StringComparison.OrdinalIgnoreCase)) return true;
-
-            // RELAXED CHECK FOR DEBIT NOTE:
-            // If we are looking for a "Debit" account (the party to debit), allow "Credit" nature (e.g. Vendors).
-            // If we are looking for a "Credit" account (the offset), allow "Debit" nature (e.g. Expenses/Income).
-            if (ruleValue.Equals("Credit", StringComparison.OrdinalIgnoreCase) && type.Equals("Debit", StringComparison.OrdinalIgnoreCase)) return true;
-            if (ruleValue.Equals("Debit", StringComparison.OrdinalIgnoreCase) && type.Equals("Credit", StringComparison.OrdinalIgnoreCase)) return true;
+            if (ruleValue.Equals("Debit", StringComparison.OrdinalIgnoreCase) && type.Equals("Debit", StringComparison.OrdinalIgnoreCase)) return true;
+            if (ruleValue.Equals("Credit", StringComparison.OrdinalIgnoreCase) && type.Equals("Credit", StringComparison.OrdinalIgnoreCase)) return true;
 
             return false;
         }
@@ -609,6 +592,16 @@ public class DebitNoteService : IDebitNoteService
             .Where(e => e.TransactionType == "Global" || e.TransactionType == "DebitNote") 
             .OrderBy(e => e.AccountName)
             .Select(e => new LookupItem { Id = e.Id, Name = e.AccountName })
+            .ToListAsync();
+    }
+
+    public async Task<IEnumerable<string>> GetUnitNamesAsync()
+    {
+        return await _context.UnitMasters
+            .OrderBy(u => u.UnitName)
+            .Select(u => u.UnitName ?? "")
+            .Where(u => !string.IsNullOrEmpty(u))
+            .Distinct()
             .ToListAsync();
     }
 }

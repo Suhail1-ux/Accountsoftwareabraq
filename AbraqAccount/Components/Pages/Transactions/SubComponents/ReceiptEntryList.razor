@@ -2,6 +2,7 @@
 @using AbraqAccount.Services.Interfaces
 @inject IReceiptEntryService ReceiptEntryService
 @inject IJSRuntime JS
+@using AbraqAccount.Components.Common
 
 <div class="filter-section">
     <div class="filter-group">
@@ -50,12 +51,24 @@
         <table class="table-notes">
             <thead>
                 <tr>
-                    <th>Unit</th>
-                    <th>Voucher No</th>
-                    <th>Date</th>
-                    <th>Account Name</th>
-                    <th>Amount</th>
-                    <th>Status</th>
+                    <th>
+                        <ColumnFilter Title="Unit" TItem="ReceiptEntryGroupViewModel" TValue="string" Items="originalReceiptGroups" Property="@(x => x.Unit)" OnFilter="@(v => HandleColumnFilter("Unit", v))" Align="left" />
+                    </th>
+                    <th>
+                        <ColumnFilter Title="Voucher No" TItem="ReceiptEntryGroupViewModel" TValue="string" Items="originalReceiptGroups" Property="@(x => x.VoucherNo)" OnFilter="@(v => HandleColumnFilter("VoucherNo", v))" Align="left" />
+                    </th>
+                    <th>
+                        <ColumnFilter Title="Date" TItem="ReceiptEntryGroupViewModel" TValue="string" Items="originalReceiptGroups" Property="@(x => x.ReceiptDate.ToString("dd/MM/yyyy"))" OnFilter="@(v => HandleColumnFilter("Date", v))" Align="left" />
+                    </th>
+                    <th>
+                        <ColumnFilter Title="Account Name" TItem="ReceiptEntryGroupViewModel" TValue="string" Items="originalReceiptGroups" Property="@(x => (x.CreditEntry?.AccountName ?? "") + (x.DebitEntry != null ? " / " + x.DebitEntry.AccountName : ""))" OnFilter="@(v => HandleColumnFilter("AccountName", v))" />
+                    </th>
+                    <th>
+                        <ColumnFilter Title="Amount" TItem="ReceiptEntryGroupViewModel" TValue="decimal" Items="originalReceiptGroups" Property="@(x => x.ReceiptAmount)" OnFilter="@(v => HandleColumnFilter("ReceiptAmount", v))" />
+                    </th>
+                    <th>
+                        <ColumnFilter Title="Status" TItem="ReceiptEntryGroupViewModel" TValue="string" Items="originalReceiptGroups" Property="@(x => x.Status)" OnFilter="@(v => HandleColumnFilter("Status", v))" />
+                    </th>
                     <th>Action</th>
                 </tr>
             </thead>
@@ -98,15 +111,15 @@
                             </td>
                             <td>
                                 <div class="action-icons">
-                                    @if (group.Status == "Approved")
+                                    @if(group.Status == "Approved")
                                     {
-                                        <button class="action-icon approved-icon" @onclick="() => Unapprove(group.CreditEntryId, group.DebitEntryId)" title="Unapprove">
+                                        <button class="action-icon approved-icon" @onclick="() => ConfirmUnapprove(group.CreditEntryId, group.DebitEntryId)" title="Unapprove">
                                             <i class="bi bi-check-circle-fill"></i>
                                         </button>
                                     }
                                     else
                                     {
-                                        <button class="action-icon approve-icon" @onclick="() => Approve(group.CreditEntryId, group.DebitEntryId)" title="Approve">
+                                        <button class="action-icon approve-icon" @onclick="() => ConfirmApprove(group.CreditEntryId, group.DebitEntryId)" title="Approve">
                                             <i class="bi bi-hand-thumbs-up"></i>
                                         </button>
                                     }
@@ -124,7 +137,7 @@
                                     </button>
                                     @if (group.Status != "Approved")
                                     {
-                                        <button class="action-icon delete-icon" @onclick="() => Delete(group.CreditEntryId, group.DebitEntryId)" title="Delete">
+                                        <button class="action-icon delete-icon" @onclick="() => ConfirmDelete(group.CreditEntryId, group.DebitEntryId)" title="Delete">
                                             <i class="bi bi-trash"></i>
                                         </button>
                                     }
@@ -172,7 +185,7 @@
     .btn-link { background: none; border: none; color: #007bff; text-decoration: underline; cursor: pointer; padding: 0; font-size: inherit; text-align: left; }
     
     .table-card { background: white; border: 1px solid #e0e0e0; border-radius: 4px; padding: 1.5rem; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-    .table-wrapper { overflow-x: auto; }
+    .table-wrapper { overflow-x: auto; min-height: 400px; }
     .table-notes { width: 100%; border-collapse: collapse; }
     .table-notes th { padding: 0.75rem; text-align: left; background: #f8f9fa; border-bottom: 2px solid #dee2e6; }
     .table-notes td { padding: 0.75rem; border-bottom: 1px solid #dee2e6; }
@@ -199,10 +212,13 @@
     .pagination-btn:disabled { cursor: not-allowed; opacity: 0.5; }
 </style>
 
+
+<ConfirmationModal @ref="confirmationModal" OnConfirm="HandleConfirmation" />
+
 @code {
     [Parameter] public EventCallback<string> OnEdit { get; set; }
     private List<ReceiptEntryGroupViewModel>? receiptGroups;
-    private List<string> units = new() { "Unit 1", "Unit 2", "Abraq Agro Fresh LLP" };
+    private List<string> units = new();
     private int currentPage = 1;
     private int pageSize = 10;
     private int totalCount = 0;
@@ -214,8 +230,56 @@
 
     protected override async Task OnInitializedAsync()
     {
+        units = (await ReceiptEntryService.GetUnitNamesAsync()).ToList();
         await LoadData();
     }
+
+    private void FilterLocalData()
+    {
+        if (originalReceiptGroups == null) return;
+        
+        var query = originalReceiptGroups.AsEnumerable();
+
+        foreach(var kvp in activeColumnFilters)
+        {
+             var col = kvp.Key;
+             var filterValues = kvp.Value as System.Collections.IEnumerable;
+             if (filterValues == null) continue;
+             
+             query = query.Where(item => {
+                 object? val = col switch {
+                     "Unit" => item.Unit,
+                     "VoucherNo" => item.VoucherNo,
+                     "Date" => item.ReceiptDate.ToString("dd/MM/yyyy"),
+                     "AccountName" => (item.CreditEntry?.AccountName ?? "") + (item.DebitEntry != null ? " / " + item.DebitEntry.AccountName : ""),
+                     "ReceiptAmount" => item.ReceiptAmount,
+                     "Status" => item.Status,
+                     _ => null
+                 };
+                 
+                 foreach(var f in filterValues) {
+                     if (object.Equals(f, val)) return true;
+                 }
+                 return false;
+             });
+        }
+        
+        receiptGroups = query.ToList();
+    }
+
+    private Dictionary<string, object> activeColumnFilters = new();
+
+    private void HandleColumnFilter<T>(string column, List<T> selectedValues)
+    {
+        if (selectedValues == null || !selectedValues.Any()) 
+            activeColumnFilters.Remove(column);
+        else 
+            activeColumnFilters[column] = selectedValues;
+
+        FilterLocalData();
+    }
+
+    private List<ReceiptEntryGroupViewModel> originalReceiptGroups = new();
 
     private async Task LoadData()
     {
@@ -230,8 +294,11 @@
             currentPage,
             pageSize
         );
-        receiptGroups = result.groups;
+        originalReceiptGroups = result.groups ?? new List<ReceiptEntryGroupViewModel>();
+        receiptGroups = originalReceiptGroups.ToList();
         totalCount = result.totalCount;
+        
+        if (activeColumnFilters.Any()) FilterLocalData();
     }
 
     private async Task ClearFilters()
@@ -268,38 +335,53 @@
         // Implement history modal
     }
 
-    private async Task Approve(int creditId, int debitId)
+    private ConfirmationModal? confirmationModal;
+    private int pendingCreditId;
+    private int pendingDebitId;
+    private string pendingAction = "";
+
+    private void ConfirmApprove(int creditId, int debitId)
     {
-        if (await JS.InvokeAsync<bool>("confirm", "Are you sure you want to approve this receipt?"))
-        {
-            // The service has ApproveReceiptEntryAsync(int id, string currentUser)
-            // But usually we approve by voucher or both entries.
-            // In MVC, it was calling approveReceipt(creditId, debitId)
-            // I'll call it for both if they exist
-            if (creditId > 0) await ReceiptEntryService.ApproveReceiptEntryAsync(creditId, "Admin");
-            if (debitId > 0) await ReceiptEntryService.ApproveReceiptEntryAsync(debitId, "Admin");
-            await LoadData();
-        }
+        pendingCreditId = creditId;
+        pendingDebitId = debitId;
+        pendingAction = "Approve";
+        confirmationModal?.Show("Approve Receipt", "Are you sure you want to approve this receipt?", "Approve", "btn-success");
     }
 
-    private async Task Unapprove(int creditId, int debitId)
+    private void ConfirmUnapprove(int creditId, int debitId)
     {
-        if (await JS.InvokeAsync<bool>("confirm", "Are you sure you want to unapprove this receipt?"))
-        {
-            if (creditId > 0) await ReceiptEntryService.UnapproveReceiptEntryAsync(creditId, "Admin");
-            if (debitId > 0) await ReceiptEntryService.UnapproveReceiptEntryAsync(debitId, "Admin");
-            await LoadData();
-        }
+        pendingCreditId = creditId;
+        pendingDebitId = debitId;
+        pendingAction = "Unapprove";
+        confirmationModal?.Show("Unapprove Receipt", "Are you sure you want to unapprove this receipt?", "Unapprove", "btn-warning");
     }
 
-    private async Task Delete(int creditId, int debitId)
+    private void ConfirmDelete(int creditId, int debitId)
     {
-        if (await JS.InvokeAsync<bool>("confirm", "Are you sure you want to delete this receipt?"))
+        pendingCreditId = creditId;
+        pendingDebitId = debitId;
+        pendingAction = "Delete";
+        confirmationModal?.Show("Delete Receipt", "Are you sure you want to delete this receipt?", "Delete", "btn-danger");
+    }
+
+    private async Task HandleConfirmation()
+    {
+        if (pendingAction == "Approve")
         {
-            if (creditId > 0) await ReceiptEntryService.DeleteReceiptEntryAsync(creditId, "Admin");
-            if (debitId > 0) await ReceiptEntryService.DeleteReceiptEntryAsync(debitId, "Admin");
-            await LoadData();
+             if (pendingCreditId > 0) await ReceiptEntryService.ApproveReceiptEntryAsync(pendingCreditId);
+             if (pendingDebitId > 0) await ReceiptEntryService.ApproveReceiptEntryAsync(pendingDebitId);
         }
+        else if (pendingAction == "Unapprove")
+        {
+            if (pendingCreditId > 0) await ReceiptEntryService.UnapproveReceiptEntryAsync(pendingCreditId);
+            if (pendingDebitId > 0) await ReceiptEntryService.UnapproveReceiptEntryAsync(pendingDebitId);
+        }
+        else if (pendingAction == "Delete")
+        {
+            if (pendingCreditId > 0) await ReceiptEntryService.DeleteReceiptEntryAsync(pendingCreditId);
+            if (pendingDebitId > 0) await ReceiptEntryService.DeleteReceiptEntryAsync(pendingDebitId);
+        }
+        await LoadData();
     }
 
     private string GetStatusClass(string? status) => status?.ToLower() switch

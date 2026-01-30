@@ -1,5 +1,7 @@
 ﻿@using AbraqAccount.Services.Interfaces
 @using Microsoft.AspNetCore.Http
+@using AbraqAccount.Models.Common
+@using AbraqAccount.Extensions
 @inject IUserPermissionService PermissionService
 @inject IHttpContextAccessor HttpContextAccessor
 @inject NavigationManager NavigationManager
@@ -98,6 +100,7 @@
             <li><NavLink class="nav-link" href="inventory/purchase-requests">Purchase Request</NavLink></li>
             <li><NavLink class="nav-link" href="inventory/purchase-receives">Purchase Receive</NavLink></li>
             <li><NavLink class="nav-link" href="inventory/reports/purchase-order-report">Purchase Order Report</NavLink></li>
+            <li><NavLink class="nav-link" href="inventory/packing-material-issue">Packing Material Issue</NavLink></li>
             <li><NavLink class="nav-link" href="inventory/material-issues">Material Issue</NavLink></li>
             <li><NavLink class="nav-link" href="inventory/reports/stock-ledger">Material Stock Ledger</NavLink></li>
         </ul>
@@ -132,8 +135,6 @@
         <ul class="submenu">
             <li><NavLink class="nav-link" href="settings/entry-for">Profiles (Entry For)</NavLink></li>
             <li><NavLink class="nav-link" href="settings/transaction-rules">Transaction Rules</NavLink></li>
-            <li><NavLink class="nav-link" href="settings/permissions">User Permissions</NavLink></li>
-            <li><NavLink class="nav-link" href="settings/profile">User Profile</NavLink></li>
         </ul>
     </li>
 </ul>
@@ -150,10 +151,10 @@
             var session = HttpContextAccessor.HttpContext?.Session;
             if (session != null)
             {
-                var userIdStr = session.GetString("UserId");
-                if (int.TryParse(userIdStr, out int id))
+                var userSession = session.GetObject<UserSession>(SessionKeys.UserSession);
+                if (userSession != null)
                 {
-                    userId = id;
+                    userId = userSession.UserId;
                 }
             }
         }

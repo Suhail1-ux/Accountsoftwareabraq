@@ -24,6 +24,9 @@ public interface IPackingService
     Task<PackingSpecialRate?> GetPackingSpecialRateByIdAsync(int id);
     Task<(bool success, string message)> UpdatePackingSpecialRateAsync(int id, PackingSpecialRate model, List<PackingSpecialRateDetail> details);
     Task<IEnumerable<LookupItem>> GetPackingItemsForRateAsync();
-    Task<IEnumerable<LookupItem>> GetFarmersByGroupAsync(int groupId);
+    Task<IEnumerable<LookupItem>> SearchMainGrowersAsync(string? searchTerm);
+    Task<IEnumerable<LookupItem>> GetFarmersByGroupAsync(long? groupId, string? searchTerm = null);
+    Task<(bool success, string message)> CreateSubGrowerAsync(PartySub subGrower);
     Task LoadSpecialRateDropdownsAsync(dynamic viewBag);
+    Task<IEnumerable<object>> GetPackingRecipeHistoryAsync(long id);
 }

@@ -1,104 +1,182 @@
 @using AbraqAccount.Models
 @using AbraqAccount.Services.Interfaces
+@using AbraqAccount.Components.Common
 @using Microsoft.AspNetCore.Mvc.Rendering
 @inject IPackingService PackingService
 @inject NavigationManager Navigation
+@rendermode InteractiveServer
 
-<div class="form-card">
-    <div class="form-header">
-        <h3>@(IsEdit ? "Edit" : "Add") Packing Special Rate</h3>
-        <div class="header-actions">
-            <button class="btn btn-primary" @onclick="SubmitForm" disabled="@isSubmitting">
-                @if (isSubmitting)
-                {
-                    <span class="spinner-border spinner-border-sm" role="status"></span>
-                }
-                Save
-            </button>
-            <button class="btn btn-secondary" @onclick="Cancel">Cancel</button>
-        </div>
-    </div>
-
-    @if (!string.IsNullOrEmpty(errorMessage))
-    {
-        <div class="alert alert-danger">@errorMessage</div>
-    }
-
-    <div class="row g-3">
-        <div class="col-md-3">
-            <div class="form-group mb-3">
-                <label class="form-label">Effective Date</label>
-                <input type="date" @bind="model.EffectiveDate" class="form-control" />
+<div class="content-header p-2">
+    <div class="container-fluid">
+        <div class="row align-items-center">
+            <div class="col-sm-6">
+                <h4 class="m-0" style="font-weight: 400;">Packing Special Rate <small class="text-muted" style="font-size: 14px;">Control panel</small></h4>
             </div>
-        </div>
-        <div class="col-md-4">
-            <div class="form-group mb-3">
-                <label class="form-label">Grower Group</label>
-                <select value="@model.GrowerGroupId" @onchange="OnGroupChanged" class="form-select">
-                    <option value="">--- Select Group ---</option>
-                    @if (groups != null)
-                    {
-                        @foreach (var g in groups)
-                        {
-                            <option value="@g.Value">@g.Text</option>
-                        }
-                    }
-                </select>
+            <div class="col-sm-6">
+                <div class="float-sm-right" style="font-size: 13px;">
+                    <i class="bi bi-house-door"></i> Home <span class="text-muted mx-1">></span> Packing Special Rate
+                </div>
             </div>
-        </div>
-        <div class="col-md-4">
-            <div class="form-group mb-3">
-                <label class="form-label">Grower Name</label>
-                <select @bind="model.FarmerId" class="form-select">
-                    <option value="">--- Select Grower ---</option>
-                    @if (farmers != null)
-                    {
-                        @foreach (var f in farmers)
-                        {
-                            <option value="@f.Id">@f.Name</option>
-                        }
-                    }
-                </select>
-            </div>
-        </div>
-    </div>
-
-    <div class="details-section mt-4">
-        <h5>Item Rates</h5>
-        <div class="table-responsive">
-            <table class="table table-bordered align-middle">
-                <thead class="table-light">
-                    <tr>
-                        <th>Purchase Item</th>
-                        <th style="width: 150px;">Standard Rate</th>
-                        <th style="width: 150px;">Special Rate</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @if (model.Details != null)
-                    {
-                        @foreach (var detail in model.Details)
-                        {
-                            <tr>
-                                <td>@(detail.PurchaseItem?.ItemName ?? "Item ID: " + detail.PurchaseItemId)</td>
-                                <td>
-                                    <input type="number" step="0.01" @bind="detail.Rate" class="form-control text-end" disabled />
-                                </td>
-                                <td>
-                                    <input type="number" step="0.01" @bind="detail.SpecialRate" class="form-control text-end" />
-                                </td>
-                            </tr>
-                        }
-                    }
-                </tbody>
-            </table>
         </div>
     </div>
 </div>
 
+<div class="container-fluid">
+    <div class="card mb-3" style="border: 1px solid #ddd; border-radius: 4px; box-shadow: none;">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center py-2" style="border-bottom: 1px solid #eee;">
+            <h5 class="card-title mb-0" style="font-size: 18px; color: #555;">Packing Special Rate <small class="text-muted" style="font-size: 14px;">- @(IsEdit ? "Edit" : "Add")</small></h5>
+            <div class="header-actions">
+                <button class="btn btn-sm text-white px-3 me-1" style="background: #777; border-radius: 4px;" @onclick="SubmitForm" disabled="@isSubmitting">
+                    Save
+                </button>
+                <NavLink href="/inventory/packing-special-rates" class="btn btn-sm text-white" style="background: #999; border-radius: 4px; width: 32px; display: inline-flex; align-items: center; justify-content: center; text-decoration: none;">
+                    <i class="bi bi-arrow-left"></i>
+                </NavLink>
+            </div>
+        </div>
+        <div class="card-body p-3">
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="alert alert-danger py-2">@errorMessage</div>
+            }
+
+            <div class="row g-2 align-items-end border-bottom pb-4 mb-4">
+                <div class="col-md-2">
+                    <label class="form-label mb-1 fw-bold" style="font-size: 13px; color: #333;">Effective Date <span class="text-danger">*</span></label>
+                    <input type="date" @bind="model.EffectiveDate" class="form-control form-control-sm" style="border-radius: 0; border: 1px solid #ccc; height: 31px;" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label mb-1 fw-bold" style="font-size: 13px; color: #333;">Grower <span class="text-danger">*</span></label>
+                    <div class="d-flex">
+                        <AccountSearch Label="" 
+                                      SearchFunc="@(term => PackingService.SearchMainGrowersAsync(term))" 
+                                      OnAccountSelected="OnGrowerSelected"
+                                      InitialValue="@selectedGrowerName"
+                                      Placeholder="Search Grower..."
+                                      ContainerClass="mb-0"
+                                      CssClass="form-control-custom" />
+                        <button class="btn btn-sm btn-outline-secondary ms-1" type="button" @onclick="GoToGrowerMaster" title="Add New Grower" style="border: 1px solid #ccc; height: 31px; width: 34px; border-radius: 0;">
+                            <i class="bi bi-plus-lg"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label mb-1 fw-bold" style="font-size: 13px; color: #333;">Sub Grower</label>
+                    <div class="d-flex">
+                        <AccountSearch Label="" 
+                                      SearchFunc="@(term => PackingService.GetFarmersByGroupAsync(model.GrowerGroupId, term))" 
+                                      OnAccountSelected="OnSubGrowerSelected"
+                                      InitialValue="@selectedSubGrowerName"
+                                      Placeholder="Search Sub Grower..."
+                                      Disabled="@(!model.GrowerGroupId.HasValue)"
+                                      ContainerClass="mb-0"
+                                      CssClass="form-control-custom" />
+                        <button class="btn btn-sm btn-outline-secondary ms-1" type="button" @onclick="OpenAddSubGrowerModal" disabled="@(!model.GrowerGroupId.HasValue)" title="Quick Add Sub Grower" style="border: 1px solid #ccc; height: 31px; width: 34px; border-radius: 0;">
+                            <i class="bi bi-plus-lg"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="col-md-1 text-center">
+                    <div class="form-check d-inline-block mb-1">
+                        <input class="form-check-input" type="checkbox" id="isActive" @bind="model.IsActive" style="border-radius: 2px;">
+                        <label class="form-check-label fw-bold" for="isActive" style="font-size: 13px; color: #333;">
+                            Active?
+                        </label>
+                    </div>
+                </div>
+                <div class="col-md-3 text-end">
+                    <button class="btn btn-sm btn-success px-3" style="background: #00a65a; border-radius: 4px; font-weight: 500; height: 31px;" type="button" @onclick="AddSpecialRateClicked">
+                        Add Special Rate
+                    </button>
+                </div>
+            </div>
+
+            @if (showDetails)
+            {
+                <div class="details-section mt-4">
+                    <div class="table-responsive">
+                        <table class="table table-bordered align-middle" style="font-size: 14px;">
+                            <thead style="background-color: #f9f9f9; color: #333;">
+                                <tr>
+                                    <th style="font-weight: 600;">Purchase Item</th>
+                                    <th style="font-weight: 600; width: 200px;">Standard Rate</th>
+                                    <th style="font-weight: 600; width: 200px;">Special Rate</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (model.Details != null)
+                                {
+                                    @foreach (var detail in model.Details)
+                                    {
+                                        <tr>
+                                            <td>@(detail.PurchaseItem?.ItemName ?? "Item ID: " + detail.PurchaseItemId)</td>
+                                            <td>
+                                                <input type="number" step="0.01" @bind="detail.Rate" class="form-control form-control-sm text-end" disabled style="border-radius: 0; background-color: #eee;" />
+                                            </td>
+                                            <td>
+                                                <input type="number" step="0.01" @bind="detail.SpecialRate" class="form-control form-control-sm text-end" style="border-radius: 0; border: 1px solid #ccc;" />
+                                            </td>
+                                        </tr>
+                                    }
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            }
+
+            <div class="form-footer mt-4 d-flex justify-content-end pb-3">
+                <button class="btn btn-sm text-white px-4 me-2" style="background: #777; border-radius: 4px;" @onclick="SubmitForm" disabled="@isSubmitting">
+                    Save
+                </button>
+                <NavLink href="/inventory/packing-special-rates" class="btn btn-sm btn-outline-secondary px-4" style="background: #fff; color: #777; border: 1px solid #ccc; border-radius: 4px; text-decoration: none; display: inline-flex; align-items: center;">
+                    Cancel
+                </NavLink>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (showAddSubGrowerModal)
+{
+    <div class="modal-backdrop fade show"></div>
+    <div class="modal fade show" style="display: block; background: rgba(0,0,0,0.5);" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header py-2 bg-light">
+                    <h5 class="modal-title" style="font-size: 16px;">Add New Sub-Grower</h5>
+                    <button type="button" class="btn-close" @onclick="() => showAddSubGrowerModal = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small">Sub-Grower Name <span class="text-danger">*</span></label>
+                        <input type="text" @bind="newSubGrowerName" class="form-control form-control-sm" placeholder="Enter Name" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small">Grower</label>
+                        <div class="form-control form-control-sm bg-light">@selectedGrowerName</div>
+                    </div>
+                </div>
+                <div class="modal-footer py-1">
+                    <button type="button" class="btn btn-sm btn-secondary" @onclick="() => showAddSubGrowerModal = false">Cancel</button>
+                    <button type="button" class="btn btn-sm btn-primary" @onclick="SaveNewSubGrower" disabled="@(string.IsNullOrWhiteSpace(newSubGrowerName) || isSavingSubGrower)">
+                        @if (isSavingSubGrower) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        Save Sub-Grower
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
 <style>
-    .form-card { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.05); }
-    .form-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; padding-bottom: 1rem; border-bottom: 1px solid #eee; }
+    .form-control-custom { border-radius: 0 !important; border: 1px solid #ccc !important; }
+    /* AccountSearch internal styling overrides */
+    ::deep .search-container { margin-bottom: 0 !important; flex: 1; position: relative; }
+    ::deep .search-input-wrapper { position: relative; }
+    ::deep .search-input-wrapper input { border-radius: 0 !important; border: 1px solid #ccc !important; height: 31px !important; font-size: 13px !important; padding: 0.25rem 0.5rem !important; width: 100% !important; }
+    ::deep .results-dropdown { z-index: 1050 !important; top: 100% !important; left: 0 !important; width: 100% !important; max-height: 250px !important; overflow-y: auto !important; }
+    .table td { padding: 0.4rem 0.75rem !important; }
 </style>
 
 @code {
@@ -110,16 +188,21 @@
     private bool isSubmitting;
     private string? errorMessage;
 
+    private string selectedGrowerName = "";
+    private string selectedSubGrowerName = "";
+    private bool showAddSubGrowerModal;
+    private string newSubGrowerName = "";
+    private bool isSavingSubGrower;
+    private bool showDetails;
+
     protected override async Task OnInitializedAsync()
     {
-        // Load Dropdowns
-        // I'll need to update IPackingService to provide these as Lists
-        // For now, I'll use a hack or update the service.
-        // Actually, let's update the service to be more Blazor-friendly.
-        
+        showDetails = IsEdit;
         dynamic viewBag = new System.Dynamic.ExpandoObject();
         await PackingService.LoadSpecialRateDropdownsAsync(viewBag);
-        groups = (List<SelectListItem>)viewBag.GrowerGroupId;
+        groups = ((IEnumerable<SelectListItem>)viewBag.GrowerGroupId).ToList();
+        allFarmersList = (IEnumerable<LookupItem>)viewBag.Farmers;
+        farmers = Enumerable.Empty<LookupItem>(); // Initialize as empty
 
         if (IsEdit)
         {
@@ -127,9 +210,11 @@
             if (existing != null)
             {
                 model = existing;
+                selectedGrowerName = model.GrowerGroup?.AccountName ?? "";
+                selectedSubGrowerName = model.Farmer?.PartyName ?? "";
                 if (model.GrowerGroupId.HasValue)
                 {
-                    farmers = await PackingService.GetFarmersByGroupAsync(model.GrowerGroupId.Value);
+                    farmers = allFarmersList.Where(f => (long?)f.GroupId == model.GrowerGroupId.Value);
                 }
             }
             else
@@ -137,41 +222,98 @@
                 errorMessage = "Special Rate not found.";
             }
         }
-        else
+    }
+
+    private async Task AddSpecialRateClicked()
+    {
+        if (showDetails) return;
+
+        // Load Items for details
+        var packingItems = await PackingService.GetPackingItemsForRateAsync();
+        model.Details = packingItems.Select(item => {
+            return new PackingSpecialRateDetail {
+                PurchaseItemId = item.Id,
+                Rate = item.Rate ?? 0,
+                PurchaseItem = new PurchaseItem { Id = item.Id, ItemName = item.Name }
+            };
+        }).ToList();
+        
+        showDetails = true;
+    }
+
+
+    private IEnumerable<LookupItem>? allFarmersList;
+
+    private async Task OnGrowerSelected(LookupItem lookup)
+    {
+        model.GrowerGroupId = lookup.Id;
+        selectedGrowerName = lookup.Name;
+        
+        // Filter sub-growers locally for initial state if needed
+        farmers = allFarmersList?.Where(f => (long?)f.GroupId == (long)lookup.Id).ToList();
+        
+        model.FarmerId = null;
+        selectedSubGrowerName = "";
+    }
+
+    private void OnSubGrowerSelected(LookupItem lookup)
+    {
+        model.FarmerId = lookup.Id;
+        selectedSubGrowerName = lookup.Name;
+        
+        if (lookup.GroupId.HasValue && lookup.GroupId > 0)
         {
-            // Load Items for initial details
-            var packingItems = await PackingService.GetPackingItemsForRateAsync();
-            model.Details = packingItems.Select(i => {
-                var item = (dynamic)i;
-                return new PackingSpecialRateDetail {
-                    PurchaseItemId = item.id,
-                    Rate = item.rate,
-                    PurchaseItem = new PurchaseItem { Id = item.id, ItemName = item.name }
-                };
-            }).ToList();
+            model.GrowerGroupId = (long)lookup.GroupId.Value;
+            var grower = groups?.FirstOrDefault(g => g.Value == lookup.GroupId.Value.ToString());
+            if (grower != null) selectedGrowerName = grower.Text;
         }
     }
 
-    private async Task OnGroupChanged(ChangeEventArgs e)
+    private void GoToGrowerMaster()
     {
-        if (int.TryParse(e.Value?.ToString(), out int groupId))
+        Navigation.NavigateTo("/master/bank-master");
+    }
+
+    private void OpenAddSubGrowerModal()
+    {
+        newSubGrowerName = "";
+        showAddSubGrowerModal = true;
+    }
+
+    private async Task SaveNewSubGrower()
+    {
+        if (string.IsNullOrWhiteSpace(newSubGrowerName) || !model.GrowerGroupId.HasValue) return;
+
+        isSavingSubGrower = true;
+        var subGrower = new PartySub
         {
-            model.GrowerGroupId = groupId;
-            farmers = await PackingService.GetFarmersByGroupAsync(groupId);
+            PartyName = newSubGrowerName,
+            MainId = (int)model.GrowerGroupId.Value,
+            FlagDeleted = false
+        };
+
+        var result = await PackingService.CreateSubGrowerAsync(subGrower);
+        if (result.success)
+        {
+            showAddSubGrowerModal = false;
+            // Optionally select it immediately
+            model.FarmerId = (int)subGrower.PartyId; // If PartyId is populated after save
+            selectedSubGrowerName = subGrower.PartyName;
+            
+            // Refresh list if needed (though Search will pick it up on next search)
         }
         else
         {
-            model.GrowerGroupId = null;
-            farmers = null;
+            errorMessage = result.message;
         }
-        model.FarmerId = null;
+        isSavingSubGrower = false;
     }
 
     private async Task SubmitForm()
     {
-        if (!model.GrowerGroupId.HasValue && !model.FarmerId.HasValue)
+        if (!model.GrowerGroupId.HasValue)
         {
-            errorMessage = "Please select either Grower Group or Grower Name.";
+            errorMessage = "Please select a Grower.";
             return;
         }
 

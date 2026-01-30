@@ -49,7 +49,7 @@
                 </div>
                 <div class="col-lg-2 col-md-4">
                     <label class="form-label small fw-bold">Recipe UOM Name <span class="text-danger">*</span></label>
-                    <select @bind="model.RecipeUOMName" class="form-select form-select-sm">
+                    <select @bind="model.RecipePackageId" class="form-select form-select-sm">
                         <option value="">Select RecipeUOM</option>
                         @if (uomOptions != null)
                         {
@@ -145,11 +145,14 @@
                             {
                                 <tr>
                                     <td class="text-center">@(sno++)</td>
-                                    <td>@(mat.PurchaseItem?.ItemName ?? "Unknown")</td>
+                                    <td>@(mat.MaterialName ?? mat.PurchaseItem?.ItemName ?? "Unknown")</td>
                                     <td class="text-center">@mat.Qty.ToString("G29")</td>
                                     <td class="text-center">@mat.UOM</td>
                                     <td class="text-end pe-3">@mat.Value.ToString("N2")</td>
-                                    <td class="text-center">
+                                    <td class="text-center d-flex gap-2 justify-content-center">
+                                        <button class="btn btn-link btn-sm text-primary p-0" @onclick="() => EditMaterial(mat)">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
                                         <button class="btn btn-link btn-sm text-danger p-0" @onclick="() => model.Materials.Remove(mat)">
                                             <i class="bi bi-trash"></i>
                                         </button>
@@ -252,7 +255,7 @@
         model.Materials.Add(new PackingRecipeMaterial
         {
             PurchaseItemId = currentMaterial.Id,
-            PurchaseItem = new PurchaseItem { Id = currentMaterial.Id, ItemName = currentMaterial.ItemName },
+            MaterialName = currentMaterial.ItemName,
             Qty = currentMaterial.Qty,
             UOM = currentMaterial.UOM,
             Value = currentMaterial.Value,
@@ -267,15 +270,37 @@
         currentMaterial = new TempMaterial();
     }
 
+    private void EditMaterial(PackingRecipeMaterial mat)
+    {
+        currentMaterial = new TempMaterial
+        {
+            Id = mat.PurchaseItemId,
+            ItemName = mat.MaterialName ?? mat.PurchaseItem?.ItemName ?? "Unknown",
+            Qty = mat.Qty,
+            UOM = mat.UOM,
+            Value = mat.Value,
+            Rate = mat.Qty > 0 ? mat.Value / mat.Qty : 0
+        };
+        
+        model.Materials.Remove(mat);
+    }
+
     private async Task SubmitForm()
     {
         if (string.IsNullOrWhiteSpace(model.RecipeName)) { errorMessage = "Recipe Name is required."; return; }
-        if (string.IsNullOrWhiteSpace(model.RecipeUOMName)) { errorMessage = "UOM is required."; return; }
+        if (model.RecipePackageId == null || model.RecipePackageId == 0) { errorMessage = "UOM is required."; return; }
 
         isSubmitting = true;
         errorMessage = null;
-
         model.Value = TotalValue;
+        if (model.RecipePackageId > 0)
+        {
+            var selectedUom = uomOptions?.FirstOrDefault(o => o.Value == model.RecipePackageId.ToString());
+            if (selectedUom != null)
+            {
+                model.ItemId = selectedUom.Text;
+            }
+        }
 
         var result = await PackingService.SavePackingRecipeAsync(model, model.Materials);
 

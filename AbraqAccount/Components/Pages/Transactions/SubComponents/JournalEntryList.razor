@@ -2,6 +2,7 @@
 @using AbraqAccount.Services.Interfaces
 @inject IGeneralEntryService GeneralEntryService
 @inject IJSRuntime JS
+@using AbraqAccount.Components.Common
 
 <div class="filter-section">
     <div class="filter-group">
@@ -50,14 +51,30 @@
         <table class="table-notes">
             <thead>
                 <tr>
-                    <th>Unit</th>
-                    <th>Journal No</th>
-                    <th>Date</th>
-                    <th>From Vendor/Expense(Dr.)</th>
-                    <th>To Vendor/Expense/Bank(Cr.)</th>
-                    <th>Type</th>
-                    <th>Amount</th>
-                    <th>Status</th>
+                    <th>
+                        <ColumnFilter Title="Unit" TItem="GeneralEntryGroupViewModel" TValue="string" Items="originalJournalGroups" Property="@(x => x.Unit)" OnFilter="@(v => HandleColumnFilter("Unit", v))" Align="left" />
+                    </th>
+                    <th>
+                        <ColumnFilter Title="Journal No" TItem="GeneralEntryGroupViewModel" TValue="string" Items="originalJournalGroups" Property="@(x => x.VoucherNo)" OnFilter="@(v => HandleColumnFilter("VoucherNo", v))" Align="left" />
+                    </th>
+                    <th>
+                        <ColumnFilter Title="Date" TItem="GeneralEntryGroupViewModel" TValue="string" Items="originalJournalGroups" Property="@(x => x.Date.ToString("dd/MM/yyyy"))" OnFilter="@(v => HandleColumnFilter("Date", v))" Align="left" />
+                    </th>
+                    <th>
+                        <ColumnFilter Title="From Vendor/Expense(Dr.)" TItem="GeneralEntryGroupViewModel" TValue="string" Items="originalJournalGroups" Property="@(x => GetDisplayAccounts(x.Entries, false))" OnFilter="@(v => HandleColumnFilter("DebitAccounts", v))" />
+                    </th>
+                    <th>
+                        <ColumnFilter Title="To Vendor/Expense/Bank(Cr.)" TItem="GeneralEntryGroupViewModel" TValue="string" Items="originalJournalGroups" Property="@(x => GetDisplayAccounts(x.Entries, true))" OnFilter="@(v => HandleColumnFilter("CreditAccounts", v))" />
+                    </th>
+                    <th>
+                        <ColumnFilter Title="Type" TItem="GeneralEntryGroupViewModel" TValue="string" Items="originalJournalGroups" Property="@(x => x.Entries.FirstOrDefault()?.Type ?? "-")" OnFilter="@(v => HandleColumnFilter("Type", v))" />
+                    </th>
+                    <th>
+                        <ColumnFilter Title="Amount" TItem="GeneralEntryGroupViewModel" TValue="decimal" Items="originalJournalGroups" Property="@(x => x.TotalDebit)" OnFilter="@(v => HandleColumnFilter("Amount", v))" />
+                    </th>
+                    <th>
+                        <ColumnFilter Title="Status" TItem="GeneralEntryGroupViewModel" TValue="string" Items="originalJournalGroups" Property="@(x => x.Status)" OnFilter="@(v => HandleColumnFilter("Status", v))" />
+                    </th>
                     <th>Action</th>
                 </tr>
             </thead>
@@ -95,15 +112,15 @@
                             </td>
                             <td>
                                 <div class="action-icons">
-                                    @if (group.Status == "Approved")
+                                    @if(group.Status == "Approved")
                                     {
-                                        <button class="action-icon approved-icon" @onclick="() => Unapprove(group.VoucherNo)" title="Unapprove">
+                                        <button class="action-icon approved-icon" @onclick="() => ConfirmUnapprove(group.VoucherNo)" title="Unapprove">
                                             <i class="bi bi-check-circle-fill"></i>
                                         </button>
                                     }
                                     else
                                     {
-                                        <button class="action-icon approve-icon" @onclick="() => Approve(group.VoucherNo)" title="Approve">
+                                        <button class="action-icon approve-icon" @onclick="() => ConfirmApprove(group.VoucherNo)" title="Approve">
                                             <i class="bi bi-hand-thumbs-up"></i>
                                         </button>
                                     }
@@ -122,7 +139,7 @@
                                     </button>
                                     @if (group.Status != "Approved")
                                     {
-                                        <button class="action-icon delete-icon" @onclick="() => Delete(group.VoucherNo)" title="Delete">
+                                        <button class="action-icon delete-icon" @onclick="() => ConfirmDelete(group.VoucherNo)" title="Delete">
                                             <i class="bi bi-trash"></i>
                                         </button>
                                     }
@@ -170,7 +187,7 @@
     .btn-link { background: none; border: none; color: #007bff; text-decoration: underline; cursor: pointer; padding: 0; font-size: inherit; text-align: left; }
     
     .table-card { background: white; border: 1px solid #e0e0e0; border-radius: 4px; padding: 1.5rem; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-    .table-wrapper { overflow-x: auto; }
+    .table-wrapper { overflow-x: auto; min-height: 400px; }
     .table-notes { width: 100%; border-collapse: collapse; }
     .table-notes th { padding: 0.75rem; text-align: left; background: #f8f9fa; border-bottom: 2px solid #dee2e6; }
     .table-notes td { padding: 0.75rem; border-bottom: 1px solid #dee2e6; }
@@ -197,10 +214,13 @@
     .pagination-btn:disabled { cursor: not-allowed; opacity: 0.5; }
 </style>
 
+
+<ConfirmationModal @ref="confirmationModal" OnConfirm="HandleConfirmation" />
+
 @code {
     [Parameter] public EventCallback<string> OnEdit { get; set; }
     private List<GeneralEntryGroupViewModel>? journalGroups;
-    private List<string> units = new() { "Unit 1", "Unit 2", "Abraq Agro Fresh LLP" };
+    private List<string> units = new();
     private string mediatorName = "ASSETS";
     private int currentPage = 1;
     private int pageSize = 10;
@@ -213,8 +233,58 @@
 
     protected override async Task OnInitializedAsync()
     {
+        units = (await GeneralEntryService.GetUnitNamesAsync()).ToList();
         mediatorName = (await GeneralEntryService.GetMediatorAccountNameAsync() ?? "ASSETS").Trim();
         await LoadData();
+    }
+
+    private Dictionary<string, object> activeColumnFilters = new();
+
+    private void HandleColumnFilter<T>(string column, List<T> selectedValues)
+    {
+        if (selectedValues == null || !selectedValues.Any()) 
+            activeColumnFilters.Remove(column);
+        else 
+            activeColumnFilters[column] = selectedValues;
+
+        FilterLocalData();
+    }
+
+    private List<GeneralEntryGroupViewModel> originalJournalGroups = new();
+
+    private void FilterLocalData()
+    {
+        if (originalJournalGroups == null) return;
+        
+        var query = originalJournalGroups.AsEnumerable();
+
+        foreach(var kvp in activeColumnFilters)
+        {
+             var col = kvp.Key;
+             var filterValues = kvp.Value as System.Collections.IEnumerable;
+             if (filterValues == null) continue;
+             
+             query = query.Where(item => {
+                 object? val = col switch {
+                     "Unit" => item.Unit,
+                     "VoucherNo" => item.VoucherNo,
+                     "Date" => item.Date.ToString("dd/MM/yyyy"),
+                     "DebitAccounts" => GetDisplayAccounts(item.Entries, false),
+                     "CreditAccounts" => GetDisplayAccounts(item.Entries, true),
+                     "Type" => item.Entries.FirstOrDefault()?.Type ?? "-",
+                     "Amount" => item.TotalDebit,
+                     "Status" => item.Status,
+                     _ => null
+                 };
+                 
+                 foreach(var f in filterValues) {
+                     if (object.Equals(f, val)) return true;
+                 }
+                 return false;
+             });
+        }
+        
+        journalGroups = query.ToList();
     }
 
     private async Task LoadData()
@@ -230,13 +300,17 @@
                 currentPage,
                 pageSize
             );
-            journalGroups = result.groups ?? new List<GeneralEntryGroupViewModel>();
+            originalJournalGroups = result.groups ?? new List<GeneralEntryGroupViewModel>();
+            journalGroups = originalJournalGroups.ToList();
             totalCount = result.totalCount;
+            
+            if (activeColumnFilters.Any()) FilterLocalData();
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Error loading Journal Groups: {ex.Message}");
             journalGroups = new List<GeneralEntryGroupViewModel>();
+            originalJournalGroups = new List<GeneralEntryGroupViewModel>();
         }
     }
 
@@ -288,43 +362,50 @@
         // Implement history modal
     }
 
-    private async Task Approve(string voucherNo)
+    private ConfirmationModal? confirmationModal;
+    private string pendingVoucherNo = "";
+    private string pendingAction = "";
+
+    private void ConfirmApprove(string voucherNo)
     {
-        if (await JS.InvokeAsync<bool>("confirm", "Are you sure you want to approve this journal voucher?"))
-        {
-            var entries = await GeneralEntryService.GetVoucherEntriesAsync(voucherNo);
-            foreach (var entry in entries)
-            {
-                await GeneralEntryService.ApproveEntryAsync(entry.Id, "Admin");
-            }
-            await LoadData();
-        }
+        pendingVoucherNo = voucherNo;
+        pendingAction = "Approve";
+        confirmationModal?.Show("Approve Journal Entry", "Are you sure you want to approve this journal entry?", "Approve", "btn-success");
     }
 
-    private async Task Unapprove(string voucherNo)
+    private void ConfirmUnapprove(string voucherNo)
     {
-        if (await JS.InvokeAsync<bool>("confirm", "Are you sure you want to unapprove this journal voucher?"))
-        {
-            var entries = await GeneralEntryService.GetVoucherEntriesAsync(voucherNo);
-            foreach (var entry in entries)
-            {
-                await GeneralEntryService.UnapproveEntryAsync(entry.Id, "Admin");
-            }
-            await LoadData();
-        }
+        pendingVoucherNo = voucherNo;
+        pendingAction = "Unapprove";
+        confirmationModal?.Show("Unapprove Journal Entry", "Are you sure you want to unapprove this journal entry?", "Unapprove", "btn-warning");
     }
 
-    private async Task Delete(string voucherNo)
+    private void ConfirmDelete(string voucherNo)
     {
-        if (await JS.InvokeAsync<bool>("confirm", "Are you sure you want to delete this journal voucher?"))
+        pendingVoucherNo = voucherNo;
+        pendingAction = "Delete";
+        confirmationModal?.Show("Delete Journal Entry", "Are you sure you want to delete this journal entry?", "Delete", "btn-danger");
+    }
+
+    private async Task HandleConfirmation()
+    {
+        var entries = await GeneralEntryService.GetVoucherEntriesAsync(pendingVoucherNo);
+        foreach (var entry in entries)
         {
-            var entries = await GeneralEntryService.GetVoucherEntriesAsync(voucherNo);
-            foreach (var entry in entries)
+            if (pendingAction == "Approve")
             {
-                await GeneralEntryService.DeleteEntryAsync(entry.Id, "Admin");
+                await GeneralEntryService.ApproveEntryAsync(entry.Id);
             }
-            await LoadData();
+            else if (pendingAction == "Unapprove")
+            {
+                await GeneralEntryService.UnapproveEntryAsync(entry.Id);
+            }
+            else if (pendingAction == "Delete")
+            {
+                await GeneralEntryService.DeleteEntryAsync(entry.Id);
+            }
         }
+        await LoadData();
     }
 
     private string GetStatusClass(string? status) => status?.ToLower() switch

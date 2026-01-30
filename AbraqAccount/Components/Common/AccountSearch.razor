@@ -4,7 +4,7 @@
 
 @inject IJSRuntime JS
 
-<div class="search-container">
+<div class="search-container @ContainerClass">
     @if (!string.IsNullOrEmpty(Label))
     {
         <label>@Label @(Required ? "*" : "")</label>
@@ -17,6 +17,7 @@
                autocomplete="off"
                @onfocus="HandleFocus"
                @onblur="HandleBlur"
+               disabled="@Disabled"
                class="form-control @CssClass" />
         
         @if (isLoading)
@@ -47,6 +48,7 @@
         }
     </div>
     
+    <!-- DEBUG OVERLAY -->
 
 </div>
 
@@ -94,6 +96,8 @@
     [Parameter] public EventCallback<LookupItem> OnAccountSelected { get; set; }
     [Parameter] public string? InitialValue { get; set; }
     [Parameter] public string? CssClass { get; set; }
+    [Parameter] public bool Disabled { get; set; }
+    [Parameter] public string? ContainerClass { get; set; }
     
 
 
@@ -123,6 +127,14 @@
         debounceTimer = new Timer(300);
         debounceTimer.Elapsed += async (sender, e) => await PerformSearch();
         debounceTimer.AutoReset = false;
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (InitialValue != _searchTerm && !isFocused)
+        {
+            _searchTerm = InitialValue;
+        }
     }
 
     private async Task HandleFocus()

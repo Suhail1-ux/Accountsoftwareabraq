@@ -89,14 +89,11 @@
                                             <button class="btn btn-link btn-sm p-0 action-icon" @onclick="() => Edit(recipe.Recipeid)" title="Edit">
                                                 <i class="bi bi-pencil-square fs-5"></i>
                                             </button>
-                                            <button class="btn btn-link btn-sm p-0 action-icon" title="View">
+                                            <button class="btn btn-link btn-sm p-0 action-icon" @onclick="() => Edit(recipe.Recipeid)" title="View">
                                                 <i class="bi bi-eye fs-5"></i>
                                             </button>
-                                            <button class="btn btn-link btn-sm p-0 action-icon" title="Info">
+                                            <button class="btn btn-link btn-sm p-0 action-icon" @onclick="() => ShowHistory(recipe)" title="History">
                                                 <i class="bi bi-info-circle fs-5"></i>
-                                            </button>
-                                            <button class="btn btn-link btn-sm p-0 action-icon" title="Add">
-                                                <i class="bi bi-plus fs-4"></i>
                                             </button>
                                         </div>
                                     </td>
@@ -109,6 +106,59 @@
         </div>
     </div>
 </div>
+
+@if (showHistoryModal)
+{
+    <div class="modal fade show d-block" style="background: rgba(0,0,0,0.5); z-index: 1050;">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg">
+                <div class="modal-header bg-secondary text-white">
+                    <h5 class="modal-title fw-bold">History: @historyItemName</h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="() => showHistoryModal = false"></button>
+                </div>
+                <div class="modal-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover mb-0">
+                            <thead class="bg-light text-dark">
+                                <tr>
+                                    <th class="ps-3">Action</th>
+                                    <th>User</th>
+                                    <th>Date & Time</th>
+                                    <th>Remarks</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (histories == null)
+                                {
+                                    <tr><td colspan="4" class="text-center py-4"><div class="spinner-border spinner-border-sm text-primary"></div></td></tr>
+                                }
+                                else if (!histories.Any())
+                                {
+                                    <tr><td colspan="4" class="text-center py-4 text-muted">No history found.</td></tr>
+                                }
+                                else
+                                {
+                                    @foreach (dynamic h in histories)
+                                    {
+                                        <tr>
+                                            <td class="ps-3"><span class="badge @(h.action == "Insert" ? "bg-success" : "bg-primary")">@h.action</span></td>
+                                            <td>@h.user</td>
+                                            <td>@h.dateTime.ToString("dd-MM-yyyy HH:mm:ss")</td>
+                                            <td>@h.remarks</td>
+                                        </tr>
+                                    }
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light py-2">
+                    <button type="button" class="btn btn-secondary btn-sm px-4" @onclick="() => showHistoryModal = false">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
 
 <style>
     .content-header { background: #fff; padding: 0.75rem 0; margin-bottom: 0; }
@@ -144,6 +194,9 @@
 @code {
     private List<PackingRecipe>? recipes;
     private string searchTerm = "";
+    private bool showHistoryModal = false;
+    private string historyItemName = "";
+    private IEnumerable<object>? histories;
 
     protected override async Task OnInitializedAsync()
     {
@@ -165,4 +218,12 @@
 
     private void CreateNew() => Navigation.NavigateTo("/inventory/packing-recipes/create");
     private void Edit(long id) => Navigation.NavigateTo($"/inventory/packing-recipes/edit/{id}");
+
+    private async Task ShowHistory(PackingRecipe recipe)
+    {
+        historyItemName = recipe.RecipeName;
+        histories = null;
+        showHistoryModal = true;
+        histories = await PackingService.GetPackingRecipeHistoryAsync(recipe.Recipeid);
+    }
 }

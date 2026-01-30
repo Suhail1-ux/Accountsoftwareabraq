@@ -59,6 +59,8 @@ public class AppDbContext : DbContext
     public DbSet<EntryForAccount> EntryForAccounts { get; set; }
     public DbSet<Menu> Menus { get; set; }
     public DbSet<UserPermission> UserPermissions { get; set; }
+    public DbSet<UnitMaster> UnitMasters { get; set; }
+    public DbSet<PartySub> PartySubs { get; set; }
     public DbSet<VehInfo> VehInfos { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -356,6 +358,8 @@ public class AppDbContext : DbContext
             entity.Property(e => e.CreatedBy).HasColumnName("CreatedBy").HasMaxLength(255);
             entity.Property(e => e.CreatedDate).HasColumnName("CreatedDate").IsRequired();
             entity.Property(e => e.IsActive).HasColumnName("IsActive").HasDefaultValue(true);
+            entity.Property(e => e.SourceType).HasColumnName("SourceType").HasMaxLength(50);
+            entity.Property(e => e.PartyId).HasColumnName("PartyId");
             
             // Foreign key relationship
             entity.HasOne(e => e.Group)
@@ -514,15 +518,11 @@ public class AppDbContext : DbContext
             entity.Property(e => e.IsActive).HasColumnName("IsActive").HasDefaultValue(true);
             entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
             
-            entity.HasOne(e => e.GrowerGroup)
-                  .WithMany()
-                  .HasForeignKey(e => e.GrowerGroupId)
-                  .OnDelete(DeleteBehavior.Restrict);
-            
-            entity.HasOne(e => e.Farmer)
-                  .WithMany()
-                  .HasForeignKey(e => e.FarmerId)
-                  .OnDelete(DeleteBehavior.Restrict);
+            // Note: We are choosing to ignore navigation properties for database-level constraints
+            // to allow flexible linkage to BankMaster and PartySub without rigid FKs for now.
+            // The service handles manual joins for display.
+            entity.Ignore(e => e.GrowerGroup);
+            entity.Ignore(e => e.Farmer);
         });
 
         // Map to SQL Server PackingSpecialRateDetails table
@@ -580,27 +580,31 @@ public class AppDbContext : DbContext
         });
 
 
-        // Map to SQL Server PackingRecipeMaterials table
+        // Map to SQL Server RecipeItems table
         modelBuilder.Entity<PackingRecipeMaterial>(entity =>
         {
-            entity.ToTable("PackingRecipeMaterials");
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.Id).HasColumnName("Id");
-            entity.Property(e => e.PackingRecipeId).HasColumnName("PackingRecipeId").IsRequired();
-            entity.Property(e => e.PurchaseItemId).HasColumnName("PurchaseItemId").IsRequired();
-            entity.Property(e => e.Qty).HasColumnName("Qty").HasColumnType("decimal(18,2)").IsRequired();
-            entity.Property(e => e.UOM).HasColumnName("UOM").HasMaxLength(50).IsRequired();
-            entity.Property(e => e.Value).HasColumnName("Value").HasColumnType("decimal(18,2)").IsRequired();
-            entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
+            entity.ToTable("RecipeItems");
+            entity.HasKey(e => e.RecipeItemId);
+            entity.Property(e => e.RecipeItemId).HasColumnName("RecipeItemId").ValueGeneratedNever();
+            entity.Property(e => e.RecipeId).HasColumnName("RecipeId").IsRequired();
+            entity.Property(e => e.packingitemid).HasColumnName("packingitemid").HasConversion<long>().IsRequired();
+            entity.Property(e => e.qty).HasColumnName("qty");
+            entity.Property(e => e.avgCost).HasColumnName("avgCost").HasColumnType("money");
+            entity.Property(e => e.flagdeleted).HasColumnName("flagdeleted").IsRequired();
+            entity.Property(e => e.endeffdt).HasColumnName("endeffdt");
+            entity.Property(e => e.createddate).HasColumnName("createddate").IsRequired();
+            entity.Property(e => e.createdby).HasColumnName("createdby");
+            entity.Property(e => e.updatedby).HasColumnName("updatedby");
+            entity.Property(e => e.updateddate).HasColumnName("updateddate");
             
             entity.HasOne(e => e.PackingRecipe)
                   .WithMany(p => p.Materials)
-                  .HasForeignKey(e => e.PackingRecipeId)
+                  .HasForeignKey(e => e.RecipeId)
                   .OnDelete(DeleteBehavior.Cascade);
             
             entity.HasOne(e => e.PurchaseItem)
                   .WithMany()
-                  .HasForeignKey(e => e.PurchaseItemId)
+                  .HasForeignKey(e => e.packingitemid)
                   .OnDelete(DeleteBehavior.Restrict);
         });
 
@@ -1240,6 +1244,24 @@ public class AppDbContext : DbContext
             entity.Property(e => e.ItemWeight).HasColumnName("ItemWeight");
             entity.Property(e => e.RecipePackageId).HasColumnName("RecipePackageId");
             entity.Property(e => e.HighDensityRate).HasColumnName("HighDensityRate");
+        });
+
+        // Map to SQL Server Unit_master table
+        modelBuilder.Entity<UnitMaster>(entity =>
+        {
+            entity.ToTable("Unit_master");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedNever();
+            entity.Property(e => e.Ucode).HasColumnName("Ucode").HasColumnType("varchar(max)");
+            entity.Property(e => e.UnitName).HasColumnName("UnitName").HasColumnType("varchar(max)");
+            entity.Property(e => e.Stat).HasColumnName("Stat").HasColumnType("varchar(max)");
+            entity.Property(e => e.Details).HasColumnName("details").HasColumnType("varchar(max)");
+        });
+        // Map to SQL Server partysub table
+        modelBuilder.Entity<PartySub>(entity =>
+        {
+            entity.ToTable("partysub");
+            entity.HasKey(e => e.PartyId);
         });
     }
 }

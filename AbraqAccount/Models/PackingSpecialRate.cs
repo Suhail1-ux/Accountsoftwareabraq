@@ -4,14 +4,14 @@ public class PackingSpecialRate
 {
     public int Id { get; set; }
     public DateTime EffectiveDate { get; set; }
-    public int? GrowerGroupId { get; set; }
-    public int? FarmerId { get; set; }
+    public long? GrowerGroupId { get; set; }
+    public long? FarmerId { get; set; }
     public bool IsActive { get; set; } = true;
     public DateTime CreatedAt { get; set; } = DateTime.Now;
 
     // Navigation properties
-    public GrowerGroup? GrowerGroup { get; set; }
-    public Farmer? Farmer { get; set; }
+    public BankMaster? GrowerGroup { get; set; } // Renamed in mapping if needed, but keeping property name for now
+    public PartySub? Farmer { get; set; }
     public List<PackingSpecialRateDetail> Details { get; set; } = new List<PackingSpecialRateDetail>();
 }
 
