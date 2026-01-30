@@ -25,31 +25,15 @@
     <div class="filter-card card shadow-sm border-0 mb-4">
         <div class="card-body p-4">
             <div class="row gx-3 gy-3">
-                <div class="col-lg-2 col-md-4">
-                    <label class="filter-label">Entry No.</label>
-                    <input type="text" class="form-control-custom" placeholder="Entry Number" @bind="voucherNo" />
-                </div>
                 <div class="col-lg-3 col-md-4">
-                    <label class="filter-label">Credit Account</label>
-                    <input type="text" class="form-control-custom" placeholder="Search Vendor" @bind="vendorName" />
-                </div>
-                <div class="col-lg-2 col-md-4">
-                    <label class="filter-label">Status</label>
-                    <select class="form-control-custom" @bind="status">
-                        <option value="">All Status</option>
-                        <option value="UnApproved">UnApproved</option>
-                        <option value="Approved">Approved</option>
-                    </select>
-                </div>
-                <div class="col-lg-2 col-md-3">
                     <label class="filter-label">From Date</label>
                     <input type="date" class="form-control-custom" @bind="fromDate" />
                 </div>
-                <div class="col-lg-2 col-md-3">
+                <div class="col-lg-3 col-md-4">
                     <label class="filter-label">To Date</label>
                     <input type="date" class="form-control-custom" @bind="toDate" />
                 </div>
-                <div class="col-lg-1 col-md-2 d-flex align-items-end gap-1">
+                <div class="col-lg-2 col-md-4 d-flex align-items-end gap-1">
                     <button class="btn btn-search-custom" @onclick="Search" title="Search">
                         <i class="bi bi-search"></i>
                     </button>
@@ -70,32 +54,60 @@
                 <table class="table table-custom table-hover m-0">
                     <thead>
                         <tr>
-                            <th>Entry No. <i class="bi bi-chevron-expand small text-muted"></i></th>
-                            <th>Recv. Date <i class="bi bi-chevron-expand small text-muted"></i></th>
-                            <th>Bill Date <i class="bi bi-chevron-expand small text-muted"></i></th>
-                            <th>Debit Account <i class="bi bi-chevron-expand small text-muted"></i></th>
-                            <th>Credit Account <i class="bi bi-chevron-expand small text-muted"></i></th>
-                            <th>Unit <i class="bi bi-chevron-expand small text-muted"></i></th>
-                            <th>Qty <i class="bi bi-chevron-expand small text-muted"></i></th>
-                            <th class="text-end">Amount <i class="bi bi-chevron-expand small text-muted"></i></th>
-                            <th class="text-end">Tax <i class="bi bi-chevron-expand small text-muted"></i></th>
-                            <th class="text-end">Total <i class="bi bi-chevron-expand small text-muted"></i></th>
-                            <th>Status <i class="bi bi-chevron-expand small text-muted"></i></th>
+                            <th style="min-width: 120px;">
+                                <AbraqAccount.Components.Common.ColumnFilter TItem="ExpensesIncurred" TValue="string" 
+                                    Title="Entry No." Items="allExpenses" Property="e => e.VoucherNo" 
+                                    OnFilter="vals => { filteredVoucherNos = vals; UpdateFilteredList(); }" Align="left" />
+                            </th>
+                            <th style="min-width: 110px;">
+                                <AbraqAccount.Components.Common.ColumnFilter TItem="ExpensesIncurred" TValue="string" 
+                                    Title="Recv. Date" Items="allExpenses" Property='e => e.ExpenseDate?.ToString("dd-MM-yyyy") ?? ""' 
+                                    OnFilter="vals => { filteredRecvDates = vals; UpdateFilteredList(); }" Align="left" />
+                            </th>
+                            <th style="min-width: 110px;">
+                                <AbraqAccount.Components.Common.ColumnFilter TItem="ExpensesIncurred" TValue="string" 
+                                    Title="Bill Date" Items="allExpenses" Property='e => e.BillDate?.ToString("dd-MM-yyyy") ?? ""' 
+                                    OnFilter="vals => { filteredBillDates = vals; UpdateFilteredList(); }" Align="left" />
+                            </th>
+                            <th style="min-width: 150px;">
+                                <AbraqAccount.Components.Common.ColumnFilter TItem="ExpensesIncurred" TValue="string" 
+                                    Title="Debit Account" Items="allExpenses" Property="e => e.DebitAccountName ?? string.Empty" 
+                                    OnFilter="vals => { filteredDebitAccounts = vals; UpdateFilteredList(); }" Align="left" />
+                            </th>
+                            <th style="min-width: 150px;">
+                                <AbraqAccount.Components.Common.ColumnFilter TItem="ExpensesIncurred" TValue="string" 
+                                    Title="Credit Account" Items="allExpenses" Property="e => e.VendorName ?? string.Empty" 
+                                    OnFilter="vals => { filteredCreditAccounts = vals; UpdateFilteredList(); }" Align="left" />
+                            </th>
+                            <th style="min-width: 80px;">
+                                <AbraqAccount.Components.Common.ColumnFilter TItem="ExpensesIncurred" TValue="string" 
+                                    Title="Unit" Items="allExpenses" Property="e => e.Unit ?? string.Empty" 
+                                    OnFilter="vals => { filteredUnits = vals; UpdateFilteredList(); }" Align="left" />
+                            </th>
+                            <th>Qty</th>
+                            <th class="text-end">Amount</th>
+                            <th class="text-end">Tax</th>
+                            <th class="text-end">Total</th>
+                            <th style="min-width: 100px;">
+                                <AbraqAccount.Components.Common.ColumnFilter TItem="ExpensesIncurred" TValue="string" 
+                                    Title="Status" Items="allExpenses" Property="e => e.Status ?? string.Empty" 
+                                    OnFilter="vals => { filteredStatuses = vals; UpdateFilteredList(); }" Align="right" />
+                            </th>
                             <th class="text-center">Action</th>
                         </tr>
                     </thead>
                     <tbody>
-                        @if (expenses == null)
+                        @if (allExpenses == null)
                         {
                             <tr><td colspan="12" class="text-center py-5"><div class="spinner-border text-primary spinner-border-sm"></div> Loading...</td></tr>
                         }
-                        else if (!expenses.Any())
+                        else if (!allExpenses.Any())
                         {
                             <tr><td colspan="12" class="text-center py-5 text-muted">No expense entries found.</td></tr>
                         }
                         else
                         {
-                            @foreach (var exp in expenses)
+                            @foreach (var exp in paginatedExpenses)
                             {
                                 var totalQty = exp.Items?.Sum(i => i.Qty) ?? 0;
                                 var taxAmt = (exp.Items?.Sum(i => i.GSTAmount) ?? 0) + (exp.MiscCharges?.Sum(m => m.GSTAmount) ?? 0);
@@ -302,17 +314,26 @@
 </style>
 
 @code {
-    private IEnumerable<ExpensesIncurred>? expenses;
-    private string? voucherNo;
-    private string? vendorName;
-    private string? status;
+    private List<ExpensesIncurred>? allExpenses;
+    private List<ExpensesIncurred> filteredList = new();
+    private IEnumerable<ExpensesIncurred> paginatedExpenses => filteredList.Skip((currentPage - 1) * pageSize).Take(pageSize);
+    
+    // Filter lists
+    private List<string>? filteredVoucherNos;
+    private List<string>? filteredRecvDates;
+    private List<string>? filteredBillDates;
+    private List<string>? filteredDebitAccounts;
+    private List<string>? filteredCreditAccounts;
+    private List<string>? filteredUnits;
+    private List<string>? filteredStatuses;
+
     private DateTime? fromDate;
     private DateTime? toDate;
 
     private int currentPage = 1;
     private int pageSize = 10;
-    private int totalPages;
-    private int totalCount;
+    private int totalPages => (int)Math.Ceiling((double)filteredList.Count / pageSize);
+    private int totalCount => filteredList.Count;
 
     // Modal state
     private bool showConfirmModal = false;
@@ -326,38 +347,69 @@
 
     protected override async Task OnInitializedAsync()
     {
+        // Default to current month if needed, or leave null for all. 
+        // Setting default date range usually good for performance if dataset is huge.
+        fromDate = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
+        toDate = DateTime.Now;
         await LoadExpenses();
     }
 
     private async Task LoadExpenses()
     {
-        // Calling service with expanded params to include items and misc for qty/tax calculation
-        var result = await ExpenseService.GetExpensesAsync(voucherNo, fromDate, toDate, null, null, null, vendorName, status, currentPage, pageSize);
-        expenses = result.expenses;
-        totalCount = result.totalCount;
-        totalPages = result.totalPages;
+        // Fetch large dataset for client-side filtering. Using 10000 as "All" for now.
+        var result = await ExpenseService.GetExpensesAsync(null, fromDate, toDate, null, null, null, null, null, 1, 10000);
+        allExpenses = result.expenses.ToList();
+        UpdateFilteredList();
+    }
+
+    private void UpdateFilteredList()
+    {
+        if (allExpenses == null) 
+        {
+            filteredList = new();
+            return;
+        }
+
+        var query = allExpenses.AsEnumerable();
+
+        if (filteredVoucherNos != null) query = query.Where(e => filteredVoucherNos.Contains(e.VoucherNo));
+        if (filteredRecvDates != null) query = query.Where(e => filteredRecvDates.Contains(e.ExpenseDate?.ToString("dd-MM-yyyy") ?? ""));
+        if (filteredBillDates != null) query = query.Where(e => filteredBillDates.Contains(e.BillDate?.ToString("dd-MM-yyyy") ?? ""));
+        if (filteredDebitAccounts != null) query = query.Where(e => filteredDebitAccounts.Contains(e.DebitAccountName ?? ""));
+        if (filteredCreditAccounts != null) query = query.Where(e => filteredCreditAccounts.Contains(e.VendorName ?? ""));
+        if (filteredUnits != null) query = query.Where(e => filteredUnits.Contains(e.Unit ?? ""));
+        if (filteredStatuses != null) query = query.Where(e => filteredStatuses.Contains(e.Status ?? ""));
+
+        filteredList = query.ToList();
+        currentPage = 1; // Reset to first page on filter change
+        StateHasChanged();
     }
 
     private async Task Search()
     {
-        currentPage = 1;
         await LoadExpenses();
     }
 
     private async Task ClearFilters()
     {
-        voucherNo = null;
-        vendorName = null;
-        status = null;
         fromDate = null;
         toDate = null;
+        
+        filteredVoucherNos = null;
+        filteredRecvDates = null;
+        filteredBillDates = null;
+        filteredDebitAccounts = null;
+        filteredCreditAccounts = null;
+        filteredUnits = null;
+        filteredStatuses = null;
+
         await Search();
     }
 
-    private async Task GoToPage(int page)
+    private void GoToPage(int page)
     {
         currentPage = page;
-        await LoadExpenses();
+        StateHasChanged(); // Client side page switch
     }
 
     private void Approve(int id)

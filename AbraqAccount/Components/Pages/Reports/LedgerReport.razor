@@ -81,7 +81,11 @@
                 <table class="table table-bordered table-hover align-middle mb-0">
                     <thead class="table-light">
                         <tr>
-                            <th style="min-width: 100px;">Date</th>
+                            <th style="min-width: 100px;">
+                                <AbraqAccount.Components.Common.ColumnFilter TItem="GeneralEntry" TValue="string" 
+                                    Title="Date" Items="reportResult.Entries" Property='e => e.EntryDate.ToString("dd-MM-yyyy")' 
+                                    OnFilter="vals => { filteredDates = vals; StateHasChanged(); }" Align="left" />
+                            </th>
                             <th style="min-width: 150px;">
                                 <AbraqAccount.Components.Common.ColumnFilter TItem="GeneralEntry" TValue="string" 
                                     Title="Voucher No" Items="reportResult.Entries" Property="e => e.VoucherNo" 
@@ -92,13 +96,21 @@
                                     Title="Unit" Items="reportResult.Entries" Property="e => e.Unit ?? string.Empty" 
                                     OnFilter="vals => { filteredUnits = vals; StateHasChanged(); }" Align="left" />
                             </th>
-                            <th style="min-width: 200px;">Particulars</th>
+                            <th style="min-width: 200px;">
+                                <AbraqAccount.Components.Common.ColumnFilter TItem="GeneralEntry" TValue="string" 
+                                    Title="Particulars" Items="reportResult.Entries" Property="e => GetParticulars(e)" 
+                                    OnFilter="vals => { filteredParticulars = vals; StateHasChanged(); }" Align="left" />
+                            </th>
                             <th style="min-width: 150px;">
                                 <AbraqAccount.Components.Common.ColumnFilter TItem="GeneralEntry" TValue="string" 
                                     Title="Voucher Type" Items="reportResult.Entries" Property="e => e.VoucherType ?? string.Empty" 
                                     OnFilter="vals => { filteredVoucherTypes = vals; StateHasChanged(); }" Align="left" />
                             </th>
-                            <th style="min-width: 200px;">Narration</th>
+                            <th style="min-width: 200px;">
+                                <AbraqAccount.Components.Common.ColumnFilter TItem="GeneralEntry" TValue="string" 
+                                    Title="Narration" Items="reportResult.Entries" Property="e => e.Narration ?? string.Empty" 
+                                    OnFilter="vals => { filteredNarrations = vals; StateHasChanged(); }" Align="left" />
+                            </th>
                             <th style="min-width: 130px;">
                                 <AbraqAccount.Components.Common.ColumnFilter TItem="GeneralEntry" TValue="string" 
                                     Title="Payment Type" Items="reportResult.Entries" Property="e => e.PaymentType ?? string.Empty" 
@@ -115,7 +127,9 @@
                         }
                         <tr class="table-info fw-bold">
                             <td colspan="9" class="text-end">OPENING BALANCE</td>
-                            <td class="text-end">@runningBalance.ToString("N2")</td>
+                            <td class="text-end fw-bold @(runningBalance < 0 ? "text-danger" : "text-primary")">
+                                @(Math.Abs(runningBalance).ToString("N2")) @(runningBalance < 0 ? "Dr" : "Cr")
+                            </td>
                         </tr>
                         @foreach (var entry in reportResult.Entries)
                         {
@@ -125,9 +139,13 @@
                             runningBalance += (credit - debit);
 
                             // Apply column filters
+                            // Apply column filters
+                            if (filteredDates != null && !filteredDates.Contains(entry.EntryDate.ToString("dd-MM-yyyy"))) continue;
                             if (filteredVoucherNos != null && !filteredVoucherNos.Contains(entry.VoucherNo)) continue;
                             if (filteredUnits != null && !filteredUnits.Contains(entry.Unit ?? "")) continue;
+                            if (filteredParticulars != null && !filteredParticulars.Contains(GetParticulars(entry))) continue;
                             if (filteredVoucherTypes != null && !filteredVoucherTypes.Contains(entry.VoucherType ?? "")) continue;
+                            if (filteredNarrations != null && !filteredNarrations.Contains(entry.Narration ?? "")) continue;
                             if (filteredPaymentTypes != null && !filteredPaymentTypes.Contains(entry.PaymentType ?? "")) continue;
 
                             <tr>
@@ -137,21 +155,16 @@
                                 </td>
                                 <td>@entry.Unit</td>
                                 <td>
-                                    @if (isOurDebit)
-                                    {
-                                        @(entry.CreditBankMasterInfo?.AccountName ?? entry.CreditAccountName ?? "N/A")
-                                    }
-                                    else
-                                    {
-                                        @(entry.DebitBankMasterInfo?.AccountName ?? entry.DebitAccountName ?? "N/A")
-                                    }
+                                    @GetParticulars(entry)
                                 </td>
                                 <td><small class="text-muted">@entry.VoucherType</small></td>
                                 <td>@entry.Narration</td>
                                 <td>@entry.PaymentType</td>
                                 <td class="text-end text-danger">@(debit > 0 ? debit.ToString("N2") : "-")</td>
                                 <td class="text-end text-success">@(credit > 0 ? credit.ToString("N2") : "-")</td>
-                                <td class="text-end fw-bold">@runningBalance.ToString("N2")</td>
+                                <td class="text-end fw-bold @(runningBalance < 0 ? "text-danger" : "text-primary")">
+                                    @(Math.Abs(runningBalance).ToString("N2")) @(runningBalance < 0 ? "Dr" : "Cr")
+                                </td>
                             </tr>
                         }
                     </tbody>
@@ -160,7 +173,9 @@
                             <td colspan="7" class="text-end">Total / Closing</td>
                             <td class="text-end text-danger">@reportResult.Entries.Where(e => (e.DebitAccountId == selectedAccountId && e.DebitAccountType == accountType)).Sum(e => e.Amount).ToString("N2")</td>
                             <td class="text-end text-success">@reportResult.Entries.Where(e => (e.CreditAccountId == selectedAccountId && e.CreditAccountType == accountType)).Sum(e => e.Amount).ToString("N2")</td>
-                            <td class="text-end text-primary">@reportResult.ClosingBalance.ToString("N2")</td>
+                            <td class="text-end fw-bold @(reportResult.ClosingBalance < 0 ? "text-danger" : "text-primary")">
+                                @(Math.Abs(reportResult.ClosingBalance).ToString("N2")) @(reportResult.ClosingBalance < 0 ? "Dr" : "Cr")
+                            </td>
                         </tr>
                     </tfoot>
                 </table>
@@ -185,6 +200,23 @@
     private List<string>? filteredUnits;
     private List<string>? filteredVoucherTypes;
     private List<string>? filteredPaymentTypes;
+    private List<string>? filteredDates;
+    private List<string>? filteredParticulars;
+    private List<string>? filteredNarrations;
+
+    private string GetParticulars(GeneralEntry entry)
+    {
+        bool isOurDebit = (entry.DebitAccountId == selectedAccountId && entry.DebitAccountType == accountType);
+        if (isOurDebit)
+        {
+            return entry.CreditBankMasterInfo?.AccountName ?? entry.CreditAccountName ?? "N/A";
+        }
+        else
+        {
+            return entry.DebitBankMasterInfo?.AccountName ?? entry.DebitAccountName ?? "N/A";
+        }
+    }
+
 
     private void OnOwnerSelected(LookupItem lookup)
     {
@@ -235,8 +267,8 @@
             var propName = a.GetType().GetProperty("name");
             return new LookupItem { 
                 Id = (int)(propId?.GetValue(a) ?? 0), 
-                Name = (string)(propName?.GetValue(a) ?? ""),
-                Type = AccountTypes.BankMaster
+                Name = (string)(propName?.GetValue(a) ?? "")
+                // Type implicit null (visually hides badge), defaults to BankMaster on select
             };
         }).ToList();
 
