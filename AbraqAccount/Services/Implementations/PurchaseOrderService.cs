@@ -461,6 +461,11 @@ public class PurchaseOrderService : IPurchaseOrderService
             .Take(50)
             .Select(v => new LookupItem { Id = v.Id, Name = v.AccountName })
             .ToListAsync();
+        }
+        catch (Exception)
+        {
+            throw;
+        }
     }
 
     public async Task<IEnumerable<LookupItem>> GetItemGroupsAsync()
@@ -839,4 +844,5 @@ public class PurchaseOrderService : IPurchaseOrderService
         }
     }
 }
+#endregion
 

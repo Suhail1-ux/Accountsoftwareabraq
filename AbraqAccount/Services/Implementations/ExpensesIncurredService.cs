@@ -809,6 +809,11 @@ public class ExpensesIncurredService : IExpensesIncurredService
             }
 
         return vehicles.Distinct().OrderBy(v => v).Take(20);
+        }
+        catch (Exception)
+        {
+            throw;
+        }
     }
 
     public async Task<IEnumerable<VehInfo>> GetVehiclesListAsync()
