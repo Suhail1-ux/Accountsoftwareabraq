@@ -387,6 +387,19 @@ public class ExpensesIncurredService : IExpensesIncurredService
         return true;
     }
 
+    public async Task<bool> UnapproveExpenseAsync(int id)
+    {
+        var expense = await _context.ExpensesIncurreds.FindAsync(id);
+        if (expense == null)
+        {
+            return false;
+        }
+
+        expense.Status = "UnApproved";
+        await _context.SaveChangesAsync();
+        return true;
+    }
+
     public async Task<IEnumerable<LookupItem>> GetExpenseGroupsAsync(string? searchTerm)
     {
         var query = _context.MasterGroups.AsQueryable();

@@ -2,6 +2,9 @@
 @using AbraqAccount.Services.Interfaces
 @inject IPurchaseTransactionService TransactionService
 @inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+@using Microsoft.AspNetCore.Http
+@inject IHttpContextAccessor HttpContextAccessor
 
 <div class="form-card">
     <div class="form-header">
@@ -11,7 +14,13 @@
             {
                 <span class="badge bg-info me-3">PR#: @model.PORequestNo</span>
             }
-            <button class="btn btn-primary" @onclick="SubmitForm" disabled="@isSubmitting">
+            @if (Id.HasValue)
+            {
+                <button class="btn btn-outline-secondary btn-sm" @onclick="PrintRequest">
+                    <i class="bi bi-printer"></i> Print
+                </button>
+            }
+            <button class="btn btn-primary btn-sm ms-2" @onclick="SubmitForm" disabled="@isSubmitting">
                 @if (isSubmitting)
                 {
                     <span class="spinner-border spinner-border-sm" role="status"></span>
@@ -68,10 +77,16 @@
     </div>
 
     <div class="row">
-        <div class="col-12">
+        <div class="col-md-6">
             <div class="form-group mb-3">
                 <label class="form-label">Remarks</label>
                 <textarea @bind="model.Remarks" class="form-control" rows="2" placeholder="General remarks..."></textarea>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="form-group mb-3">
+                <label class="form-label">Terms & Conditions</label>
+                <textarea @bind="model.TermsAndConditions" class="form-control" rows="2" placeholder="Enter terms and conditions..."></textarea>
             </div>
         </div>
     </div>
@@ -176,4 +191,5 @@
     }
 
     private void Cancel() => Navigation.NavigateTo("/inventory/purchase-requests");
+    private void PrintRequest() => Navigation.NavigateTo($"/inventory/purchase-requests/print/{Id}");
 }

@@ -1,112 +1,123 @@
 @using AbraqAccount.Models
 @using AbraqAccount.Services.Interfaces
-@using Microsoft.AspNetCore.Mvc.Rendering
 @inject IPurchaseOrderService POService
 @inject NavigationManager Navigation
+@inject INotificationService NotificationService
+@using Microsoft.AspNetCore.Http
+@inject Microsoft.AspNetCore.Http.IHttpContextAccessor _httpContextAccessor
 
-<div class="form-card">
-    <div class="form-header">
-        <h3>@(IsEdit ? "Edit" : "Create") Purchase Order</h3>
-        <div class="header-actions">
-            @if (IsEdit)
-            {
-                <span class="badge bg-info me-3">PO#: @model.PONumber</span>
-            }
-            <button class="btn btn-primary" @onclick="SubmitForm" disabled="@isSubmitting">
-                @if (isSubmitting)
+<div class="expense-entry-container">
+    <!-- Header with Breadcrumbs and Top Actions -->
+    <div class="expense-header">
+        <div class="expense-title-section">
+            <h1>Purchase Order <small class="subtitle" style="color: #999; font-size: 0.9rem; font-weight: normal;">Control panel</small></h1>
+        </div>
+        <div style="display: flex; gap: 0.5rem; align-items: center;">
+            <div class="breadcrumbs-top">
+                <i class="bi bi-house"></i> Home <span>&gt;</span> Purchase Order
+            </div>
+            <div class="header-actions">
+                @if (!IsReadOnly)
                 {
-                    <span class="spinner-border spinner-border-sm" role="status"></span>
+                    <button class="btn btn-save-custom px-4" @onclick="SubmitForm" disabled="@isSubmitting">
+                        @if (isSubmitting) { <span class="spinner-border spinner-border-sm me-2"></span> }
+                        <i class="bi bi-save2-fill me-2"></i> Save
+                    </button>
                 }
-                Save
-            </button>
-            <button class="btn btn-secondary" @onclick="Cancel">Cancel</button>
-        </div>
-    </div>
-
-    @if (!string.IsNullOrEmpty(errorMessage))
-    {
-        <div class="alert alert-danger">@errorMessage</div>
-    }
-
-    <div class="row g-3">
-        <div class="col-md-4">
-            <div class="form-group mb-3">
-                <label class="form-label text-danger">Vendor *</label>
-                <AbraqAccount.Components.Common.AccountSearch 
-                    Placeholder="Search Vendor..." 
-                    SearchFunc="POService.GetVendorsAsync"
-                    OnAccountSelected="OnVendorSelected"
-                    InitialValue="@model.Vendor?.VendorName" />
-            </div>
-        </div>
-        <div class="col-md-2">
-            <div class="form-group mb-3">
-                <label class="form-label text-danger">PO Date *</label>
-                <input type="date" @bind="model.PODate" class="form-control" />
-            </div>
-        </div>
-        <div class="col-md-2">
-            <div class="form-group mb-3">
-                <label class="form-label text-danger">PO Type *</label>
-                <select @bind="model.POType" class="form-select">
-                    <option value="">SELECT</option>
-                    <option value="Regular">Regular</option>
-                    <option value="Urgent">Urgent</option>
-                </select>
-            </div>
-        </div>
-        <div class="col-md-2">
-            <div class="form-group mb-3">
-                <label class="form-label text-danger">Expected Received Date *</label>
-                <input type="date" @bind="model.ExpectedReceivedDate" class="form-control" />
-            </div>
-        </div>
-        <div class="col-md-2">
-            <div class="form-group mb-3">
-                <label class="form-label">Vendor Reference</label>
-                <input type="text" @bind="model.VendorReference" class="form-control" placeholder="Ref#" />
+                <button class="btn btn-back-custom" @onclick="Cancel" title="Back"><i class="bi bi-arrow-left"></i></button>
             </div>
         </div>
     </div>
 
-    <div class="row g-3">
-        <div class="col-md-6">
-            <div class="form-group mb-3">
-                <label class="form-label text-danger">Billing To *</label>
-                <textarea @bind="model.BillingTo" class="form-control" rows="2" placeholder="Billing details..."></textarea>
+    <!-- Main Form Section -->
+    <fieldset disabled="@IsReadOnly">
+        <div class="card shadow-sm border-0 mb-5 modern-card">
+            <div class="card-header modern-header py-3 px-4">
+                <h5 class="mb-0 fw-700">Basic Information <small class="text-muted fw-normal ms-2">— @(IsReadOnly ? "View Mode" : (IsEdit ? "Update Entry" : "New Entry"))</small></h5>
             </div>
-        </div>
-        <div class="col-md-6">
-            <div class="form-group mb-3">
-                <label class="form-label text-danger">Delivery Address *</label>
-                <textarea @bind="model.DeliveryAddress" class="form-control" rows="2" placeholder="Delivery details..."></textarea>
-            </div>
-        </div>
-    </div>
+            <div class="card-body p-4 p-lg-5">
+                @if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <div class="alert alert-danger border-0 shadow-sm py-3 px-4 mb-4" style="font-size: 0.9rem; border-radius: 12px;">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i> @errorMessage
+                    </div>
+                }
 
-    <div class="items-section mt-4">
-        <h5>Order Items</h5>
-        <div class="table-responsive">
-            <table class="table table-bordered align-middle">
-                <thead class="table-light">
-                    <tr>
-                        <th style="width: 200px;">Item Group</th>
-                        <th style="width: 250px;">Item Name</th>
-                        <th style="width: 150px;">Description</th>
-                        <th style="width: 80px;">UOM</th>
-                        <th style="width: 100px;">Qty</th>
-                        <th style="width: 120px;">Unit Price</th>
-                        <th style="width: 100px;">GST %</th>
-                        <th style="width: 120px;">Total</th>
-                        <th style="width: 40px;"></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var item in model.Items)
-                    {
-                        <tr>
-                            <td>
-                                <select @onchange="(e) => OnItemGroupChanged(item, e)" class="form-select form-select-sm" value="@item.PurchaseItemGroupId">
+                <div class="modern-input-row">
+                    <div class="row g-3">
+                        <div class="col-lg-3 col-md-6">
+                            <label class="form-label-modern">PO Date <span class="text-danger">*</span></label>
+                            <input type="date" @bind="model.PODate" class="form-control-modern" />
+                        </div>
+                        <div class="col-lg-3 col-md-6">
+                            <label class="form-label-modern">Vendor <span class="text-danger">*</span></label>
+                            <AbraqAccount.Components.Common.AccountSearch 
+                                Placeholder="Search Vendor" 
+                                SearchFunc="POService.GetVendorsAsync"
+                                OnAccountSelected="OnVendorSelected"
+                                InitialValue="@model.Vendor?.AccountName"
+                                CssClass="form-control-modern" />
+                        </div>
+                        <div class="col-lg-3 col-md-6">
+                            <label class="form-label-modern">PO Type <span class="text-danger">*</span></label>
+                            <select @bind="model.POType" class="form-control-modern">
+                                <option value="">SELECT</option>
+                                <option value="Regular">Regular</option>
+                                <option value="Urgent">Urgent</option>
+                            </select>
+                        </div>
+                        <div class="col-lg-3 col-md-6">
+                            <label class="form-label-modern">Purchase Status <span class="text-danger">*</span></label>
+                            <select @bind="model.PurchaseStatus" class="form-control-modern">
+                                <option value="Purchase Pending">Purchase Pending</option>
+                                <option value="Purchase Received">Purchase Received</option>
+                            </select>
+                        </div>
+
+                        <div class="col-lg-3 col-md-6">
+                            <label class="form-label-modern">Inventory/Purchase Ledger <span class="text-danger">*</span></label>
+                            <AbraqAccount.Components.Common.AccountSearch 
+                                Placeholder="Search Ledger" 
+                                SearchFunc="@((string s) => POService.GetExpenseLedgersAsync(null, s))" 
+                                OnAccountSelected="OnLedgerSelected"
+                                InitialValue="@model.ExpenseLedger?.Name"
+                                CssClass="form-control-modern" />
+                        </div>
+                        <div class="col-lg-3 col-md-6">
+                            <label class="form-label-modern">Expected Recv. Date <span class="text-danger">*</span></label>
+                            <input type="date" @bind="model.ExpectedReceivedDate" class="form-control-modern" />
+                        </div>
+                        <div class="col-lg-3 col-md-6">
+                            <label class="form-label-modern">Vendor Reference</label>
+                            <input type="text" @bind="model.VendorReference" class="form-control-modern" placeholder="Ref/Bill No" />
+                        </div>
+                        
+                        <div class="col-lg-6 col-md-12">
+                             <label class="form-label-modern">Billing To <span class="text-danger">*</span></label>
+                             <input type="text" @bind="model.BillingTo" class="form-control-modern" placeholder="Billing details..." />
+                        </div>
+                        <div class="col-12 mt-1">
+                            <label class="form-label-modern">Delivery Address <span class="text-danger">*</span></label>
+                            <textarea @bind="model.DeliveryAddress" class="form-control-modern" rows="2" placeholder="Delivery details..."></textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Items Section -->
+        <div class="card shadow-sm border-0 mb-3 modern-card">
+            <div class="card-header modern-header py-2 px-3 d-flex justify-content-between align-items-center">
+                <h6 class="mb-0 fw-bold">Items</h6>
+            </div>
+            <div class="card-body p-3">
+                @if (!IsReadOnly)
+                {
+                    <div class="modern-input-row mb-3">
+                        <div class="row g-2">
+                            <div class="col-lg-3 col-md-6">
+                                <label class="form-label-modern">Item Group <span class="text-danger">*</span></label>
+                                <select @onchange="OnNewItemGroupChanged" class="form-control-modern" value="@newItem.PurchaseItemGroupId">
                                     <option value="0">Select Group</option>
                                     @if (itemGroups != null)
                                     {
@@ -116,211 +127,495 @@
                                         }
                                     }
                                 </select>
-                            </td>
-                            <td class="position-static">
+                            </div>
+                            <div class="col-lg-3 col-md-6">
+                                <label class="form-label-modern">Item Name <span class="text-danger">*</span></label>
                                 <AbraqAccount.Components.Common.AccountSearch 
-                                    Placeholder="Search Item..." 
-                                    SearchFunc="(term) => POService.GetItemsByGroupAsync(item.PurchaseItemGroupId)"
-                                    OnAccountSelected="(acc) => OnItemNameSelected(item, acc)"
-                                    InitialValue="@item.PurchaseItem?.ItemName" />
-                            </td>
-                            <td><input type="text" @bind="item.ItemDescription" class="form-control form-control-sm" /></td>
-                            <td><input type="text" @bind="item.UOM" class="form-control form-control-sm" disabled /></td>
-                            <td><input type="number" step="1" value="@item.Qty" @oninput="(e) => UpdateItem(item, e, 'Q')" class="form-control form-control-sm text-end" /></td>
-                            <td><input type="number" step="0.01" value="@item.UnitPrice" @oninput="(e) => UpdateItem(item, e, 'P')" class="form-control form-control-sm text-end" /></td>
-                            <td>
-                                <select value="@item.GST" @onchange='(e) => { item.GST = e.Value?.ToString() ?? "NA"; RecalculateTotals(); }' class="form-select form-select-sm">
+                                    Placeholder="Item" 
+                                    SearchFunc="@((s) => POService.GetItemsByGroupAsync(newItem.PurchaseItemGroupId))"
+                                    OnAccountSelected="OnNewItemNameSelected"
+                                    InitialValue="@newItem.PurchaseItem?.ItemName"
+                                    CssClass="form-control-modern" />
+                            </div>
+                            <div class="col-lg-4 col-md-8">
+                                <label class="form-label-modern">Description</label>
+                                <input type="text" @bind="newItem.ItemDescription" class="form-control-modern" placeholder="Description" />
+                            </div>
+                            <div class="col-lg-2 col-md-4">
+                                <label class="form-label-modern">UOM</label>
+                                <input type="text" @bind="newItem.UOM" class="form-control-modern bg-light" readonly />
+                            </div>
+
+                            <div class="col-lg-2 col-md-2 col-4">
+                                <label class="form-label-modern">Qty</label>
+                                <input type="number" @bind="newItem.Qty" @oninput="(e) => UpdateNewItem(e, 'Q')" class="form-control-modern text-end" />
+                            </div>
+                            <div class="col-lg-2 col-md-3 col-4">
+                                <label class="form-label-modern">Unit Price</label>
+                                <input type="number" @bind="newItem.UnitPrice" @oninput="(e) => UpdateNewItem(e, 'P')" class="form-control-modern text-end" />
+                            </div>
+                            <div class="col-lg-2 col-md-3 col-4">
+                                <label class="form-label-modern">Amount</label>
+                                <input type="number" @bind="newItem.Amount" class="form-control-modern text-end bg-light" readonly />
+                            </div>
+                            <div class="col-lg-2 col-md-2 col-4">
+                                <label class="form-label-modern">GST %</label>
+                                <select value="@newItem.GST" @onchange='@((e) => { newItem.GST = e.Value?.ToString() ?? "NA"; UpdateNewItemCalculations(); })' class="form-control-modern p-1">
                                     <option value="NA">NA</option>
                                     <option value="5%">5%</option>
                                     <option value="12%">12%</option>
                                     <option value="18%">18%</option>
                                     <option value="28%">28%</option>
                                 </select>
-                            </td>
-                            <td class="text-end fw-bold">@item.TotalAmount.ToString("N2")</td>
-                            <td>
-                                <button class="btn btn-outline-danger btn-sm p-0 px-1" @onclick="() => RemoveItem(item)">
-                                    <i class="bi bi-dash"></i>
-                                </button>
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
-        <button class="btn btn-outline-primary btn-sm" @onclick="AddItem">
-            <i class="bi bi-plus"></i> Add Item
-        </button>
-    </div>
+                            </div>
+                            <div class="col-lg-2 col-md-3 col-4">
+                                <label class="form-label-modern">GST Amt</label>
+                                <input type="number" @bind="newItem.GSTAmount" class="form-control-modern text-end bg-light" readonly />
+                            </div>
+                            <div class="col-lg-2 col-md-4 col-12 d-flex align-items-end gap-1">
+                                <button class="btn btn-modern-add w-100" @onclick="AddNewItemRow"><i class="bi bi-plus-lg"></i> Add</button>
+                                <button class="btn btn-modern-cancel w-100" @onclick="ClearNewItem">Clear</button>
+                            </div>
+                        </div>
+                    </div>
+                }
 
-    <div class="misc-section mt-4">
-        <h5>Misc Charges</h5>
-        <div class="row g-3">
-            <div class="col-md-9">
                 <div class="table-responsive">
-                    <table class="table table-bordered align-middle">
-                        <thead class="table-light">
+                    <table class="table table-custom border">
+                        <thead>
                             <tr>
-                                <th>Charge Type</th>
-                                <th style="width: 150px;">Amount</th>
-                                <th style="width: 120px;">Tax %</th>
-                                <th style="width: 150px;">Total</th>
-                                <th style="width: 40px;"></th>
+                                <th>Item Group</th>
+                                <th>Item Name</th>
+                                <th class="text-end">Qty</th>
+                                <th class="text-end">Unit Price</th>
+                                <th class="text-end">Amount</th>
+                                <th class="text-end">Total Amount</th>
+                                @if (!IsReadOnly) { <th class="text-center">Action</th> }
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach (var charge in model.MiscCharges)
+                            @if (!model.Items.Any())
                             {
-                                <tr>
-                                    <td>
-                                        <select @bind="charge.ExpenseType" class="form-select form-select-sm">
-                                            <option value="">Select Type</option>
-                                            <option value="Discount">Discount</option>
-                                            <option value="Packing Charges">Packing Charges</option>
-                                            <option value="Freight Charges">Freight Charges</option>
-                                            <option value="Other Charges">Other Charges</option>
-                                        </select>
-                                    </td>
-                                    <td><input type="number" step="0.01" value="@charge.Amount" @oninput="(e) => UpdateCharge(charge, e, 'A')" class="form-control form-control-sm text-end" /></td>
-                                    <td>
-                                        <select value="@charge.Tax" @onchange='(e) => { charge.Tax = e.Value?.ToString() ?? "Select"; RecalculateTotals(); }' class="form-select form-select-sm">
-                                            <option value="Select">Select</option>
-                                            <option value="5%">5%</option>
-                                            <option value="12%">12%</option>
-                                            <option value="18%">18%</option>
-                                            <option value="28%">28%</option>
-                                        </select>
-                                    </td>
-                                    <td class="text-end fw-bold">@charge.TotalAmount.ToString("N2")</td>
-                                    <td>
-                                        <button class="btn btn-outline-danger btn-sm p-0 px-1" @onclick="() => model.MiscCharges.Remove(charge)">
-                                            <i class="bi bi-dash"></i>
-                                        </button>
-                                    </td>
-                                </tr>
+                                <tr><td colspan="@(IsReadOnly ? 6 : 7)" class="text-center py-4 text-danger fw-bold">No Items found!!</td></tr>
+                            }
+                            else
+                            {
+                                @foreach (var item in model.Items)
+                                {
+                                    <tr>
+                                        <td>@item.PurchaseItemGroup?.Name</td>
+                                        <td>@item.PurchaseItem?.ItemName</td>
+                                        <td class="text-end">@item.Qty</td>
+                                        <td class="text-end">@item.UnitPrice.ToString("N3")</td>
+                                        <td class="text-end">@item.Amount.ToString("N3")</td>
+                                        <td class="text-end">@item.TotalAmount.ToString("N3")</td>
+                                        @if (!IsReadOnly)
+                                        {
+                                            <td class="text-center">
+                                                <button class="btn btn-link text-danger p-0" title="Delete" @onclick="() => model.Items.Remove(item)">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </td>
+                                        }
+                                    </tr>
+                                }
                             }
                         </tbody>
                     </table>
                 </div>
-                <button class="btn btn-outline-primary btn-sm" @onclick="AddCharge">
-                    <i class="bi bi-plus"></i> Add Charge
-                </button>
-            </div>
-            <div class="col-md-3">
-                <div class="card bg-light">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between mb-2">
-                            <span>Qty:</span> <span class="fw-bold">@model.POQty.ToString("N0")</span>
-                        </div>
-                        <div class="d-flex justify-content-between mb-2">
-                            <span>Tax:</span> <span class="fw-bold">@model.TaxAmount.ToString("N2")</span>
-                        </div>
-                        <hr />
-                        <div class="d-flex justify-content-between h5 mb-0">
-                            <span>TOTAL:</span> <span class="text-primary fw-bold">@model.TotalAmount.ToString("N2")</span>
-                        </div>
-                    </div>
-                </div>
             </div>
         </div>
-    </div>
 
-    <div class="tc-section mt-4">
-        <h5>Terms & Conditions</h5>
-        <div class="row">
-            @if (availableTCs != null)
-            {
-                @foreach (var tc in availableTCs)
+        <!-- Misc Charges Section -->
+        <div class="card shadow-sm border-0 mb-3 modern-card">
+            <div class="card-header modern-header py-2 px-3">
+                <h6 class="mb-0 fw-bold">Miscellaneous Charges</h6>
+            </div>
+            <div class="card-body p-3">
+                @if (!IsReadOnly)
                 {
-                    <div class="col-md-4 mb-2">
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" 
-                                   checked="@IsTCSelected(tc.Id)"
-                                   @onchange="(e) => ToggleTC(tc.Id, e)" 
-                                   id="tc_@tc.Id">
-                            <label class="form-check-label" for="tc_@tc.Id">@tc.Name</label>
+                    <div class="modern-input-row mb-3">
+                        <div class="row g-2">
+                            <div class="col-lg-4 col-md-6">
+                                <label class="form-label-modern">Expense Type <span class="text-danger">*</span></label>
+                                <select @bind="newMisc.ExpenseType" class="form-control-modern">
+                                    <option value="">Select Type</option>
+                                    <option value="Discount">Discount</option>
+                                    <option value="Packing Charges">Packing Charges</option>
+                                    <option value="Freight Charges">Freight Charges</option>
+                                    <option value="Other Charges">Other Charges</option>
+                                </select>
+                            </div>
+                            <div class="col-lg-3 col-md-3 col-6">
+                                <label class="form-label-modern">Amount <span class="text-danger">*</span></label>
+                                <input type="number" @bind="newMisc.Amount" @oninput="(e) => UpdateNewMisc(e, 'A')" class="form-control-modern text-end" />
+                            </div>
+                            <div class="col-lg-2 col-md-3 col-6">
+                                <label class="form-label-modern">Tax(%)</label>
+                                <select value="@newMisc.Tax" @onchange='@((e) => { newMisc.Tax = e.Value?.ToString() ?? "Select"; UpdateNewMiscCalculations(); })' class="form-control-modern">
+                                    <option value="Select">Select</option>
+                                    <option value="5%">5%</option>
+                                    <option value="12%">12%</option>
+                                    <option value="18%">18%</option>
+                                    <option value="28%">28%</option>
+                                </select>
+                            </div>
+                            <div class="col-lg-3 col-md-12 d-flex align-items-end gap-1">
+                                <button class="btn btn-modern-add w-100" @onclick="AddNewMiscRow"><i class="bi bi-plus-lg"></i> Add</button>
+                                <button class="btn btn-modern-cancel w-100" @onclick="ClearNewMisc">Clear</button>
+                            </div>
                         </div>
                     </div>
                 }
-            }
+
+                <div class="table-responsive">
+                    <table class="table table-custom border">
+                        <thead>
+                            <tr>
+                                <th>Expense Type</th>
+                                <th class="text-end">Amount</th>
+                                <th class="text-center">GST(%)</th>
+                                <th class="text-end">GST Amount</th>
+                                <th class="text-end">Total Amount</th>
+                                @if (!IsReadOnly) { <th class="text-center">Action</th> }
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (!model.MiscCharges.Any())
+                            {
+                                <tr><td colspan="@(IsReadOnly ? 5 : 6)" class="text-center py-4 text-danger fw-bold">No Miscellaneous Charges found!!</td></tr>
+                            }
+                            else
+                            {
+                                @foreach (var m in model.MiscCharges)
+                                {
+                                    <tr>
+                                        <td>@m.ExpenseType</td>
+                                        <td class="text-end">@m.Amount.ToString("N3")</td>
+                                        <td class="text-center">@m.Tax</td>
+                                        <td class="text-end">@m.GSTAmount.ToString("N3")</td>
+                                        <td class="text-end">@m.TotalAmount.ToString("N3")</td>
+                                        @if (!IsReadOnly)
+                                        {
+                                            <td class="text-center">
+                                                <button class="btn btn-link text-danger p-0" title="Delete" @onclick="() => model.MiscCharges.Remove(m)">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </td>
+                                        }
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Terms & Conditions Section -->
+        <div class="card shadow-sm border-0 mb-3 modern-card">
+            <div class="card-header modern-header py-2 px-3">
+                <h6 class="mb-0 fw-bold">Terms & Conditions</h6>
+            </div>
+            <div class="card-body p-3">
+                <div class="row">
+                    @if (availableTCs != null)
+                    {
+                        @foreach (var tc in availableTCs)
+                        {
+                            <div class="col-md-4 mb-2">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" 
+                                           checked="@IsTCSelected(tc.Id)"
+                                           @onchange="(e) => ToggleTC(tc.Id, e)" 
+                                           id="tc_@tc.Id"
+                                           disabled="@IsReadOnly">
+                                    <label class="form-check-label" for="tc_@tc.Id" style="font-size: 0.85rem;">@tc.Name</label>
+                                </div>
+                            </div>
+                        }
+                    }
+                </div>
+            </div>
+        </div>
+    </fieldset>
+
+    <!-- Sticky Totals Footer -->
+    <div class="sticky-footer shadow">
+        <div class="row align-items-center g-3">
+            <div class="col-lg-3 col-md-6">
+                <div class="total-box">
+                    <span class="label">Tax Amount</span>
+                    <span class="value">@model.TaxAmount.ToString("N3")</span>
+                </div>
+            </div>
+            <div class="col-lg-2 col-md-6">
+                 <div class="total-box">
+                    <span class="label">Total Qty</span>
+                    <span class="value">@model.POQty.ToString("N0")</span>
+                </div>
+            </div>
+            <div class="col-lg-3 col-md-6">
+                 <div class="total-box net-total">
+                    <span class="label">Total Amount</span>
+                    <span class="value">@model.TotalAmount.ToString("N3")</span>
+                </div>
+            </div>
+            <div class="col-lg-4 col-md-6 d-flex justify-content-end gap-2">
+                @if (!IsReadOnly)
+                {
+                    <button class="btn btn-modern-save px-4" @onclick="SubmitForm" disabled="@isSubmitting">
+                        @if (isSubmitting) { <span class="spinner-border spinner-border-sm me-2"></span> }
+                        <i class="bi bi-check-circle me-1"></i> Save Entry
+                    </button>
+                }
+                <button class="btn btn-modern-back px-4" @onclick="Cancel">
+                    <i class="bi @(IsReadOnly ? "bi-arrow-left" : "bi-x-circle") me-1"></i>
+                    @(IsReadOnly ? "Back to List" : "Cancel")
+                </button>
+            </div>
         </div>
     </div>
 </div>
 
 <style>
-    .form-card { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.05); }
-    .form-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; padding-bottom: 1rem; border-bottom: 1px solid #eee; }
+    .expense-entry-container { padding: 0 2rem 120px 2rem; background: #f8fafc; font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+    
+    .expense-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+        padding: 1.5rem 2rem;
+        background-color: white;
+        margin: -2rem -2rem 1.5rem -2rem;
+        border-bottom: 1px solid #e0e0e0;
+    }
+
+    .expense-title-section h1 { font-size: 2rem; font-weight: bold; margin: 0; color: #333; }
+    .breadcrumbs-top { font-size: 0.9rem; color: #666; margin-right: 1rem; }
+    .breadcrumbs-top span { margin: 0 0.5rem; color: #999; }
+
+    .header-actions { display: flex; gap: 0.5rem; align-items: center; }
+
+    .btn-save-custom { 
+        background-color: #6c757d; color: white; border: none; border-radius: 4px; padding: 0.5rem 1.5rem;
+        font-weight: 500; font-size: 0.9rem; transition: background-color 0.2s;
+    }
+    .btn-save-custom:hover { background-color: #5a6268; }
+
+    .btn-back-custom:hover { background-color: #dee2e6; color: #212529; }
+    
+    .btn-print-custom {
+        background-color: #0d6efd; color: white; border: none; border-radius: 4px; padding: 0.5rem 1rem;
+        font-weight: 500; font-size: 0.9rem; transition: background-color 0.2s;
+    }
+    .btn-print-custom:hover { background-color: #0b5ed7; }
+
+    .modern-card { border-radius: 8px; border: 1px solid #e0e0e0; background: #ffffff; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    .modern-header { background: #fcfdfe; border-bottom: 1px solid #e0e0e0; padding: 10px 15px; }
+    .modern-header h5, .modern-header h6 { color: #333; font-weight: 600; font-size: 0.95rem; margin-bottom: 0; }
+
+    .form-label-modern { display: block; font-size: 0.7rem; font-weight: 800; color: #666; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .form-control-modern { border: 1px solid #ddd; border-radius: 4px; padding: 8px 12px; font-size: 0.875rem; width: 100%; transition: all 0.2s; background-color: #fcfdfe; }
+    .form-control-modern:focus { border-color: #6c757d; outline: none; background-color: #fff; box-shadow: 0 0 0 3px rgba(108, 117, 125, 0.1); }
+    .form-control-modern[readonly] { background-color: #f1f5f9; cursor: not-allowed; color: #666; }
+
+    .modern-input-row { background: #f8fafc; padding: 12px; border: 1px solid #e0e0e0; border-radius: 6px; }
+
+    .table-custom thead th { background: #f8fafc; color: #333; font-size: 0.7rem; text-transform: uppercase; font-weight: 700; padding: 12px; border-bottom: 2px solid #dee2e6; }
+    .table-custom tbody td { padding: 10px; font-size: 0.8rem; vertical-align: middle; color: #444; border-bottom: 1px solid #eee; }
+    .table-custom tbody tr:hover { background-color: #f8fafc; }
+
+    .sticky-footer { position: fixed; bottom: 0; left: var(--sidebar-width); right: 0; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(8px); padding: 12px 30px; border-top: 1px solid #dee2e6; z-index: 900; box-shadow: 0 -2px 10px rgba(0,0,0,0.05); }
+    /* Mobile adjustment */
+    @@media (max-width: 991.98px) { .sticky-footer { left: 0; } }
+
+    .total-box { display: flex; flex-direction: column; background: #fff; padding: 8px 15px; border: 1px solid #ddd; border-radius: 6px; }
+    .total-box .label { font-size: 0.6rem; font-weight: 800; color: #666; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px; }
+    .total-box .value { font-size: 1.1rem; font-weight: 700; color: #333; }
+    
+    .net-total { background: #f8f9fa; border-color: #dee2e6; }
+
+    .btn-modern-add { background: #28a745; color: white; border: none; border-radius: 4px; font-weight: 600; font-size: 0.875rem; transition: all 0.2s; padding: 8px; }
+    .btn-modern-add:hover { background: #218838; }
+    .btn-modern-cancel { background: #fff; color: #6c757d; border: 1px solid #ddd; border-radius: 4px; font-weight: 600; font-size: 0.875rem; padding: 8px; }
+    
+    .btn-modern-save { background: #6c757d; color: white; border: none; border-radius: 4px; font-weight: 600; font-size: 0.95rem; }
+    .btn-modern-back { background: #fff; color: #6c757d; border: 1px solid #ddd; border-radius: 4px; font-weight: 600; font-size: 0.95rem; }
+
+    @@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .modern-card { animation: fadeIn 0.5s ease-out; }
 </style>
 
 @code {
     [Parameter] public int? Id { get; set; }
-    private PurchaseOrder model = new() { PODate = DateTime.Now, ExpectedReceivedDate = DateTime.Now.AddDays(7) };
+    [Parameter] public bool IsReadOnly { get; set; }
+    private PurchaseOrder model = new() { PODate = DateTime.Now, ExpectedReceivedDate = DateTime.Now.AddDays(7), Status = "UnApproved", PurchaseStatus = "Purchase Pending" };
+    
+    private PurchaseOrderItem newItem = new() { CreatedAt = DateTime.Now, GST = "NA" };
+    private PurchaseOrderMiscCharge newMisc = new() { CreatedAt = DateTime.Now, Tax = "Select" };
+    
     private List<LookupItem>? itemGroups;
     private List<LookupItem>? availableTCs;
+    
     private bool IsEdit => Id.HasValue;
     private bool isSubmitting;
     private string? errorMessage;
+    private string currentUser = "";
 
     protected override async Task OnInitializedAsync()
     {
-        itemGroups = (await POService.GetItemGroupsAsync()).ToList();
-        availableTCs = (await POService.GetTermsConditionsAsync()).ToList();
+        try
+        {
+            try
+            {
+                var session = _httpContextAccessor.HttpContext?.Session;
+                if (session != null)
+                {
+                    currentUser = session.GetString("Username") ?? "";
+                }
+            }
+            catch { }
 
-        if (IsEdit)
-        {
-            // Load logic here (not implemented in service yet, but assuming basic fetch)
-            // For now, I'll just focus on Create parity.
+            itemGroups = (await POService.GetItemGroupsAsync()).ToList();
+            availableTCs = (await POService.GetTermsConditionsAsync()).ToList();
+
+            if (IsEdit)
+            {
+                var po = await POService.GetPurchaseOrderByIdAsync(Id!.Value);
+                if (po != null)
+                {
+                    model = po;
+                    // If Approved OR (Received and NOT Admin), set Read-Only
+                    if (model.Status == "Approved" || (model.PurchaseStatus == "Purchase Received" && currentUser != "Admin"))
+                    {
+                        IsReadOnly = true;
+                    }
+                }
+                else Navigation.NavigateTo("/inventory/purchase-orders");
+            }
         }
-        else
+        catch (Exception ex)
         {
-            AddItem();
+            errorMessage = $"Error initializing form: {ex.Message}";
         }
     }
 
-    private void AddItem() => model.Items.Add(new PurchaseOrderItem { CreatedAt = DateTime.Now, GST = "NA" });
-    private void RemoveItem(PurchaseOrderItem item) { model.Items.Remove(item); RecalculateTotals(); }
+    private void OnVendorSelected(LookupItem lookup)
+    {
+        model.VendorId = lookup.Id;
+        model.Vendor = new BankMaster { Id = lookup.Id, AccountName = lookup.Name };
+    }
 
-    private void AddCharge() => model.MiscCharges.Add(new PurchaseOrderMiscCharge { CreatedAt = DateTime.Now, Tax = "Select" });
+    private void OnLedgerSelected(LookupItem lookup)
+    {
+        model.ExpenseLedgerId = lookup.Id;
+        model.ExpenseLedger = new SubGroupLedger { Id = lookup.Id, Name = lookup.Name };
+        model.ExpenseGroupId = lookup.GroupId;
+        model.ExpenseSubGroupId = lookup.SubGroupId;
+    }
 
-    private void OnVendorSelected(LookupItem lookup) { model.VendorId = lookup.Id; model.Vendor = new Vendor { Id = lookup.Id, VendorName = lookup.Name }; }
-
-    private void OnItemGroupChanged(PurchaseOrderItem item, ChangeEventArgs e)
+    // New Item logic
+    private void OnNewItemGroupChanged(ChangeEventArgs e)
     {
         if (int.TryParse(e.Value?.ToString(), out int groupId))
         {
-            item.PurchaseItemGroupId = groupId;
-            item.PurchaseItem = null;
-            item.PurchaseItemId = 0;
-            item.UOM = "";
+            newItem.PurchaseItemGroupId = groupId;
+            newItem.PurchaseItemGroup = itemGroups?.FirstOrDefault(g => g.Id == groupId) != null ? new PurchaseItemGroup { Id = groupId, Name = itemGroups.First(g => g.Id == groupId).Name } : null;
+            newItem.PurchaseItem = null;
+            newItem.PurchaseItemId = 0;
+            newItem.UOM = "";
         }
     }
 
-    private void OnItemNameSelected(PurchaseOrderItem item, LookupItem lookup)
+    private void OnNewItemNameSelected(LookupItem lookup)
     {
-        item.PurchaseItemId = lookup.Id;
-        item.PurchaseItem = new PurchaseItem { Id = lookup.Id, ItemName = lookup.Name };
-        item.UOM = lookup.UOM ?? "";
-        item.UnitPrice = lookup.Rate ?? 0;
+        newItem.PurchaseItemId = lookup.Id;
+        newItem.PurchaseItem = new PurchaseItem { Id = lookup.Id, ItemName = lookup.Name };
+        newItem.UOM = lookup.UOM ?? "";
+        newItem.UnitPrice = lookup.Rate ?? 0;
+        UpdateNewItemCalculations();
+    }
+
+    private void UpdateNewItem(ChangeEventArgs e, char field)
+    {
+        if (decimal.TryParse(e.Value?.ToString(), out decimal val))
+        {
+            if (field == 'Q') newItem.Qty = val;
+            else if (field == 'P') newItem.UnitPrice = val;
+            UpdateNewItemCalculations();
+        }
+    }
+
+    private void UpdateNewItemCalculations()
+    {
+        newItem.Amount = newItem.Qty * newItem.UnitPrice;
+        newItem.TotalAmount = newItem.Amount - newItem.Discount;
+        newItem.GSTAmount = CalculateTax(newItem.TotalAmount, newItem.GST);
+        newItem.TotalAmount += newItem.GSTAmount;
+    }
+
+    private void AddNewItemRow()
+    {
+        if (newItem.PurchaseItemId == 0 || newItem.Qty <= 0)
+        {
+            errorMessage = "Please select an item and enter quantity.";
+            return;
+        }
+        model.Items.Add(newItem);
+        ClearNewItem();
+        errorMessage = null;
         RecalculateTotals();
     }
 
-    private void UpdateItem(PurchaseOrderItem item, ChangeEventArgs e, char field)
+    private void ClearNewItem()
+    {
+        newItem = new PurchaseOrderItem { CreatedAt = DateTime.Now, GST = "NA" };
+    }
+
+    // New Misc Charge logic
+    private void UpdateNewMisc(ChangeEventArgs e, char field)
     {
         if (decimal.TryParse(e.Value?.ToString(), out decimal val))
         {
-            if (field == 'Q') item.Qty = val;
-            else if (field == 'P') item.UnitPrice = val;
-            RecalculateTotals();
+            if (field == 'A') newMisc.Amount = val;
+            UpdateNewMiscCalculations();
         }
     }
 
-    private void UpdateCharge(PurchaseOrderMiscCharge charge, ChangeEventArgs e, char field)
+    private void UpdateNewMiscCalculations()
     {
-        if (decimal.TryParse(e.Value?.ToString(), out decimal val))
+        newMisc.GSTAmount = CalculateTax(newMisc.Amount, newMisc.Tax);
+        newMisc.TotalAmount = newMisc.Amount + newMisc.GSTAmount;
+    }
+
+    private void AddNewMiscRow()
+    {
+        if (string.IsNullOrEmpty(newMisc.ExpenseType) || newMisc.Amount <= 0)
         {
-            if (field == 'A') charge.Amount = val;
-            RecalculateTotals();
+            errorMessage = "Please select charge type and enter amount.";
+            return;
         }
+        model.MiscCharges.Add(newMisc);
+        ClearNewMisc();
+        errorMessage = null;
+        RecalculateTotals();
+    }
+
+    private void ClearNewMisc()
+    {
+        newMisc = new PurchaseOrderMiscCharge { CreatedAt = DateTime.Now, Tax = "Select" };
+    }
+
+    private decimal CalculateTax(decimal amount, string gst)
+    {
+        if (string.IsNullOrEmpty(gst) || gst == "NA" || gst == "Select") return 0;
+        if (decimal.TryParse(gst.Replace("%", ""), out decimal rate))
+        {
+            return amount * (rate / 100);
+        }
+        return 0;
     }
 
     private bool IsTCSelected(int tcId) => model.TermsAndConditions.Any(t => t.PurchaseOrderTCId == tcId);
@@ -330,7 +625,7 @@
         bool isChecked = (bool)(e.Value ?? false);
         if (isChecked)
         {
-            if (!IsTCSelected(tcId)) model.TermsAndConditions.Add(new PurchaseOrderTermsCondition { PurchaseOrderTCId = tcId });
+            if (!IsTCSelected(tcId)) model.TermsAndConditions.Add(new PurchaseOrderTermsCondition { PurchaseOrderTCId = tcId, CreatedAt = DateTime.Now });
         }
         else
         {
@@ -340,34 +635,11 @@
 
     private void RecalculateTotals()
     {
-        foreach (var item in model.Items)
-        {
-            item.Amount = item.Qty * item.UnitPrice;
-            item.TotalAmount = item.Amount - item.Discount;
-            item.GSTAmount = 0;
-            if (item.GST != "NA")
-            {
-                if (decimal.TryParse(item.GST.Replace("%", ""), out decimal p))
-                    item.GSTAmount = item.TotalAmount * (p / 100);
-            }
-            item.TotalAmount += item.GSTAmount;
-        }
-
-        foreach (var charge in model.MiscCharges)
-        {
-            charge.GSTAmount = 0;
-            if (charge.Tax != "Select")
-            {
-                if (decimal.TryParse(charge.Tax.Replace("%", ""), out decimal p))
-                    charge.GSTAmount = charge.Amount * (p / 100);
-            }
-            charge.TotalAmount = charge.Amount + charge.GSTAmount;
-        }
-
         model.POQty = model.Items.Sum(i => i.Qty);
         model.Amount = model.Items.Sum(i => i.Amount);
         model.TaxAmount = model.Items.Sum(i => i.GSTAmount) + model.MiscCharges.Sum(m => m.GSTAmount);
         model.TotalAmount = model.Items.Sum(i => i.TotalAmount) + model.MiscCharges.Sum(m => m.TotalAmount);
+        StateHasChanged();
     }
 
     private async Task SubmitForm()
@@ -381,12 +653,29 @@
         isSubmitting = true;
         errorMessage = null;
 
-        // Custom implementation in service for Blazor object
-        var result = await (IsEdit ? Task.FromResult((Success: false, Message: "Edit not implemented")) : POService.CreatePurchaseOrderAsync(model));
+        try
+        {
+            var result = IsEdit 
+                ? await POService.UpdatePurchaseOrderAsync(Id!.Value, model)
+                : await POService.CreatePurchaseOrderAsync(model);
 
-        if (result.Item1) Navigation.NavigateTo("/inventory/purchase-orders");
-        else errorMessage = result.Item2;
-        
+            if (result.success)
+            {
+                NotificationService.ShowSuccess(result.message);
+                Navigation.NavigateTo("/inventory/purchase-orders");
+            }
+            else
+            {
+                errorMessage = result.message;
+                NotificationService.ShowError(errorMessage);
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+            NotificationService.ShowError(errorMessage);
+        }
+
         isSubmitting = false;
     }
 

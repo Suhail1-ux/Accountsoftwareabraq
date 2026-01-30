@@ -4,6 +4,7 @@ using AbraqAccount.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace AbraqAccount.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260127140248_AddVendorToPurchaseItem")]
+    partial class AddVendorToPurchaseItem
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -2002,15 +2005,6 @@ namespace AbraqAccount.Migrations
                         .HasColumnType("datetime2")
                         .HasColumnName("ExpectedReceivedDate");
 
-                    b.Property<int?>("ExpenseGroupId")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("ExpenseLedgerId")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("ExpenseSubGroupId")
-                        .HasColumnType("int");
-
                     b.Property<DateTime>("PODate")
                         .HasColumnType("datetime2")
                         .HasColumnName("PODate");
@@ -2030,14 +2024,6 @@ namespace AbraqAccount.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)")
                         .HasColumnName("POType");
-
-                    b.Property<string>("PurchaseStatus")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)")
-                        .HasDefaultValue("Purchase Pending")
-                        .HasColumnName("PurchaseStatus");
 
                     b.Property<string>("Remarks")
                         .HasColumnType("NVARCHAR(MAX)")
@@ -2069,8 +2055,6 @@ namespace AbraqAccount.Migrations
                         .HasColumnName("VendorReference");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("ExpenseLedgerId");
 
                     b.HasIndex("VendorId");
 
@@ -2551,9 +2535,6 @@ namespace AbraqAccount.Migrations
                         .HasDefaultValue("Pending")
                         .HasColumnName("Status");
 
-                    b.Property<string>("TermsAndConditions")
-                        .HasColumnType("nvarchar(max)");
-
                     b.HasKey("Id");
 
                     b.HasIndex("AssignedToId");
@@ -2910,9 +2891,6 @@ namespace AbraqAccount.Migrations
                         .HasColumnType("bit")
                         .HasDefaultValue(true);
 
-                    b.Property<bool>("IsApproved")
-                        .HasColumnType("bit");
-
                     b.Property<bool>("IsInventory")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bit")
@@ -3060,52 +3038,6 @@ namespace AbraqAccount.Migrations
                         .IsUnique();
 
                     b.ToTable("UserPermissions", (string)null);
-                });
-
-            modelBuilder.Entity("AbraqAccount.Models.VehInfo", b =>
-                {
-                    b.Property<int>("Vid")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasColumnName("vid");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Vid"));
-
-                    b.Property<string>("ContactNo")
-                        .HasColumnType("nvarchar(max)")
-                        .HasColumnName("contactno");
-
-                    b.Property<DateTime?>("CreatedDate")
-                        .HasColumnType("datetime2")
-                        .HasColumnName("createddate");
-
-                    b.Property<string>("DriverName")
-                        .HasColumnType("nvarchar(max)")
-                        .HasColumnName("drivername");
-
-                    b.Property<int?>("FlagDeleted")
-                        .HasColumnType("int")
-                        .HasColumnName("flagdeleted");
-
-                    b.Property<bool?>("Status")
-                        .HasColumnType("bit")
-                        .HasColumnName("status");
-
-                    b.Property<int?>("UserId")
-                        .HasColumnType("int")
-                        .HasColumnName("userid");
-
-                    b.Property<string>("VehNo")
-                        .HasColumnType("nvarchar(max)")
-                        .HasColumnName("vehno");
-
-                    b.Property<string>("VehType")
-                        .HasColumnType("nvarchar(max)")
-                        .HasColumnName("vehtype");
-
-                    b.HasKey("Vid");
-
-                    b.ToTable("vehinfo");
                 });
 
             modelBuilder.Entity("AbraqAccount.Models.Vendor", b =>
@@ -3441,7 +3373,7 @@ namespace AbraqAccount.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("AbraqAccount.Models.BankMaster", "Vendor")
+                    b.HasOne("AbraqAccount.Models.Vendor", "Vendor")
                         .WithMany()
                         .HasForeignKey("VendorId");
 
@@ -3474,17 +3406,11 @@ namespace AbraqAccount.Migrations
 
             modelBuilder.Entity("AbraqAccount.Models.PurchaseOrder", b =>
                 {
-                    b.HasOne("AbraqAccount.Models.SubGroupLedger", "ExpenseLedger")
-                        .WithMany()
-                        .HasForeignKey("ExpenseLedgerId");
-
-                    b.HasOne("AbraqAccount.Models.BankMaster", "Vendor")
+                    b.HasOne("AbraqAccount.Models.Vendor", "Vendor")
                         .WithMany()
                         .HasForeignKey("VendorId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
-
-                    b.Navigation("ExpenseLedger");
 
                     b.Navigation("Vendor");
                 });
@@ -3577,7 +3503,7 @@ namespace AbraqAccount.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("AbraqAccount.Models.BankMaster", "Vendor")
+                    b.HasOne("AbraqAccount.Models.Vendor", "Vendor")
                         .WithMany()
                         .HasForeignKey("VendorId")
                         .OnDelete(DeleteBehavior.Restrict)

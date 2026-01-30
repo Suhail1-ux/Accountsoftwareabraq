@@ -17,6 +17,10 @@ public class PurchaseOrder
     [Required]
     public int VendorId { get; set; }
     
+    public int? ExpenseGroupId { get; set; } // Expense Group (Master Group)
+    public int? ExpenseSubGroupId { get; set; } // Expense Sub Group (Master Sub Group)
+    public int? ExpenseLedgerId { get; set; } // Expense Ledger (Sub Group Ledger)
+    
     [Required]
     public DateTime ExpectedReceivedDate { get; set; }
     
@@ -40,10 +44,13 @@ public class PurchaseOrder
     
     public string Status { get; set; } = "UnApproved"; // UnApproved, Approved, etc.
     
+    public string PurchaseStatus { get; set; } = "Purchase Pending"; // Purchase Pending, Purchase Received
+    
     public DateTime CreatedAt { get; set; } = DateTime.Now;
     
     // Navigation properties
-    public Vendor? Vendor { get; set; }
+    public BankMaster? Vendor { get; set; }
+    public SubGroupLedger? ExpenseLedger { get; set; }
     public List<PurchaseOrderItem> Items { get; set; } = new List<PurchaseOrderItem>();
     public List<PurchaseOrderMiscCharge> MiscCharges { get; set; } = new List<PurchaseOrderMiscCharge>();
     public List<PurchaseOrderTermsCondition> TermsAndConditions { get; set; } = new List<PurchaseOrderTermsCondition>();

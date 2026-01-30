@@ -1,0 +1,160 @@
+@page "/inventory/purchase-requests/print/{Id:int}"
+@using AbraqAccount.Models
+@using AbraqAccount.Services.Interfaces
+@inject IPurchaseTransactionService TransactionService
+@inject NavigationManager Navigation
+@layout EmptyLayout
+
+<div class="print-container">
+    @if (model == null)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p>Loading document...</p>
+        </div>
+    }
+    else
+    {
+        <div class="print-header">
+            <div class="company-info">
+                <h2>ABRAQ AGRO FRESH LLP</h2>
+                <p>Industrial Estate, Shopian, J&K</p>
+                <p>Email: info@abraqagro.com | Phone: +91-XXXXXXXXXX</p>
+            </div>
+            <div class="document-title">
+                <h1>PURCHASE REQUEST</h1>
+                <div class="doc-meta">
+                    <p><strong>PR No:</strong> @model.PORequestNo</p>
+                    <p><strong>Date:</strong> @model.RequestDate.ToString("dd-MM-yyyy")</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="request-info mt-4">
+            <div class="row">
+                <div class="col-6">
+                    <p><strong>Requested By:</strong> @model.RequestedBy?.Username</p>
+                    <p><strong>Request Type:</strong> @model.RequestType</p>
+                </div>
+                <div class="col-6">
+                    <p><strong>Assign To:</strong> @model.AssignedTo?.Username</p>
+                    <p><strong>Status:</strong> @model.Status</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="items-table mt-4">
+            <table class="table table-bordered">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Item Name</th>
+                        <th>Description</th>
+                        <th>UOM</th>
+                        <th class="text-end">Qty</th>
+                        <th>Use of Item</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @for (int i = 0; i < model.Items.Count; i++)
+                    {
+                        var item = model.Items[i];
+                        <tr>
+                            <td>@(i + 1)</td>
+                            <td>@item.ItemName</td>
+                            <td>@item.ItemDescription</td>
+                            <td>@item.UOM</td>
+                            <td class="text-end">@item.Qty</td>
+                            <td>@item.UseOfItem</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        @if (!string.IsNullOrEmpty(model.Remarks))
+        {
+            <div class="remarks-section mt-4">
+                <h6>Remarks:</h6>
+                <p>@model.Remarks</p>
+            </div>
+        }
+
+        @if (!string.IsNullOrEmpty(model.TermsAndConditions))
+        {
+            <div class="tc-section mt-4">
+                <h6>Terms & Conditions:</h6>
+                <p style="white-space: pre-wrap;">@model.TermsAndConditions</p>
+            </div>
+        }
+
+        <div class="print-footer mt-5">
+            <div class="row">
+                <div class="col-4 text-center">
+                    <div class="signature-line"></div>
+                    <p>Requested By</p>
+                </div>
+                <div class="col-4 text-center">
+                    <div class="signature-line"></div>
+                    <p>Verified By</p>
+                </div>
+                <div class="col-4 text-center">
+                    <div class="signature-line"></div>
+                    <p>Authorized Signatory</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="no-print mt-5 text-center">
+            <button class="btn btn-primary px-5" @onclick="Print">Print Mode</button>
+            <button class="btn btn-secondary px-5" @onclick="GoBack">Back</button>
+        </div>
+    }
+</div>
+
+<style>
+    .print-container { max-width: 900px; margin: 0 auto; padding: 40px; background: white; }
+    .print-header { display: flex; justify-content: space-between; border-bottom: 2px solid #333; padding-bottom: 20px; }
+    .company-info h2 { margin: 0; color: #1a56db; font-weight: 800; }
+    .company-info p { margin: 2px 0; font-size: 0.9rem; color: #666; }
+    .document-title { text-align: right; }
+    .document-title h1 { margin: 0; font-size: 1.5rem; color: #333; font-weight: 700; }
+    .doc-meta { margin-top: 10px; font-size: 0.9rem; }
+    .doc-meta p { margin: 2px 0; }
+    
+    .request-info p { margin: 5px 0; }
+    
+    .items-table thead { background-color: #f8fafc; }
+    .items-table th { font-size: 0.85rem; text-transform: uppercase; }
+    .items-table td { font-size: 0.9rem; }
+    
+    .signature-line { border-top: 1px solid #333; margin: 50px 20px 10px 20px; }
+    
+    h6 { font-weight: 700; border-bottom: 1px solid #eee; padding-bottom: 5px; margin-bottom: 10px; }
+    p { font-size: 0.9rem; }
+
+    @@media print {
+        .no-print { display: none !important; }
+        .print-container { padding: 0; width: 100%; max-width: none; }
+        body { background: white; }
+    }
+</style>
+
+@inject IJSRuntime JSRuntime
+
+@code {
+    [Parameter] public int Id { get; set; }
+    private PurchaseRequest? model;
+
+    protected override async Task OnInitializedAsync()
+    {
+        model = await TransactionService.GetPurchaseRequestByIdAsync(Id);
+    }
+
+    private async Task Print()
+    {
+        await JSRuntime.InvokeVoidAsync("window.print");
+    }
+
+    private void GoBack() => Navigation.NavigateTo($"/inventory/purchase-requests/edit/{Id}");
+}

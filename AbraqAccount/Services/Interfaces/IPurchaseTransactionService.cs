@@ -12,6 +12,7 @@ public interface IPurchaseTransactionService
         string? status, DateTime? fromDate, DateTime? toDate, int page, int pageSize);
     Task<(bool success, string message)> CreatePurchaseRequestAsync(PurchaseRequest model, IFormCollection? form);
     Task<(bool success, string message)> CreatePurchaseRequestAsync(PurchaseRequest model);
+    Task<PurchaseRequest?> GetPurchaseRequestByIdAsync(int id);
     Task LoadRequestDropdownsAsync(dynamic viewBag);
     Task<IEnumerable<LookupItem>> GetUsersAsync(string? searchTerm);
 

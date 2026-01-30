@@ -1,0 +1,11 @@
+@page "/inventory/purchase-orders/view/{Id:int}"
+@using AbraqAccount.Components.Pages.Inventory.SubComponents
+@layout DashboardLayout
+
+<div class="p-0">
+    <PurchaseOrderForm Id="@Id" IsReadOnly="true" />
+</div>
+
+@code {
+    [Parameter] public int Id { get; set; }
+}

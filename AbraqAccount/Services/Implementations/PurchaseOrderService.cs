@@ -17,7 +17,7 @@ public class PurchaseOrderService : IPurchaseOrderService
     }
 
     public async Task<(List<PurchaseOrder> orders, int totalCount, int totalPages)> GetPurchaseOrdersAsync(
-        string? poNumber, string? vendorName, string? status, 
+        string? poNumber, string? vendorName, string? status, string? purchaseStatus,
         DateTime? fromDate, DateTime? toDate, int page, int pageSize)
     {
         var query = _context.PurchaseOrders
@@ -32,13 +32,17 @@ public class PurchaseOrderService : IPurchaseOrderService
         if (!string.IsNullOrEmpty(vendorName))
         {
             query = query.Where(p => 
-                (p.Vendor != null && p.Vendor.VendorName.Contains(vendorName)) ||
-                (p.Vendor != null && p.Vendor.VendorCode.Contains(vendorName)));
+                (p.Vendor != null && p.Vendor.AccountName.Contains(vendorName)));
         }
 
         if (!string.IsNullOrEmpty(status))
         {
             query = query.Where(p => p.Status == status);
+        }
+
+        if (!string.IsNullOrEmpty(purchaseStatus))
+        {
+            query = query.Where(p => p.PurchaseStatus == purchaseStatus);
         }
 
         if (fromDate.HasValue)
@@ -290,9 +294,21 @@ public class PurchaseOrderService : IPurchaseOrderService
         };
         viewBag.TaxOptions = new SelectList(taxOptions, "Value", "Text", "Select");
 
-        var vendors = await _context.Vendors
-            .Where(v => v.IsActive)
-            .Select(v => new { id = v.Id, name = $"{v.VendorName} ({v.VendorCode})" })
+        var vendors = await _context.BankMasters
+            .Include(b => b.Group)
+                .ThenInclude(g => g.MasterGroup)
+            .Include(b => b.Group)
+                .ThenInclude(g => g.MasterSubGroup)
+            .Where(b => b.IsActive && b.Group != null && (
+                b.Group.Name.Contains("Vendor") || 
+                b.Group.Name.Contains("Vender") || 
+                b.Group.Name.Contains("Creditor") || 
+                b.Group.Name.Contains("Supplier") || 
+                b.Group.Name.Contains("Sundry") ||
+                (b.Group.MasterSubGroup != null && (b.Group.MasterSubGroup.Name.Contains("Vendor") || b.Group.MasterSubGroup.Name.Contains("Vender") || b.Group.MasterSubGroup.Name.Contains("Creditor"))) ||
+                (b.Group.MasterGroup != null && (b.Group.MasterGroup.Name.Contains("Vendor") || b.Group.MasterGroup.Name.Contains("Vender") || b.Group.MasterGroup.Name.Contains("Creditor")))
+            ))
+            .Select(v => new { id = v.Id, name = v.AccountName })
             .ToListAsync();
         viewBag.Vendors = new SelectList(vendors, "id", "name");
 
@@ -322,7 +338,7 @@ public class PurchaseOrderService : IPurchaseOrderService
 
         if (fromDate.HasValue) query = query.Where(po => po.PODate >= fromDate.Value);
         if (toDate.HasValue) query = query.Where(po => po.PODate <= toDate.Value);
-        if (!string.IsNullOrEmpty(vendorName)) query = query.Where(po => po.Vendor != null && po.Vendor.VendorName.Contains(vendorName));
+        if (!string.IsNullOrEmpty(vendorName)) query = query.Where(po => po.Vendor != null && po.Vendor.AccountName.Contains(vendorName));
         if (!string.IsNullOrEmpty(itemGroup)) query = query.Where(po => po.Items.Any(item => item.PurchaseItemGroup != null && item.PurchaseItemGroup.Name.Contains(itemGroup)));
         if (!string.IsNullOrEmpty(itemName)) query = query.Where(po => po.Items.Any(item => item.PurchaseItem != null && item.PurchaseItem.ItemName.Contains(itemName)));
         if (!string.IsNullOrEmpty(uom)) query = query.Where(po => po.Items.Any(item => item.UOM == uom));
@@ -357,19 +373,31 @@ public class PurchaseOrderService : IPurchaseOrderService
 
     public async Task<IEnumerable<LookupItem>> GetVendorsAsync(string? searchTerm)
     {
-        var query = _context.Vendors.Where(v => v.IsActive).AsQueryable();
+        var query = _context.BankMasters
+            .Include(b => b.Group)
+                .ThenInclude(g => g.MasterGroup)
+            .Include(b => b.Group)
+                .ThenInclude(g => g.MasterSubGroup)
+            .Where(b => b.IsActive && b.Group != null && (
+                b.Group.Name.Contains("Vendor") || 
+                b.Group.Name.Contains("Vender") || 
+                b.Group.Name.Contains("Creditor") || 
+                b.Group.Name.Contains("Supplier") || 
+                b.Group.Name.Contains("Sundry") ||
+                (b.Group.MasterSubGroup != null && (b.Group.MasterSubGroup.Name.Contains("Vendor") || b.Group.MasterSubGroup.Name.Contains("Vender") || b.Group.MasterSubGroup.Name.Contains("Creditor"))) ||
+                (b.Group.MasterGroup != null && (b.Group.MasterGroup.Name.Contains("Vendor") || b.Group.MasterGroup.Name.Contains("Vender") || b.Group.MasterGroup.Name.Contains("Creditor")))
+            ))
+            .AsQueryable();
 
         if (!string.IsNullOrEmpty(searchTerm))
         {
-            query = query.Where(v => 
-                v.VendorName.Contains(searchTerm) ||
-                v.VendorCode.Contains(searchTerm));
+            query = query.Where(v => v.AccountName.Contains(searchTerm));
         }
 
         return await query
-            .OrderBy(v => v.VendorName)
-            .Select(v => new LookupItem { Id = v.Id, Name = v.VendorName })
+            .OrderBy(v => v.AccountName)
             .Take(50)
+            .Select(v => new LookupItem { Id = v.Id, Name = v.AccountName })
             .ToListAsync();
     }
 
@@ -379,6 +407,58 @@ public class PurchaseOrderService : IPurchaseOrderService
             .Where(g => g.IsActive)
             .OrderBy(g => g.Name)
             .Select(g => new LookupItem { Id = g.Id, Name = g.Name })
+            .ToListAsync();
+    }
+
+    public async Task<IEnumerable<LookupItem>> GetExpenseLedgersAsync(int? subGroupId, string? searchTerm)
+    {
+        var profile = await _context.EntryForAccounts
+            .Where(e => e.TransactionType == "ExpenseEntry" && 
+                       (e.AccountName == "null" || string.IsNullOrEmpty(e.AccountName)))
+            .FirstOrDefaultAsync();
+        
+        var profileHasRules = profile != null && await _context.AccountRules.AnyAsync(r => r.EntryAccountId == profile.Id && r.RuleType == "AllowedNature");
+
+        if (!profileHasRules)
+        {
+            return new List<LookupItem> { new LookupItem { Id = 0, Name = "Please select transaction rule first", Type = "Message" } };
+        }
+
+        var query = _context.SubGroupLedgers
+            .Include(sgl => sgl.MasterGroup)
+            .Include(sgl => sgl.MasterSubGroup)
+            .Where(sgl => sgl.IsActive)
+            .AsQueryable();
+
+        if (subGroupId.HasValue)
+        {
+            query = query.Where(sgl => sgl.MasterSubGroupId == subGroupId.Value);
+        }
+
+        if (!string.IsNullOrEmpty(searchTerm))
+        {
+            query = query.Where(sgl => 
+                sgl.Name.Contains(searchTerm) || 
+                (sgl.MasterGroup != null && sgl.MasterGroup.Name.Contains(searchTerm)) ||
+                (sgl.MasterSubGroup != null && sgl.MasterSubGroup.Name.Contains(searchTerm)));
+        }
+
+        var rules = await _context.AccountRules
+            .Where(r => r.EntryAccountId == profile!.Id && r.RuleType == "AllowedNature" && r.AccountType == "SubGroupLedger")
+            .ToListAsync();
+
+        var allowedLedgerIds = rules.Select(r => r.AccountId).ToHashSet();
+
+        return await query
+            .Where(sgl => allowedLedgerIds.Contains(sgl.Id))
+            .OrderBy(sgl => sgl.Name)
+            .Take(50)
+            .Select(sgl => new LookupItem { 
+                Id = sgl.Id, 
+                Name = sgl.Name,
+                GroupId = sgl.MasterGroupId,
+                SubGroupId = sgl.MasterSubGroupId
+            })
             .ToListAsync();
     }
 
@@ -422,15 +502,37 @@ public class PurchaseOrderService : IPurchaseOrderService
                     nextPONumber = lastNumber + 1;
                 }
             }
+            // 1. Pre-process model and its children BEFORE adding to context
             model.PONumber = $"PO{nextPONumber:D6}";
             model.CreatedAt = DateTime.Now;
             model.Status = model.Status ?? "UnApproved";
+            model.PurchaseStatus = model.PurchaseStatus ?? "Purchase Pending";
 
-            _context.PurchaseOrders.Add(model);
+            // Prevent tracking errors by nulling navigation properties BEFORE Add()
+            model.Vendor = null;
+            model.ExpenseLedger = null;
             
-            foreach (var item in model.Items) { item.CreatedAt = DateTime.Now; }
-            foreach (var charge in model.MiscCharges) { charge.CreatedAt = DateTime.Now; }
-            foreach (var tc in model.TermsAndConditions) { tc.CreatedAt = DateTime.Now; }
+            foreach (var item in model.Items) 
+            { 
+                item.Id = 0;
+                item.CreatedAt = DateTime.Now; 
+                item.PurchaseItem = null;
+                item.PurchaseItemGroup = null;
+            }
+            foreach (var charge in model.MiscCharges) 
+            { 
+                charge.Id = 0;
+                charge.CreatedAt = DateTime.Now; 
+            }
+            foreach (var tc in model.TermsAndConditions) 
+            { 
+                tc.Id = 0;
+                tc.CreatedAt = DateTime.Now; 
+                tc.TermsAndConditions = null;
+            }
+
+            // 2. Add to context
+            _context.PurchaseOrders.Add(model);
 
             await _context.SaveChangesAsync();
             return (true, "Purchase Order created successfully!");
@@ -438,6 +540,217 @@ public class PurchaseOrderService : IPurchaseOrderService
         catch (Exception ex)
         {
             return (false, "An error occurred while saving: " + ex.Message);
+        }
+    }
+
+    public async Task<(bool success, string message)> UpdatePurchaseOrderAsync(int id, PurchaseOrder model)
+    {
+        try
+        {
+            var existingPO = await _context.PurchaseOrders
+                .Include(p => p.Items)
+                .Include(p => p.MiscCharges)
+                .Include(p => p.TermsAndConditions)
+                .FirstOrDefaultAsync(p => p.Id == id);
+
+            if (existingPO == null) return (false, "Purchase Order not found");
+
+            // Update basic properties
+            existingPO.PODate = model.PODate;
+            existingPO.VendorId = model.VendorId;
+            existingPO.POType = model.POType;
+            existingPO.PurchaseStatus = model.PurchaseStatus;
+            existingPO.ExpectedReceivedDate = model.ExpectedReceivedDate;
+            existingPO.VendorReference = model.VendorReference;
+            existingPO.BillingTo = model.BillingTo;
+            existingPO.DeliveryAddress = model.DeliveryAddress;
+            existingPO.POQty = model.Items.Sum(i => i.Qty);
+            existingPO.Amount = model.Items.Sum(i => i.Amount);
+            existingPO.TaxAmount = model.Items.Sum(i => i.GSTAmount) + model.MiscCharges.Sum(m => m.GSTAmount);
+            existingPO.TotalAmount = model.Items.Sum(i => i.TotalAmount) + model.MiscCharges.Sum(m => m.TotalAmount);
+            existingPO.Status = model.Status;
+            existingPO.ExpenseGroupId = model.ExpenseGroupId;
+            existingPO.ExpenseSubGroupId = model.ExpenseSubGroupId;
+            existingPO.ExpenseLedgerId = model.ExpenseLedgerId;
+
+            // Update Items - Clear and Add
+            if (existingPO.Items != null) _context.PurchaseOrderItems.RemoveRange(existingPO.Items);
+            foreach (var item in model.Items)
+            {
+                var newItem = new PurchaseOrderItem
+                {
+                    PurchaseOrderId = id,
+                    PurchaseItemGroupId = item.PurchaseItemGroupId,
+                    PurchaseItemId = item.PurchaseItemId,
+                    ItemDescription = item.ItemDescription,
+                    UOM = item.UOM,
+                    Qty = item.Qty,
+                    UnitPrice = item.UnitPrice,
+                    Amount = item.Amount,
+                    Discount = item.Discount,
+                    TotalAmount = item.TotalAmount,
+                    GST = item.GST,
+                    GSTAmount = item.GSTAmount,
+                    CreatedAt = DateTime.Now
+                };
+                _context.PurchaseOrderItems.Add(newItem);
+            }
+
+            // Update Misc Charges - Clear and Add
+            if (existingPO.MiscCharges != null) _context.PurchaseOrderMiscCharges.RemoveRange(existingPO.MiscCharges);
+            foreach (var charge in model.MiscCharges)
+            {
+                var newCharge = new PurchaseOrderMiscCharge
+                {
+                    PurchaseOrderId = id,
+                    ExpenseType = charge.ExpenseType,
+                    Amount = charge.Amount,
+                    Tax = charge.Tax,
+                    GSTAmount = charge.GSTAmount,
+                    TotalAmount = charge.TotalAmount,
+                    CreatedAt = DateTime.Now
+                };
+                _context.PurchaseOrderMiscCharges.Add(newCharge);
+            }
+
+            // Update T&C - Clear and Add
+            if (existingPO.TermsAndConditions != null) _context.PurchaseOrderTermsConditions.RemoveRange(existingPO.TermsAndConditions);
+            foreach (var tc in model.TermsAndConditions)
+            {
+                var newTC = new PurchaseOrderTermsCondition
+                {
+                    PurchaseOrderId = id,
+                    PurchaseOrderTCId = tc.PurchaseOrderTCId,
+                    IsSelected = tc.IsSelected,
+                    CreatedAt = DateTime.Now
+                };
+                _context.PurchaseOrderTermsConditions.Add(newTC);
+            }
+
+            // Null out navigation properties on existingPO to prevent tracking issues on save
+            existingPO.Vendor = null;
+            existingPO.ExpenseLedger = null;
+
+            await _context.SaveChangesAsync();
+            return (true, "Purchase Order updated successfully!");
+        }
+        catch (Exception ex)
+        {
+            return (false, "An error occurred while updating: " + ex.Message);
+        }
+    }
+
+    public async Task<bool> ApprovePurchaseOrderAsync(int id)
+    {
+        try
+        {
+            var purchaseOrder = await _context.PurchaseOrders.FindAsync(id);
+            if (purchaseOrder == null) return false;
+
+            purchaseOrder.Status = "Approved";
+            await _context.SaveChangesAsync();
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    public async Task<bool> UnapprovePurchaseOrderAsync(int id)
+    {
+        try
+        {
+            var purchaseOrder = await _context.PurchaseOrders.FindAsync(id);
+            if (purchaseOrder == null) return false;
+
+            purchaseOrder.Status = "UnApproved";
+            await _context.SaveChangesAsync();
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    public async Task<bool> ChangePurchaseStatusAsync(int id, string newStatus)
+    {
+        try
+        {
+            var purchaseOrder = await _context.PurchaseOrders
+                .Include(p => p.Items)
+                .Include(p => p.MiscCharges)
+                .FirstOrDefaultAsync(p => p.Id == id);
+                
+            if (purchaseOrder == null) return false;
+
+            var oldStatus = purchaseOrder.PurchaseStatus;
+            purchaseOrder.PurchaseStatus = newStatus;
+            await _context.SaveChangesAsync();
+
+            // Ledger Entry Logic for "Purchase Received"
+            if (newStatus == "Purchase Received" && oldStatus != "Purchase Received")
+            {
+                // 1. Debit the Inventory/Purchase Ledger
+                if (purchaseOrder.ExpenseLedgerId.HasValue)
+                {
+                    var ledgerEntry = new GeneralEntry
+                    {
+                        VoucherNo = purchaseOrder.PONumber,
+                        EntryDate = DateTime.Now,
+                        DebitAccountId = purchaseOrder.ExpenseLedgerId.Value,
+                        DebitAccountType = "SubGroupLedger",
+                        CreditAccountId = purchaseOrder.VendorId,
+                        CreditAccountType = "BankMaster",
+                        Amount = purchaseOrder.TotalAmount,
+                        Type = "Purchase",
+                        Narration = $"Purchase against PO: {purchaseOrder.PONumber}",
+                        CreatedAt = DateTime.Now,
+                        Status = "Approved",
+                        IsActive = true
+                    };
+                    _context.GeneralEntries.Add(ledgerEntry);
+                }
+            }
+
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    public async Task<PurchaseOrder?> GetPurchaseOrderByIdAsync(int id)
+    {
+        return await _context.PurchaseOrders
+            .Include(p => p.Vendor)
+            .Include(p => p.Items)
+                .ThenInclude(i => i.PurchaseItem)
+            .Include(p => p.Items)
+                .ThenInclude(i => i.PurchaseItemGroup)
+            .Include(p => p.MiscCharges)
+            .Include(p => p.TermsAndConditions)
+                .ThenInclude(tc => tc.TermsAndConditions)
+            .Include(p => p.ExpenseLedger)
+            .FirstOrDefaultAsync(p => p.Id == id);
+    }
+
+    public async Task<bool> DeletePurchaseOrderAsync(int id)
+    {
+        try
+        {
+            var purchaseOrder = await _context.PurchaseOrders.FindAsync(id);
+            if (purchaseOrder == null) return false;
+
+            _context.PurchaseOrders.Remove(purchaseOrder);
+            await _context.SaveChangesAsync();
+            return true;
+        }
+        catch
+        {
+            return false;
         }
     }
 }

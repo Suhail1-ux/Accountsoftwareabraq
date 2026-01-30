@@ -24,6 +24,7 @@ public interface IExpensesIncurredService
     Task<ExpensesIncurred> UpdateExpenseAsync(int id, ExpensesIncurred expense);
     Task<bool> DeleteExpenseAsync(int id);
     Task<bool> ApproveExpenseAsync(int id);
+    Task<bool> UnapproveExpenseAsync(int id);
 
     // Lookup/Search operations
     Task<IEnumerable<LookupItem>> GetExpenseGroupsAsync(string? searchTerm);

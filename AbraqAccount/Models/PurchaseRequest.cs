@@ -24,6 +24,8 @@ public class PurchaseRequest
     
     public string Status { get; set; } = "Pending"; // Pending, Approved, Rejected, etc.
     
+    public string? TermsAndConditions { get; set; }
+    
     public DateTime CreatedAt { get; set; } = DateTime.Now;
     
     // Navigation properties

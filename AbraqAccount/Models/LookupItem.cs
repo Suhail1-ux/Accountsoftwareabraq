@@ -8,5 +8,6 @@ public class LookupItem
     public string? AccountNumber { get; set; }
     public string? UOM { get; set; }
     public int? GroupId { get; set; }
+    public int? SubGroupId { get; set; }
     public decimal? Rate { get; set; }
 }

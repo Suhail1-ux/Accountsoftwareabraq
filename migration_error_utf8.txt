@@ -1,0 +1,169 @@
+﻿Build started...
+Build succeeded.
+The Entity Framework tools version '8.0.10' is older than that of the runtime '9.0.0'. Update the tools for the latest features and bug fixes. See https://aka.ms/AAc1fbw for more information.
+warn: Microsoft.EntityFrameworkCore.Model.Validation[30000]
+      No store type was specified for the decimal property 'TotalDiscount' on entity type 'ExpensesIncurred'. This will cause values to be silently truncated if they do not fit in the default precision and scale. Explicitly specify the SQL server column type that can accommodate all the values in 'OnModelCreating' using 'HasColumnType', specify precision and scale using 'HasPrecision', or configure a value converter using 'HasConversion'.
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (45ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      SELECT 1
+info: Microsoft.EntityFrameworkCore.Migrations[20411]
+      Acquiring an exclusive lock for migration application. See https://aka.ms/efcore-docs-migrations-lock for more information if this takes too long.
+Acquiring an exclusive lock for migration application. See https://aka.ms/efcore-docs-migrations-lock for more information if this takes too long.
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (23ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      DECLARE @result int;
+      EXEC @result = sp_getapplock @Resource = '__EFMigrationsLock', @LockOwner = 'Session', @LockMode = 'Exclusive';
+      SELECT @result
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (53ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      IF OBJECT_ID(N'[__EFMigrationsHistory]') IS NULL
+      BEGIN
+          CREATE TABLE [__EFMigrationsHistory] (
+              [MigrationId] nvarchar(150) NOT NULL,
+              [ProductVersion] nvarchar(32) NOT NULL,
+              CONSTRAINT [PK___EFMigrationsHistory] PRIMARY KEY ([MigrationId])
+          );
+      END;
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (1ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      SELECT 1
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (2ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      SELECT OBJECT_ID(N'[__EFMigrationsHistory]');
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (5ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      SELECT [MigrationId], [ProductVersion]
+      FROM [__EFMigrationsHistory]
+      ORDER BY [MigrationId];
+info: Microsoft.EntityFrameworkCore.Migrations[20402]
+      Applying migration '20260127140248_AddVendorToPurchaseItem'.
+Applying migration '20260127140248_AddVendorToPurchaseItem'.
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (108ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      ALTER TABLE [PurchaseItems] ADD [VendorId] int NULL;
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (51ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      CREATE INDEX [IX_PurchaseItems_VendorId] ON [PurchaseItems] ([VendorId]);
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (69ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      ALTER TABLE [PurchaseItems] ADD CONSTRAINT [FK_PurchaseItems_Vendors_VendorId] FOREIGN KEY ([VendorId]) REFERENCES [Vendors] ([Id]);
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (4ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+      VALUES (N'20260127140248_AddVendorToPurchaseItem', N'9.0.0');
+Applying migration '20260127143610_SwitchVendorToBankMaster'.
+info: Microsoft.EntityFrameworkCore.Migrations[20402]
+      Applying migration '20260127143610_SwitchVendorToBankMaster'.
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (2ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      ALTER TABLE [PurchaseItems] DROP CONSTRAINT [FK_PurchaseItems_Vendors_VendorId];
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (64ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      ALTER TABLE [PurchaseItems] ADD CONSTRAINT [FK_PurchaseItems_BankMasters_VendorId] FOREIGN KEY ([VendorId]) REFERENCES [BankMasters] ([Id]);
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (3ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+      VALUES (N'20260127143610_SwitchVendorToBankMaster', N'9.0.0');
+Applying migration '20260127144703_UnifyVendorSource'.
+info: Microsoft.EntityFrameworkCore.Migrations[20402]
+      Applying migration '20260127144703_UnifyVendorSource'.
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (18ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      ALTER TABLE [PurchaseOrders] DROP CONSTRAINT [FK_PurchaseOrders_Vendors_VendorId];
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (5ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      ALTER TABLE [PurchaseReceives] DROP CONSTRAINT [FK_PurchaseReceives_Vendors_VendorId];
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (81ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      ALTER TABLE [PurchaseOrders] ADD CONSTRAINT [FK_PurchaseOrders_BankMasters_VendorId] FOREIGN KEY ([VendorId]) REFERENCES [BankMasters] ([Id]) ON DELETE NO ACTION;
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (42ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      ALTER TABLE [PurchaseReceives] ADD CONSTRAINT [FK_PurchaseReceives_BankMasters_VendorId] FOREIGN KEY ([VendorId]) REFERENCES [BankMasters] ([Id]) ON DELETE NO ACTION;
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (18ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+      VALUES (N'20260127144703_UnifyVendorSource', N'9.0.0');
+Applying migration '20260127161730_AddUOMApproval'.
+info: Microsoft.EntityFrameworkCore.Migrations[20402]
+      Applying migration '20260127161730_AddUOMApproval'.
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (18ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      ALTER TABLE [UOMs] ADD [IsApproved] bit NOT NULL DEFAULT CAST(0 AS bit);
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (7ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+      VALUES (N'20260127161730_AddUOMApproval', N'9.0.0');
+Applying migration '20260128182604_AddPurchaseStatusToPurchaseOrder'.info: Microsoft.EntityFrameworkCore.Migrations[20402]
+      Applying migration '20260128182604_AddPurchaseStatusToPurchaseOrder'.
+
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (605ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      EXEC sp_rename N'[PackingRecipes]', N'Recipe', 'OBJECT';
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (51ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      DECLARE @var0 sysname;
+      SELECT @var0 = [d].[name]
+      FROM [sys].[default_constraints] [d]
+      INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
+      WHERE ([d].[parent_object_id] = OBJECT_ID(N'[Recipe]') AND [c].[name] = N'CostUnit');
+      IF @var0 IS NOT NULL EXEC(N'ALTER TABLE [Recipe] DROP CONSTRAINT [' + @var0 + '];');
+      ALTER TABLE [Recipe] DROP COLUMN [CostUnit];
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (62ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      DECLARE @var1 sysname;
+      SELECT @var1 = [d].[name]
+      FROM [sys].[default_constraints] [d]
+      INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
+      WHERE ([d].[parent_object_id] = OBJECT_ID(N'[Recipe]') AND [c].[name] = N'CreatedAt');
+      IF @var1 IS NOT NULL EXEC(N'ALTER TABLE [Recipe] DROP CONSTRAINT [' + @var1 + '];');
+      ALTER TABLE [Recipe] DROP COLUMN [CreatedAt];
+fail: Microsoft.EntityFrameworkCore.Database.Command[20102]
+      Failed executing DbCommand (121ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      DECLARE @var2 sysname;
+      SELECT @var2 = [d].[name]
+      FROM [sys].[default_constraints] [d]
+      INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
+      WHERE ([d].[parent_object_id] = OBJECT_ID(N'[Recipe]') AND [c].[name] = N'Id');
+      IF @var2 IS NOT NULL EXEC(N'ALTER TABLE [Recipe] DROP CONSTRAINT [' + @var2 + '];');
+      ALTER TABLE [Recipe] DROP COLUMN [Id];
+Failed executing DbCommand (121ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+DECLARE @var2 sysname;
+SELECT @var2 = [d].[name]
+FROM [sys].[default_constraints] [d]
+INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
+WHERE ([d].[parent_object_id] = OBJECT_ID(N'[Recipe]') AND [c].[name] = N'Id');
+IF @var2 IS NOT NULL EXEC(N'ALTER TABLE [Recipe] DROP CONSTRAINT [' + @var2 + '];');
+ALTER TABLE [Recipe] DROP COLUMN [Id];
+Microsoft.Data.SqlClient.SqlException (0x80131904): The object 'PK_PackingRecipes' is dependent on column 'Id'.
+The object 'FK_PackingRecipeMaterials_PackingRecipes_PackingRecipeId' is dependent on column 'Id'.
+The object 'FK_PackingRecipeSpecialRates_PackingRecipes_PackingRecipeId' is dependent on column 'Id'.
+ALTER TABLE DROP COLUMN Id failed because one or more objects access this column.
+   at Microsoft.Data.SqlClient.SqlConnection.OnError(SqlException exception, Boolean breakConnection, Action`1 wrapCloseInAction)
+   at Microsoft.Data.SqlClient.SqlInternalConnection.OnError(SqlException exception, Boolean breakConnection, Action`1 wrapCloseInAction)
+   at Microsoft.Data.SqlClient.TdsParser.ThrowExceptionAndWarning(TdsParserStateObject stateObj, Boolean callerHasConnectionLock, Boolean asyncClose)
+   at Microsoft.Data.SqlClient.TdsParser.TryRun(RunBehavior runBehavior, SqlCommand cmdHandler, SqlDataReader dataStream, BulkCopySimpleResultSet bulkCopyHandler, TdsParserStateObject stateObj, Boolean& dataReady)
+   at Microsoft.Data.SqlClient.SqlCommand.RunExecuteNonQueryTds(String methodName, Boolean isAsync, Int32 timeout, Boolean asyncWrite)
+   at Microsoft.Data.SqlClient.SqlCommand.InternalExecuteNonQuery(TaskCompletionSource`1 completion, Boolean sendToPipe, Int32 timeout, Boolean& usedCache, Boolean asyncWrite, Boolean inRetry, String methodName)
+   at Microsoft.Data.SqlClient.SqlCommand.ExecuteNonQuery()
+   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteNonQuery(RelationalCommandParameterObject parameterObject)
+   at Microsoft.EntityFrameworkCore.Migrations.MigrationCommand.ExecuteNonQuery(IRelationalConnection connection, IReadOnlyDictionary`2 parameterValues)
+   at Microsoft.EntityFrameworkCore.Migrations.Internal.MigrationCommandExecutor.Execute(IReadOnlyList`1 migrationCommands, IRelationalConnection connection, MigrationExecutionState executionState, Boolean beginTransaction, Boolean commitTransaction, Nullable`1 isolationLevel)
+   at Microsoft.EntityFrameworkCore.Migrations.Internal.MigrationCommandExecutor.<>c.<ExecuteNonQuery>b__3_1(DbContext _, ValueTuple`6 s)
+   at Microsoft.EntityFrameworkCore.Storage.ExecutionStrategy.Execute[TState,TResult](TState state, Func`3 operation, Func`3 verifySucceeded)
+   at Microsoft.EntityFrameworkCore.Migrations.Internal.MigrationCommandExecutor.ExecuteNonQuery(IReadOnlyList`1 migrationCommands, IRelationalConnection connection, MigrationExecutionState executionState, Boolean commitTransaction, Nullable`1 isolationLevel)
+   at Microsoft.EntityFrameworkCore.Migrations.Internal.Migrator.MigrateImplementation(DbContext context, String targetMigration, MigrationExecutionState state, Boolean useTransaction)
+   at Microsoft.EntityFrameworkCore.Migrations.Internal.Migrator.<>c.<Migrate>b__20_1(DbContext c, ValueTuple`4 s)
+   at Microsoft.EntityFrameworkCore.Storage.ExecutionStrategy.<>c__DisplayClass28_0`2.<Execute>b__0(DbContext context, TState state)
+   at Microsoft.EntityFrameworkCore.Storage.ExecutionStrategy.ExecuteImplementation[TState,TResult](Func`3 operation, Func`3 verifySucceeded, TState state)
+   at Microsoft.EntityFrameworkCore.Storage.ExecutionStrategy.Execute[TState,TResult](TState state, Func`3 operation, Func`3 verifySucceeded)
+   at Microsoft.EntityFrameworkCore.Migrations.Internal.Migrator.Migrate(String targetMigration)
+   at Microsoft.EntityFrameworkCore.Design.Internal.MigrationsOperations.UpdateDatabase(String targetMigration, String connectionString, String contextType)
+   at Microsoft.EntityFrameworkCore.Design.OperationExecutor.UpdateDatabaseImpl(String targetMigration, String connectionString, String contextType)
+   at Microsoft.EntityFrameworkCore.Design.OperationExecutor.UpdateDatabase.<>c__DisplayClass0_0.<.ctor>b__0()
+   at Microsoft.EntityFrameworkCore.Design.OperationExecutor.OperationBase.Execute(Action action)
+ClientConnectionId:2b9db42f-d28b-4d1b-b2b3-2a2b905a0aa4
+Error Number:5074,State:1,Class:16
+The object 'PK_PackingRecipes' is dependent on column 'Id'.
+The object 'FK_PackingRecipeMaterials_PackingRecipes_PackingRecipeId' is dependent on column 'Id'.
+The object 'FK_PackingRecipeSpecialRates_PackingRecipes_PackingRecipeId' is dependent on column 'Id'.
+ALTER TABLE DROP COLUMN Id failed because one or more objects access this column.

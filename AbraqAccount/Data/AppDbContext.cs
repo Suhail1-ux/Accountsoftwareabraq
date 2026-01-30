@@ -670,6 +670,7 @@ public class AppDbContext : DbContext
             entity.Property(e => e.TaxAmount).HasColumnName("TaxAmount").HasColumnType("decimal(18,2)");
             entity.Property(e => e.TotalAmount).HasColumnName("TotalAmount").HasColumnType("decimal(18,2)");
             entity.Property(e => e.Status).HasColumnName("Status").HasMaxLength(50).HasDefaultValue("UnApproved");
+            entity.Property(e => e.PurchaseStatus).HasColumnName("PurchaseStatus").HasMaxLength(50).HasDefaultValue("Purchase Pending");
             entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
             
             entity.HasOne(e => e.Vendor)

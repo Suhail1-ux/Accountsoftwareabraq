@@ -3,13 +3,19 @@
 @using AbraqAccount.Services.Interfaces
 @inject IPurchaseTransactionService TransactionService
 @inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
 
 <div class="container-fluid py-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2 class="mb-0">Purchase Requests</h2>
-        <button class="btn btn-primary" @onclick="CreateNew">
-            <i class="bi bi-plus-lg"></i> New Request
-        </button>
+        <div class="actions">
+            <button class="btn btn-primary" @onclick="CreateNew">
+                <i class="bi bi-plus-lg"></i> Create PR
+            </button>
+            <button class="btn btn-outline-secondary ms-2" @onclick="PrintList">
+                <i class="bi bi-printer"></i> Print List
+            </button>
+        </div>
     </div>
 
     <div class="card shadow-sm mb-4">
@@ -88,8 +94,11 @@
                                     <span class="badge @GetStatusBadgeClass(req.Status)">@req.Status</span>
                                 </td>
                                 <td class="text-end">
-                                    <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => Edit(req.Id)">
+                                    <button class="btn btn-sm btn-outline-primary" @onclick="() => Edit(req.Id)" title="Edit">
                                         <i class="bi bi-pencil"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-secondary" @onclick="() => PrintRequest(req.Id)" title="Print">
+                                        <i class="bi bi-printer"></i>
                                     </button>
                                 </td>
                             </tr>
@@ -172,4 +181,6 @@
 
     private void CreateNew() => Navigation.NavigateTo("/inventory/purchase-requests/create");
     private void Edit(int id) => Navigation.NavigateTo($"/inventory/purchase-requests/edit/{id}");
+    private void PrintRequest(int id) => Navigation.NavigateTo($"/inventory/purchase-requests/print/{id}");
+    private async Task PrintList() => await JSRuntime.InvokeVoidAsync("window.print");
 }

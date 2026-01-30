@@ -1,0 +1,201 @@
+@page "/inventory/purchase-orders/print/{Id:int}"
+@using AbraqAccount.Models
+@using AbraqAccount.Services.Interfaces
+@inject IPurchaseOrderService POService
+@inject NavigationManager Navigation
+@layout EmptyLayout
+
+<div class="print-container">
+    @if (model == null)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p>Loading document...</p>
+        </div>
+    }
+    else
+    {
+        <div class="print-header">
+            <div class="company-info">
+                <h2>ABRAQ AGRO FRESH LLP</h2>
+                <p>Industrial Estate, Shopian, J&K</p>
+                <p>Email: info@abraqagro.com | Phone: +91-XXXXXXXXXX</p>
+            </div>
+            <div class="document-title">
+                <h1>PURCHASE ORDER</h1>
+                <div class="doc-meta">
+                    <p><strong>PO No:</strong> @model.PONumber</p>
+                    <p><strong>Date:</strong> @model.PODate.ToString("dd-MM-yyyy")</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="order-info mt-4">
+            <div class="row">
+                <div class="col-6">
+                    <h6>Vendor Information:</h6>
+                    <p><strong>Name:</strong> @(model.Vendor?.AccountName ?? "N/A")</p>
+                    <p><strong>Reference:</strong> @(model.VendorReference ?? "-")</p>
+                    <p><strong>PO Type:</strong> @model.POType</p>
+                </div>
+                <div class="col-6">
+                    <h6>Delivery & Billing:</h6>
+                    <p><strong>Billing To:</strong> @model.BillingTo</p>
+                    <p><strong>Delivery Address:</strong> @model.DeliveryAddress</p>
+                    <p><strong>Expected Delivery:</strong> @model.ExpectedReceivedDate.ToString("dd-MM-yyyy")</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="items-table mt-4">
+            <table class="table table-bordered">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Item Description</th>
+                        <th>UOM</th>
+                        <th class="text-end">Qty</th>
+                        <th class="text-end">Rate</th>
+                        <th class="text-end">GST</th>
+                        <th class="text-end">Amount</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @for (int i = 0; i < model.Items.Count; i++)
+                    {
+                        var item = model.Items[i];
+                        <tr>
+                            <td>@(i + 1)</td>
+                            <td>
+                                <strong>@(item.PurchaseItem?.ItemName ?? "Item")</strong><br />
+                                <small class="text-muted">@item.ItemDescription</small>
+                            </td>
+                            <td>@item.UOM</td>
+                            <td class="text-end">@item.Qty.ToString("N0")</td>
+                            <td class="text-end">@item.UnitPrice.ToString("N2")</td>
+                            <td class="text-end">@item.GST (@item.GSTAmount.ToString("N2"))</td>
+                            <td class="text-end">@item.TotalAmount.ToString("N2")</td>
+                        </tr>
+                    }
+                </tbody>
+                <tfoot>
+                    @if (model.MiscCharges.Any())
+                    {
+                        @foreach (var charge in model.MiscCharges)
+                        {
+                            <tr>
+                                <td colspan="6" class="text-end font-weight-bold">@charge.ExpenseType:</td>
+                                <td class="text-end">@charge.TotalAmount.ToString("N2")</td>
+                            </tr>
+                        }
+                    }
+                    <tr class="table-active">
+                        <td colspan="6" class="text-end"><strong>GRAND TOTAL:</strong></td>
+                        <td class="text-end"><strong>@model.TotalAmount.ToString("N2")</strong></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+
+        @if (model.TermsAndConditions.Any())
+        {
+            <div class="tc-section mt-4">
+                <h6>Terms & Conditions:</h6>
+                <ol class="tc-list">
+                    @foreach (var tc in model.TermsAndConditions)
+                    {
+                        if (tc.TermsAndConditions != null)
+                        {
+                            <li>
+                                <strong>@tc.TermsAndConditions.Caption:</strong>
+                                <span>@tc.TermsAndConditions.TermsAndConditions</span>
+                            </li>
+                        }
+                    }
+                </ol>
+            </div>
+        }
+
+        @if (!string.IsNullOrEmpty(model.Remarks))
+        {
+            <div class="remarks-section mt-4">
+                <h6>Remarks:</h6>
+                <p>@model.Remarks</p>
+            </div>
+        }
+
+        <div class="print-footer mt-5">
+            <div class="row">
+                <div class="col-4 text-center">
+                    <div class="signature-line"></div>
+                    <p>Prepared By</p>
+                </div>
+                <div class="col-4 text-center">
+                    <div class="signature-line"></div>
+                    <p>Verified By</p>
+                </div>
+                <div class="col-4 text-center">
+                    <div class="signature-line"></div>
+                    <p>Authorized Signatory</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="no-print mt-5 text-center">
+            <button class="btn btn-primary px-5" @onclick="Print">Print</button>
+            <button class="btn btn-secondary px-5" @onclick="GoBack">Back</button>
+        </div>
+    }
+</div>
+
+<style>
+    .print-container { max-width: 900px; margin: 0 auto; padding: 40px; background: white; border: 1px solid #eee; }
+    .print-header { display: flex; justify-content: space-between; border-bottom: 2px solid #333; padding-bottom: 20px; }
+    .company-info h2 { margin: 0; color: #1a56db; font-weight: 800; }
+    .company-info p { margin: 2px 0; font-size: 0.9rem; color: #666; }
+    .document-title { text-align: right; }
+    .document-title h1 { margin: 0; font-size: 1.5rem; color: #333; font-weight: 700; }
+    .doc-meta { margin-top: 10px; font-size: 0.9rem; }
+    .doc-meta p { margin: 2px 0; }
+    
+    .order-info h6 { font-size: 0.95rem; font-weight: 700; color: #333; border-bottom: 1px solid #eee; padding-bottom: 5px; margin-bottom: 10px; }
+    .order-info p { margin: 4px 0; font-size: 0.85rem; }
+    
+    .items-table thead { background-color: #f8fafc; }
+    .items-table th { font-size: 0.75rem; text-transform: uppercase; padding: 8px; }
+    .items-table td { font-size: 0.8rem; padding: 8px; }
+    
+    .tc-list { padding-left: 20px; }
+    .tc-list li { font-size: 0.8rem; margin-bottom: 8px; }
+    .tc-list li strong { display: block; }
+    
+    .signature-line { border-top: 1px solid #333; margin: 50px 20px 10px 20px; }
+    
+    h6 { font-weight: 700; border-bottom: 1px solid #eee; padding-bottom: 5px; margin-bottom: 10px; }
+    p { font-size: 0.85rem; }
+
+    @@media print {
+        .no-print { display: none !important; }
+        .print-container { padding: 0; width: 100%; max-width: none; border: none; }
+        body { background: white; }
+    }
+</style>
+
+@inject IJSRuntime JSRuntime
+
+@code {
+    [Parameter] public int Id { get; set; }
+    private PurchaseOrder? model;
+
+    protected override async Task OnInitializedAsync()
+    {
+        model = await POService.GetPurchaseOrderByIdAsync(Id);
+    }
+
+    private async Task Print()
+    {
+        await JSRuntime.InvokeVoidAsync("window.print");
+    }
+
+    private void GoBack() => Navigation.NavigateTo($"/inventory/purchase-orders/edit/{Id}");
+}
