@@ -26,9 +26,6 @@ public class PackingService : IPackingService
             .AsQueryable();
         try
         {
-            var query = _context.PackingRecipes
-                .Include(p => p.Materials)
-                .AsQueryable();
 
             if (!string.IsNullOrEmpty(searchTerm))
             {
@@ -150,19 +147,7 @@ public class PackingService : IPackingService
 
         return recipe;
     }
-        try
-        {
-            return await _context.PackingRecipes
-                .AsNoTracking()
-                .Include(p => p.Materials)
-                    .ThenInclude(m => m.PurchaseItem)
-                .FirstOrDefaultAsync(m => m.Recipeid == id);
-        }
-        catch (Exception)
-        {
-            throw;
-        }
-    }
+
 
     public async Task<(bool success, string message)> SavePackingRecipeAsync(PackingRecipe model, List<PackingRecipeMaterial> materials)
     {
