@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace AbraqAccount.Models;
 
@@ -42,6 +43,12 @@ public class BankMaster
     public DateTime CreatedDate { get; set; } = DateTime.Now;
     
     public bool IsActive { get; set; } = true;
+    
+    [StringLength(50)]
+    public string? SourceType { get; set; } // 'C' for Growers
+
+    [Column("PartyId")]
+    public int? PartyId { get; set; } // Unique identifier for Party linkage (matches partysub.MainId)
     
     // Navigation property
     public SubGroupLedger? Group { get; set; }

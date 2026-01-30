@@ -60,6 +60,7 @@ public class AppDbContext : DbContext
     public DbSet<Menu> Menus { get; set; }
     public DbSet<UserPermission> UserPermissions { get; set; }
     public DbSet<UnitMaster> UnitMasters { get; set; }
+    public DbSet<PartySub> PartySubs { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -356,6 +357,8 @@ public class AppDbContext : DbContext
             entity.Property(e => e.CreatedBy).HasColumnName("CreatedBy").HasMaxLength(255);
             entity.Property(e => e.CreatedDate).HasColumnName("CreatedDate").IsRequired();
             entity.Property(e => e.IsActive).HasColumnName("IsActive").HasDefaultValue(true);
+            entity.Property(e => e.SourceType).HasColumnName("SourceType").HasMaxLength(50);
+            entity.Property(e => e.PartyId).HasColumnName("PartyId");
             
             // Foreign key relationship
             entity.HasOne(e => e.Group)
@@ -514,15 +517,11 @@ public class AppDbContext : DbContext
             entity.Property(e => e.IsActive).HasColumnName("IsActive").HasDefaultValue(true);
             entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
             
-            entity.HasOne(e => e.GrowerGroup)
-                  .WithMany()
-                  .HasForeignKey(e => e.GrowerGroupId)
-                  .OnDelete(DeleteBehavior.Restrict);
-            
-            entity.HasOne(e => e.Farmer)
-                  .WithMany()
-                  .HasForeignKey(e => e.FarmerId)
-                  .OnDelete(DeleteBehavior.Restrict);
+            // Note: We are choosing to ignore navigation properties for database-level constraints
+            // to allow flexible linkage to BankMaster and PartySub without rigid FKs for now.
+            // The service handles manual joins for display.
+            entity.Ignore(e => e.GrowerGroup);
+            entity.Ignore(e => e.Farmer);
         });
 
         // Map to SQL Server PackingSpecialRateDetails table
@@ -1255,6 +1254,12 @@ public class AppDbContext : DbContext
             entity.Property(e => e.UnitName).HasColumnName("UnitName").HasColumnType("varchar(max)");
             entity.Property(e => e.Stat).HasColumnName("Stat").HasColumnType("varchar(max)");
             entity.Property(e => e.Details).HasColumnName("details").HasColumnType("varchar(max)");
+        });
+        // Map to SQL Server partysub table
+        modelBuilder.Entity<PartySub>(entity =>
+        {
+            entity.ToTable("partysub");
+            entity.HasKey(e => e.PartyId);
         });
     }
 }

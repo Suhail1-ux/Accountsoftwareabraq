@@ -82,7 +82,16 @@ public class PackingService : IPackingService
         }
         catch (Exception ex)
         {
-            return (false, "Error: " + ex.Message);
+            var msg = ex.Message;
+            if (ex.InnerException != null)
+            {
+                msg += " Inner Error: " + ex.InnerException.Message;
+                if (ex.InnerException.InnerException != null)
+                {
+                    msg += " Details: " + ex.InnerException.InnerException.Message;
+                }
+            }
+            return (false, "Error: " + msg);
         }
     }
 
@@ -261,10 +270,10 @@ public class PackingService : IPackingService
 
         if (recipe == null) return null;
 
-        var growerGroups = await _context.GrowerGroups
-            .Where(g => g.IsActive)
-            .OrderBy(g => g.GroupName)
-            .Select(g => new { id = g.Id, name = g.GroupName, code = g.GroupCode })
+        var mainGrowers = await _context.BankMasters
+            .Where(b => b.IsActive && b.SourceType == "C")
+            .OrderBy(b => b.AccountName)
+            .Select(b => new { id = b.PartyId ?? 0, name = b.AccountName, code = "" })
             .ToListAsync();
 
         return new
@@ -277,7 +286,7 @@ public class PackingService : IPackingService
                 name = m.PurchaseItem?.ItemName ?? "",
                 code = m.PurchaseItem?.Code ?? ""
             }).ToList(),
-            growerGroups = growerGroups
+            growerGroups = mainGrowers
         };
     }
 
@@ -320,7 +329,16 @@ public class PackingService : IPackingService
         }
         catch (Exception ex)
         {
-            return (false, "Error: " + ex.Message);
+            var msg = ex.Message;
+            if (ex.InnerException != null)
+            {
+                msg += " Inner Error: " + ex.InnerException.Message;
+                if (ex.InnerException.InnerException != null)
+                {
+                    msg += " Details: " + ex.InnerException.InnerException.Message;
+                }
+            }
+            return (false, "Error: " + msg);
         }
     }
 
@@ -372,32 +390,49 @@ public class PackingService : IPackingService
 
     public async Task<List<PackingSpecialRate>> GetPackingSpecialRatesAsync(string? growerGroupSearch, string? growerNameSearch, string? status)
     {
-        var query = _context.PackingSpecialRates
-            .Include(p => p.GrowerGroup)
-            .Include(p => p.Farmer)
-            .AsQueryable();
+        var query = _context.PackingSpecialRates.AsNoTracking().AsQueryable();
 
+        if (!string.IsNullOrEmpty(status) && !status.Equals("ALL", StringComparison.OrdinalIgnoreCase))
+        {
+            bool isActive = status.Equals("Active", StringComparison.OrdinalIgnoreCase);
+            query = query.Where(p => p.IsActive == isActive);
+        }
+
+        var list = await query.OrderByDescending(p => p.EffectiveDate).ToListAsync();
+
+        // Collect IDs to fetch names from new sources
+        var mainIds = list.Where(p => p.GrowerGroupId.HasValue).Select(p => p.GrowerGroupId.Value).Distinct().ToList();
+        var subIds = list.Where(p => p.FarmerId.HasValue).Select(p => (long)p.FarmerId.Value).Distinct().ToList();
+
+        var mainGrowers = await _context.BankMasters
+            .Where(b => b.PartyId.HasValue && mainIds.Contains((long)b.PartyId.Value))
+            .ToDictionaryAsync(b => (long)b.PartyId!.Value, b => b.AccountName);
+        var subGrowers = await _context.PartySubs.Where(s => subIds.Contains(s.PartyId)).ToDictionaryAsync(s => s.PartyId, s => s.PartyName);
+
+        foreach (var item in list)
+        {
+            if (item.GrowerGroupId.HasValue && mainGrowers.TryGetValue(item.GrowerGroupId.Value, out var mName))
+            {
+                item.GrowerGroup = new BankMaster { AccountName = mName };
+            }
+            if (item.FarmerId.HasValue && subGrowers.TryGetValue(item.FarmerId.Value, out var sName))
+            {
+                item.Farmer = new PartySub { PartyName = sName };
+            }
+        }
+
+        // Apply text filters in memory
         if (!string.IsNullOrEmpty(growerGroupSearch))
         {
-            query = query.Where(p => 
-                (p.GrowerGroup != null && p.GrowerGroup.GroupName.Contains(growerGroupSearch)) ||
-                (p.GrowerGroup != null && p.GrowerGroup.GroupCode.Contains(growerGroupSearch)));
+            list = list.Where(p => p.GrowerGroup != null && p.GrowerGroup.AccountName.Contains(growerGroupSearch, StringComparison.OrdinalIgnoreCase)).ToList();
         }
 
         if (!string.IsNullOrEmpty(growerNameSearch))
         {
-            query = query.Where(p => 
-                (p.Farmer != null && p.Farmer.FarmerName.Contains(growerNameSearch)) ||
-                (p.Farmer != null && p.Farmer.FarmerCode.Contains(growerNameSearch)));
+            list = list.Where(p => p.Farmer != null && p.Farmer.PartyName.Contains(growerNameSearch, StringComparison.OrdinalIgnoreCase)).ToList();
         }
 
-        if (!string.IsNullOrEmpty(status))
-        {
-            bool isActive = status.ToLower() == "active";
-            query = query.Where(p => p.IsActive == isActive);
-        }
-
-        return await query.OrderByDescending(p => p.EffectiveDate).ToListAsync();
+        return list;
     }
 
     public async Task<(bool success, string message)> CreatePackingSpecialRateAsync(PackingSpecialRate model, IFormCollection form)
@@ -421,55 +456,110 @@ public class PackingService : IPackingService
         }
         catch (Exception ex)
         {
-            return (false, "Error: " + ex.Message);
+            var msg = ex.Message;
+            if (ex.InnerException != null)
+            {
+                msg += " Inner Error: " + ex.InnerException.Message;
+                if (ex.InnerException.InnerException != null)
+                {
+                    msg += " Details: " + ex.InnerException.InnerException.Message;
+                }
+            }
+            return (false, "Error: " + msg);
         }
     }
 
     public async Task<PackingSpecialRate?> GetPackingSpecialRateByIdAsync(int id)
     {
-        return await _context.PackingSpecialRates
-            .Include(p => p.GrowerGroup)
-            .Include(p => p.Farmer)
+        var rate = await _context.PackingSpecialRates
             .Include(p => p.Details)
                 .ThenInclude(d => d.PurchaseItem)
             .FirstOrDefaultAsync(m => m.Id == id);
+            
+        if (rate != null)
+        {
+            if (rate.GrowerGroupId.HasValue)
+            {
+                rate.GrowerGroup = await _context.BankMasters.FirstOrDefaultAsync(b => b.PartyId == (int)rate.GrowerGroupId.Value);
+            }
+            if (rate.FarmerId.HasValue)
+            {
+                rate.Farmer = await _context.PartySubs.FirstOrDefaultAsync(p => p.PartyId == rate.FarmerId.Value);
+            }
+        }
+        return rate;
     }
 
     public async Task<(bool success, string message)> UpdatePackingSpecialRateAsync(int id, PackingSpecialRate model, List<PackingSpecialRateDetail> details)
     {
         try
         {
-            var existing = await _context.PackingSpecialRates
-                .Include(p => p.Details)
-                .FirstOrDefaultAsync(m => m.Id == id);
+            // Clean up the main model to prevent EF from trying to insert/update parent groups/farmers
+            model.GrowerGroup = null;
+            model.Farmer = null;
 
-            if (existing == null) return (false, "Not found");
+            if (id > 0)
+            {
+                var existing = await _context.PackingSpecialRates
+                    .Include(p => p.Details)
+                    .FirstOrDefaultAsync(m => m.Id == id);
+                
+                if (existing == null) return (false, "Not found");
 
-            existing.EffectiveDate = model.EffectiveDate;
-            existing.GrowerGroupId = model.GrowerGroupId;
-            existing.FarmerId = model.FarmerId;
-            existing.IsActive = model.IsActive;
+                existing.EffectiveDate = model.EffectiveDate;
+                existing.GrowerGroupId = model.GrowerGroupId;
+                existing.FarmerId = model.FarmerId;
+                existing.IsActive = model.IsActive;
 
-            _context.PackingSpecialRateDetails.RemoveRange(existing.Details);
+                _context.PackingSpecialRateDetails.RemoveRange(existing.Details);
+                await _context.SaveChangesAsync(); // Commit the removals first
+            }
+            else
+            {
+                // For new records, ensure the details list is empty before adding the header
+                // We will add filtered details manually afterwards
+                model.Details = new List<PackingSpecialRateDetail>();
+                model.CreatedAt = DateTime.Now;
+                _context.PackingSpecialRates.Add(model);
+                await _context.SaveChangesAsync();
+                id = model.Id;
+            }
 
-            if (details != null && details.Any())
+            if (details != null)
             {
                 foreach (var detail in details)
                 {
-                    if (detail.PurchaseItemId > 0)
+                    // Only save lines where a Special Rate was actually entered
+                    if (detail.SpecialRate.HasValue && detail.SpecialRate >= 0)
                     {
-                        detail.PackingSpecialRateId = id;
-                        detail.CreatedAt = DateTime.Now;
-                        _context.PackingSpecialRateDetails.Add(detail);
+                        var newDetail = new PackingSpecialRateDetail
+                        {
+                            PackingSpecialRateId = id,
+                            PurchaseItemId = detail.PurchaseItemId,
+                            Rate = detail.Rate,
+                            SpecialRate = detail.SpecialRate,
+                            CreatedAt = DateTime.Now
+                        };
+                        _context.PackingSpecialRateDetails.Add(newDetail);
                     }
                 }
+                await _context.SaveChangesAsync();
             }
-            await _context.SaveChangesAsync();
-            return (true, "Updated successfully");
+
+            return (true, "Saved successfully");
         }
         catch (Exception ex)
         {
-            return (false, "Error: " + ex.Message);
+            var msg = ex.Message;
+            if (ex.InnerException != null)
+            {
+                msg += " Inner Error: " + ex.InnerException.Message;
+                if (ex.InnerException.InnerException != null)
+                {
+                    msg += " Details: " + ex.InnerException.InnerException.Message;
+                }
+            }
+            return (false, "Error: " + msg);
         }
     }
 
@@ -486,23 +576,79 @@ public class PackingService : IPackingService
             .ToListAsync();
     }
 
-    public async Task<IEnumerable<LookupItem>> GetFarmersByGroupAsync(int groupId)
+    public async Task<IEnumerable<LookupItem>> SearchMainGrowersAsync(string? searchTerm)
     {
-        return await _context.Farmers
-            .Where(f => f.GroupId == groupId && f.IsActive)
-            .OrderBy(f => f.FarmerName)
-            .Select(f => new LookupItem { Id = f.Id, Name = f.FarmerName })
+        var query = _context.BankMasters.Where(b => b.IsActive && b.SourceType == "C");
+        
+        if (!string.IsNullOrEmpty(searchTerm))
+        {
+            query = query.Where(b => b.AccountName.Contains(searchTerm));
+        }
+
+        return await query
+            .OrderBy(b => b.AccountName)
+            .Select(b => new LookupItem { 
+                Id = b.PartyId ?? 0, 
+                Name = b.AccountName,
+                Type = "Grower"
+            })
+            .Take(20)
             .ToListAsync();
+    }
+
+    public async Task<IEnumerable<LookupItem>> GetFarmersByGroupAsync(long? groupId, string? searchTerm = null)
+    {
+        var query = _context.PartySubs.Where(p => p.FlagDeleted == false || p.FlagDeleted == null);
+        
+        if (groupId.HasValue && groupId > 0)
+        {
+            query = query.Where(p => p.MainId == groupId);
+        }
+
+        if (!string.IsNullOrEmpty(searchTerm))
+        {
+            query = query.Where(p => p.PartyName.Contains(searchTerm));
+        }
+
+        return await query
+            .OrderBy(p => p.PartyName)
+            .Select(p => new LookupItem { Id = (int)p.PartyId, Name = p.PartyName, GroupId = (int?)p.MainId })
+            .Take(20)
+            .ToListAsync();
+    }
+
+    public async Task<(bool success, string message)> CreateSubGrowerAsync(PartySub subGrower)
+    {
+        try
+        {
+            _context.PartySubs.Add(subGrower);
+            await _context.SaveChangesAsync();
+            return (true, "Sub Grower added successfully");
+        }
+        catch (Exception ex)
+        {
+            return (false, $"Error adding sub grower: {ex.Message}");
+        }
     }
 
     public async Task LoadSpecialRateDropdownsAsync(dynamic viewBag)
     {
-        var growerGroups = await _context.GrowerGroups
-            .Where(g => g.IsActive)
-            .OrderBy(g => g.GroupName)
+        // Fetch Main Growers from BankMaster where SourceType == 'C'
+        var mainGrowers = await _context.BankMasters
+            .Where(b => b.IsActive && b.SourceType == "C")
+            .OrderBy(b => b.AccountName)
             .ToListAsync();
 
-        viewBag.GrowerGroupId = new SelectList(growerGroups, "Id", "GroupName");
+        viewBag.GrowerGroupId = new SelectList(mainGrowers.Select(b => new { Id = b.PartyId ?? 0, Name = b.AccountName }), "Id", "Name");
+        
+        // Load ALL sub-growers for initial lookup list if needed (Razor component expects this)
+        var allSubGrowers = await _context.PartySubs
+            .Where(p => (p.FlagDeleted == false || p.FlagDeleted == null))
+            .OrderBy(p => p.PartyName)
+            .Select(p => new LookupItem { Id = (int)p.PartyId, Name = p.PartyName, GroupId = (int?)p.MainId })
+            .ToListAsync();
+            
+        viewBag.Farmers = allSubGrowers;
     }
 
     private List<PackingSpecialRateDetail> GetSpecialRateDetailsFromForm(IFormCollection form, int specialRateId)

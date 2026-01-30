@@ -1,37 +1,76 @@
 @page "/inventory/packing-special-rates"
 @using AbraqAccount.Models
 @using AbraqAccount.Services.Interfaces
+@using Microsoft.AspNetCore.Mvc.Rendering
 @inject IPackingService PackingService
 @inject NavigationManager Navigation
 
-<div class="container-fluid py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2 class="mb-0">Packing Special Rates</h2>
-        <button class="btn btn-primary" @onclick="CreateNew">
-            <i class="bi bi-plus-lg"></i> Add Special Rate
-        </button>
-    </div>
-
-    <div class="card shadow-sm mb-4">
-        <div class="card-body">
-            <div class="row g-3">
-                <div class="col-md-4">
-                    <label class="form-label">Grower Group</label>
-                    <input type="text" class="form-control" placeholder="Search group..." 
-                           @bind="groupSearch" @onkeyup="HandleSearch" />
+<div class="content-header p-2">
+    <div class="container-fluid">
+        <div class="row align-items-center">
+            <div class="col-sm-6">
+                <h4 class="m-0" style="font-weight: 400;">Packing Special Rate <small class="text-muted" style="font-size: 14px;">Control panel</small></h4>
+            </div>
+            <div class="col-sm-6">
+                <div class="float-sm-right" style="font-size: 13px;">
+                    <i class="bi bi-house-door"></i> Home <span class="text-muted mx-1">></span> Packing Special Rate
                 </div>
-                <div class="col-md-4">
-                    <label class="form-label">Grower Name</label>
-                    <input type="text" class="form-control" placeholder="Search name..." 
-                           @bind="nameSearch" @onkeyup="HandleSearch" />
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container-fluid">
+    <div class="card mb-3" style="border: 1px solid #ddd; border-radius: 4px; box-shadow: none;">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center py-2" style="border-bottom: 1px solid #eee;">
+            <h5 class="card-title mb-0" style="font-size: 18px; color: #555;">Packing Special Rate <small class="text-muted" style="font-size: 14px;">- List</small></h5>
+            <button class="btn p-0" style="background: #999; color: white; width: 28px; height: 28px; border-radius: 4px;" @onclick="CreateNew">
+                <i class="bi bi-plus"></i>
+            </button>
+        </div>
+        <div class="card-body p-3">
+            <div class="row g-3 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label mb-1" style="font-weight: 600; font-size: 14px; color: #333;">Grower</label>
+                    <select class="form-select form-select-sm" @onchange="OnGroupFilterChanged" style="border-radius: 0; border: 1px solid #ccc;">
+                        <option value="">All Growers</option>
+                        @if (groups != null)
+                        {
+                            @foreach (var g in groups)
+                            {
+                                <option value="@g.Text">@g.Text</option>
+                            }
+                        }
+                    </select>
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label">Status</label>
-                    <select class="form-select" @onchange="OnStatusChanged">
-                        <option value="ALL">ALL</option>
+                    <label class="form-label mb-1" style="font-weight: 600; font-size: 14px; color: #333;">Sub Grower</label>
+                    <select class="form-select form-select-sm" @onchange="OnNameFilterChanged" style="border-radius: 0; border: 1px solid #ccc;">
+                        <option value="">All Sub Growers</option>
+                        @if (farmersList != null)
+                        {
+                            @foreach (var f in farmersList)
+                            {
+                                <option value="@f.Name">@f.Name</option>
+                            }
+                        }
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label mb-1" style="font-weight: 600; font-size: 14px; color: #333;">Status</label>
+                    <select class="form-select form-select-sm" @onchange="OnStatusChanged" style="border-radius: 0; border: 1px solid #ccc;">
                         <option value="Active">Active</option>
                         <option value="Inactive">Inactive</option>
+                        <option value="ALL">ALL</option>
                     </select>
+                </div>
+                <div class="col-md-4 text-end">
+                    <button class="btn btn-sm text-white px-3" style="background: #777; border-radius: 4px; font-size: 14px;" @onclick="LoadRates">
+                        Search <i class="bi bi-search"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary px-3 ms-2" style="background: #fff; color: #777; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;" @onclick="ClearFilters">
+                        Clear
+                    </button>
                 </div>
             </div>
         </div>
@@ -45,49 +84,56 @@
             </div>
         </div>
     }
-    else if (!rates.Any())
-    {
-        <div class="alert alert-info">No special rates found.</div>
-    }
     else
     {
-        <div class="card shadow-sm">
+        <div class="card" style="border: 1px solid #ddd; border-top: 2px solid #ccc; border-radius: 4px; box-shadow: none;">
             <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0">
-                    <thead class="table-light">
+                <table class="table table-bordered table-hover align-middle mb-0" style="font-size: 14px;">
+                    <thead style="background-color: #f9f9f9; color: #333;">
                         <tr>
-                            <th>Effective Date</th>
-                            <th>Grower Group</th>
-                            <th>Grower/Farmer</th>
-                            <th>Items Count</th>
-                            <th>Status</th>
-                            <th class="text-end">Actions</th>
+                            <th style="font-weight: 600; border-bottom: 1px solid #ddd; width: 60%;">Grower</th>
+                            <th style="font-weight: 600; border-bottom: 1px solid #ddd; width: 18%;">Effective Date</th>
+                            <th style="font-weight: 600; border-bottom: 1px solid #ddd; width: 8%; text-align: center;">Status</th>
+                            <th style="font-weight: 600; border-bottom: 1px solid #ddd; width: 14%; text-align: center;">Action</th>
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach (var rate in rates)
+                        @if (!rates.Any())
                         {
                             <tr>
-                                <td>@rate.EffectiveDate.ToString("dd MMM yyyy")</td>
-                                <td>@(rate.GrowerGroup?.GroupName ?? "N/A")</td>
-                                <td>@(rate.Farmer?.FarmerName ?? "N/A")</td>
-                                <td><span class="badge bg-secondary">@rate.Details.Count</span></td>
-                                <td>
-                                    @if (rate.IsActive)
-                                    {
-                                        <span class="badge bg-success-subtle text-success">Active</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="badge bg-danger-subtle text-danger">Inactive</span>
-                                    }
-                                </td>
-                                <td class="text-end">
-                                    <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => Edit(rate.Id)">
-                                        <i class="bi bi-pencil"></i>
-                                    </button>
-                                </td>
+                                <td colspan="4" class="text-center py-3">No special rates found.</td>
                             </tr>
+                        }
+                        else
+                        {
+                            @foreach (var rate in rates)
+                            {
+                                <tr>
+                                    <td class="py-2">
+                                        <div style="font-weight: 600; color: #333;">@(rate.GrowerGroup?.AccountName ?? "N/A")</div>
+                                        <div style="font-size: 12px; color: #777;">@(rate.Farmer?.PartyName ?? "N/A")</div>
+                                    </td>
+                                    <td>@rate.EffectiveDate.ToString("dd/MM/yyyy")</td>
+                                    <td class="text-center">
+                                        @if (rate.IsActive)
+                                        {
+                                            <i class="bi bi-check-circle-fill" style="color: #777; font-size: 18px;"></i>
+                                        }
+                                        else
+                                        {
+                                            <i class="bi bi-x-circle text-danger" style="font-size: 18px;"></i>
+                                        }
+                                    </td>
+                                    <td class="text-center">
+                                        <button class="btn btn-link p-0 me-3 text-dark" title="View" style="text-decoration: none;" @onclick="() => Edit(rate.Id)">
+                                            <i class="bi bi-eye" style="font-size: 18px; color: #555;"></i>
+                                        </button>
+                                        <button class="btn btn-link p-0 text-dark" title="Details" style="text-decoration: none;">
+                                            <i class="bi bi-info-circle text-dark" style="font-size: 16px;"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
                         }
                     </tbody>
                 </table>
@@ -101,15 +147,50 @@
     private string groupSearch = "";
     private string nameSearch = "";
     private string status = "ALL";
+    private List<SelectListItem>? groups;
+    private IEnumerable<LookupItem>? farmersList;
 
     protected override async Task OnInitializedAsync()
     {
+        dynamic viewBag = new System.Dynamic.ExpandoObject();
+        await PackingService.LoadSpecialRateDropdownsAsync(viewBag);
+        groups = ((IEnumerable<SelectListItem>)viewBag.GrowerGroupId).ToList();
+        allFarmersList = (IEnumerable<LookupItem>)viewBag.Farmers;
+        farmersList = Enumerable.Empty<LookupItem>(); // Initialize filters as empty
+        
         await LoadRates();
     }
 
     private async Task LoadRates()
     {
         rates = await PackingService.GetPackingSpecialRatesAsync(groupSearch, nameSearch, status);
+    }
+
+    private IEnumerable<LookupItem>? allFarmersList;
+
+    private async Task OnGroupFilterChanged(ChangeEventArgs e)
+    {
+        groupSearch = e.Value?.ToString() ?? "";
+        
+        // Find the ID of the selected group name to filter the dropdown
+        var selectedGroup = groups?.FirstOrDefault(g => g.Text == groupSearch);
+        if (selectedGroup != null && long.TryParse(selectedGroup.Value, out long groupId))
+        {
+            farmersList = allFarmersList?.Where(f => f.Id > 0 && (long?)f.GroupId == groupId).ToList();
+        }
+        else
+        {
+            farmersList = Enumerable.Empty<LookupItem>();
+        }
+        
+        nameSearch = ""; // Clear sub-grower search when group changes
+        await LoadRates();
+    }
+
+    private async Task OnNameFilterChanged(ChangeEventArgs e)
+    {
+        nameSearch = e.Value?.ToString() ?? "";
+        await LoadRates();
     }
 
     private async Task HandleSearch(KeyboardEventArgs e)
@@ -123,6 +204,14 @@
     private async Task OnStatusChanged(ChangeEventArgs e)
     {
         status = e.Value?.ToString() ?? "ALL";
+        await LoadRates();
+    }
+
+    private async Task ClearFilters()
+    {
+        groupSearch = "";
+        nameSearch = "";
+        status = "Active";
         await LoadRates();
     }
 
