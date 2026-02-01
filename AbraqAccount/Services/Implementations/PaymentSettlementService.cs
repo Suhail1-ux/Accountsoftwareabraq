@@ -79,14 +79,10 @@ public class PaymentSettlementService : IPaymentSettlementService
             // Name filtering requiring joins or in-memory. Fetching first.
             var allEntries = await query.OrderByDescending(p => p.CreatedAt).ToListAsync();
             
-            // Map to PaymentSettlement objects
             var settlements = new List<PaymentSettlement>();
-            var mediatorAccount = await _context.MasterGroups.OrderBy(mg => mg.Id).FirstOrDefaultAsync();
-            int mediatorId = mediatorAccount?.Id ?? 1;
-
             foreach(var ge in allEntries)
             {
-               settlements.Add(await MapToPaymentSettlementAsync(ge, mediatorId));
+               settlements.Add(await MapToPaymentSettlementAsync(ge));
             }
             
             // Filter by name if needed
@@ -153,27 +149,12 @@ public class PaymentSettlementService : IPaymentSettlementService
         }
     }
 
-    private async Task<PaymentSettlement> MapToPaymentSettlementAsync(GeneralEntry ge, int mediatorId)
+    private async Task<PaymentSettlement> MapToPaymentSettlementAsync(GeneralEntry ge)
     {
-        // Reconstruct Type based on Mediator position
-        string type = "Debit";
-        int accountId = ge.DebitAccountId ?? 0;
-        string accountType = ge.DebitAccountType;
-
-        if (ge.DebitAccountId == mediatorId && ge.DebitAccountType == "MasterGroup")
-        {
-            // Mediator DEBITED, so Target CREDITED
-            type = "Credit";
-            accountId = ge.CreditAccountId ?? 0;
-            accountType = ge.CreditAccountType;
-        }
-        else
-        {
-            // Mediator CREDITED, so Target DEBITED
-            type = "Debit";
-            accountId = ge.DebitAccountId ?? 0;
-            accountType = ge.DebitAccountType;
-        }
+        // One side is populated, the other is NULL
+        string type = ge.DebitAccountId.HasValue ? "Debit" : "Credit";
+        int accountId = ge.DebitAccountId ?? ge.CreditAccountId ?? 0;
+        string accountType = ge.DebitAccountType ?? ge.CreditAccountType ?? "";
 
         var ps = new PaymentSettlement
         {
@@ -183,12 +164,12 @@ public class PaymentSettlementService : IPaymentSettlementService
             Type = type,
             AccountId = accountId,
             AccountType = accountType,
-            PaymentType = ge.PaymentType, // Ensure mapping handles nulls
+            PaymentType = ge.PaymentType,
             Amount = ge.Amount,
-            RefNo = ge.ReferenceNo, // Mapped to ReferenceNo in GE
+            RefNo = ge.ReferenceNo,
             Narration = ge.Narration,
             ApprovalStatus = !ge.IsActive ? "Deleted" : ge.Status,
-            PaymentStatus = "Pending", // GE doesn't strictly track this separately?
+            PaymentStatus = "Pending",
             IsActive = ge.IsActive,
             CreatedAt = ge.CreatedAt,
             CreatedBy = ge.CreatedBy,
@@ -269,9 +250,6 @@ public class PaymentSettlementService : IPaymentSettlementService
             }
             string paNumber = $"PA{nextNumber:D6}";
 
-            var mediatorAccount = await _context.MasterGroups.OrderBy(mg => mg.Id).FirstOrDefaultAsync();
-            int mediatorId = mediatorAccount?.Id ?? 1;
-
             foreach (var entry in model.Entries)
             {
                 var ge = new GeneralEntry
@@ -281,6 +259,14 @@ public class PaymentSettlementService : IPaymentSettlementService
                     MobileNo = model.MobileNo,
                     VoucherType = "Payment Settlement",
                     Type = "PaymentSettlement",
+                    
+                    // Single-sided logic as requested:
+                    DebitAccountId = entry.Type == "Debit" ? entry.AccountId : null,
+                    DebitAccountType = entry.Type == "Debit" ? entry.AccountType : null,
+                    
+                    CreditAccountId = entry.Type == "Credit" ? entry.AccountId : null,
+                    CreditAccountType = entry.Type == "Credit" ? entry.AccountType : null,
+
                     Amount = entry.Amount,
                     Narration = entry.Narration,
                     Status = "Unapproved",
@@ -294,21 +280,6 @@ public class PaymentSettlementService : IPaymentSettlementService
                     CreatedBy = currentUser,
                     IsActive = true
                 };
-
-                if (entry.Type == "Debit")
-                {
-                    ge.DebitAccountId = entry.AccountId;
-                    ge.DebitAccountType = entry.AccountType;
-                    ge.CreditAccountId = mediatorId;
-                    ge.CreditAccountType = "MasterGroup";
-                }
-                else
-                {
-                    ge.DebitAccountId = mediatorId;
-                    ge.DebitAccountType = "MasterGroup";
-                    ge.CreditAccountId = entry.AccountId;
-                    ge.CreditAccountType = entry.AccountType;
-                }
 
                 _context.GeneralEntries.Add(ge);
             }
@@ -508,7 +479,7 @@ public class PaymentSettlementService : IPaymentSettlementService
 
     public async Task<IEnumerable<LookupItem>> GetEntryProfilesAsync()
     {
-        var types = new[] { "Global", "PaymentSettlement" };
+        var types = new[] { "Global", "PaymentSettlement", "Payment Settlement" };
         return await _context.EntryForAccounts
             .Where(e => types.Contains(e.TransactionType))
             .OrderBy(e => e.AccountName)
@@ -520,18 +491,15 @@ public class PaymentSettlementService : IPaymentSettlementService
     {
          var ge = await _context.GeneralEntries.FirstOrDefaultAsync(p => p.Id == id);
          if(ge == null) return null;
-         var mediatorAccount = await _context.MasterGroups.OrderBy(mg => mg.Id).FirstOrDefaultAsync();
-         return await MapToPaymentSettlementAsync(ge, mediatorAccount?.Id ?? 1);
+         return await MapToPaymentSettlementAsync(ge);
     }
     
     public async Task<List<PaymentSettlement>> GetSettlementEntriesByPANumberAsync(string paNumber)
     {
          var entries = await _context.GeneralEntries.Where(p => p.VoucherNo == paNumber && p.IsActive).ToListAsync();
          var list = new List<PaymentSettlement>();
-         var mediatorAccount = await _context.MasterGroups.OrderBy(mg => mg.Id).FirstOrDefaultAsync();
-         int mid = mediatorAccount?.Id ?? 1;
          
-         foreach(var e in entries) list.Add(await MapToPaymentSettlementAsync(e, mid));
+         foreach(var e in entries) list.Add(await MapToPaymentSettlementAsync(e));
          return list;
     }
 
@@ -554,10 +522,7 @@ public class PaymentSettlementService : IPaymentSettlementService
                  // Create new
                  // Same as CreateMultiple logic but force VoucherNo to paNumber
                  // ...
-                  var mediatorAccount = await _context.MasterGroups.OrderBy(mg => mg.Id).FirstOrDefaultAsync();
-                  int mediatorId = mediatorAccount?.Id ?? 1;
                   var currentUser = GetCurrentUsername();
-
                   foreach (var entry in model.Entries)
                 {
                     var ge = new GeneralEntry
@@ -578,23 +543,15 @@ public class PaymentSettlementService : IPaymentSettlementService
                         PaymentType = entry.PaymentType,
                         CreatedAt = DateTime.Now,
                         CreatedBy = currentUser,
-                        IsActive = true
+                        IsActive = true,
+
+                        // Single-sided logic
+                        DebitAccountId = entry.Type == "Debit" ? entry.AccountId : null,
+                        DebitAccountType = entry.Type == "Debit" ? entry.AccountType : null,
+                        
+                        CreditAccountId = entry.Type == "Credit" ? entry.AccountId : null,
+                        CreditAccountType = entry.Type == "Credit" ? entry.AccountType : null
                     };
-    
-                    if (entry.Type == "Debit")
-                    {
-                        ge.DebitAccountId = entry.AccountId;
-                        ge.DebitAccountType = entry.AccountType;
-                        ge.CreditAccountId = mediatorId;
-                        ge.CreditAccountType = "MasterGroup";
-                    }
-                    else
-                    {
-                        ge.DebitAccountId = mediatorId;
-                        ge.DebitAccountType = "MasterGroup";
-                        ge.CreditAccountId = entry.AccountId;
-                        ge.CreditAccountType = entry.AccountType;
-                    }
     
                     _context.GeneralEntries.Add(ge);
                 }
@@ -632,15 +589,12 @@ public class PaymentSettlementService : IPaymentSettlementService
 
             if (!entries.Any()) return null;
 
-            var mediatorAccount = await _context.MasterGroups.OrderBy(mg => mg.Id).FirstOrDefaultAsync();
-            int mediatorId = mediatorAccount?.Id ?? 1;
-
             var debitEntries = new List<dynamic>();
             var creditEntries = new List<dynamic>();
 
             foreach (var e in entries)
             {
-                if (e.DebitAccountId == mediatorId && e.DebitAccountType == "MasterGroup")
+                if (e.CreditAccountId.HasValue)
                 {
                     string name = await GetAccountNameAsync(e.CreditAccountType, e.CreditAccountId ?? 0);
                     creditEntries.Add(new {
@@ -651,7 +605,7 @@ public class PaymentSettlementService : IPaymentSettlementService
                         paymentType = e.PaymentType
                     });
                 }
-                else
+                else if (e.DebitAccountId.HasValue)
                 {
                     string name = await GetAccountNameAsync(e.DebitAccountType, e.DebitAccountId ?? 0);
                     debitEntries.Add(new {

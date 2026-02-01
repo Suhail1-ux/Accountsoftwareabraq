@@ -6,7 +6,7 @@ namespace AbraqAccount.Models
     public class LedgerReportResult
     {
         public decimal OpeningBalance { get; set; }
-        public List<GeneralEntry> Entries { get; set; } = new();
+        public List<LedgerEntryViewModel> Entries { get; set; } = new();
         public decimal ClosingBalance { get; set; }
     }
 }

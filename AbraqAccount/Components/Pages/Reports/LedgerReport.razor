@@ -82,37 +82,37 @@
                     <thead class="table-light">
                         <tr>
                             <th style="min-width: 100px;">
-                                <AbraqAccount.Components.Common.ColumnFilter TItem="GeneralEntry" TValue="string" 
-                                    Title="Date" Items="reportResult.Entries" Property='e => e.EntryDate.ToString("dd-MM-yyyy")' 
+                                <AbraqAccount.Components.Common.ColumnFilter TItem="LedgerEntryViewModel" TValue="string" 
+                                    Title="Date" Items="reportResult.Entries" Property='e => e.Date.ToString("dd-MM-yyyy")' 
                                     OnFilter="vals => { filteredDates = vals; StateHasChanged(); }" Align="left" />
                             </th>
                             <th style="min-width: 150px;">
-                                <AbraqAccount.Components.Common.ColumnFilter TItem="GeneralEntry" TValue="string" 
+                                <AbraqAccount.Components.Common.ColumnFilter TItem="LedgerEntryViewModel" TValue="string" 
                                     Title="Voucher No" Items="reportResult.Entries" Property="e => e.VoucherNo" 
                                     OnFilter="vals => { filteredVoucherNos = vals; StateHasChanged(); }" Align="left" />
                             </th>
                             <th style="min-width: 120px;">
-                                <AbraqAccount.Components.Common.ColumnFilter TItem="GeneralEntry" TValue="string" 
+                                <AbraqAccount.Components.Common.ColumnFilter TItem="LedgerEntryViewModel" TValue="string" 
                                     Title="Unit" Items="reportResult.Entries" Property="e => e.Unit ?? string.Empty" 
                                     OnFilter="vals => { filteredUnits = vals; StateHasChanged(); }" Align="left" />
                             </th>
                             <th style="min-width: 200px;">
-                                <AbraqAccount.Components.Common.ColumnFilter TItem="GeneralEntry" TValue="string" 
-                                    Title="Particulars" Items="reportResult.Entries" Property="e => GetParticulars(e)" 
+                                <AbraqAccount.Components.Common.ColumnFilter TItem="LedgerEntryViewModel" TValue="string" 
+                                    Title="Particulars" Items="reportResult.Entries" Property="e => e.Particulars" 
                                     OnFilter="vals => { filteredParticulars = vals; StateHasChanged(); }" Align="left" />
                             </th>
                             <th style="min-width: 150px;">
-                                <AbraqAccount.Components.Common.ColumnFilter TItem="GeneralEntry" TValue="string" 
+                                <AbraqAccount.Components.Common.ColumnFilter TItem="LedgerEntryViewModel" TValue="string" 
                                     Title="Voucher Type" Items="reportResult.Entries" Property="e => e.VoucherType ?? string.Empty" 
                                     OnFilter="vals => { filteredVoucherTypes = vals; StateHasChanged(); }" Align="left" />
                             </th>
                             <th style="min-width: 200px;">
-                                <AbraqAccount.Components.Common.ColumnFilter TItem="GeneralEntry" TValue="string" 
+                                <AbraqAccount.Components.Common.ColumnFilter TItem="LedgerEntryViewModel" TValue="string" 
                                     Title="Narration" Items="reportResult.Entries" Property="e => e.Narration ?? string.Empty" 
                                     OnFilter="vals => { filteredNarrations = vals; StateHasChanged(); }" Align="left" />
                             </th>
                             <th style="min-width: 130px;">
-                                <AbraqAccount.Components.Common.ColumnFilter TItem="GeneralEntry" TValue="string" 
+                                <AbraqAccount.Components.Common.ColumnFilter TItem="LedgerEntryViewModel" TValue="string" 
                                     Title="Payment Type" Items="reportResult.Entries" Property="e => e.PaymentType ?? string.Empty" 
                                     OnFilter="vals => { filteredPaymentTypes = vals; StateHasChanged(); }" Align="left" />
                             </th>
@@ -133,29 +133,27 @@
                         </tr>
                         @foreach (var entry in reportResult.Entries)
                         {
-                            bool isOurDebit = (entry.DebitAccountId == selectedAccountId && entry.DebitAccountType == accountType);
-                            decimal debit = isOurDebit ? entry.Amount : 0;
-                            decimal credit = isOurDebit ? 0 : entry.Amount;
+                            decimal debit = entry.DebitAmount;
+                            decimal credit = entry.CreditAmount;
                             runningBalance += (credit - debit);
 
                             // Apply column filters
-                            // Apply column filters
-                            if (filteredDates != null && !filteredDates.Contains(entry.EntryDate.ToString("dd-MM-yyyy"))) continue;
+                            if (filteredDates != null && !filteredDates.Contains(entry.Date.ToString("dd-MM-yyyy"))) continue;
                             if (filteredVoucherNos != null && !filteredVoucherNos.Contains(entry.VoucherNo)) continue;
                             if (filteredUnits != null && !filteredUnits.Contains(entry.Unit ?? "")) continue;
-                            if (filteredParticulars != null && !filteredParticulars.Contains(GetParticulars(entry))) continue;
+                            if (filteredParticulars != null && !filteredParticulars.Contains(entry.Particulars)) continue;
                             if (filteredVoucherTypes != null && !filteredVoucherTypes.Contains(entry.VoucherType ?? "")) continue;
                             if (filteredNarrations != null && !filteredNarrations.Contains(entry.Narration ?? "")) continue;
                             if (filteredPaymentTypes != null && !filteredPaymentTypes.Contains(entry.PaymentType ?? "")) continue;
 
                             <tr>
-                                <td>@entry.EntryDate.ToString("dd-MM-yyyy")</td>
+                                <td>@entry.Date.ToString("dd-MM-yyyy")</td>
                                 <td>
                                     <span class="badge bg-secondary">@entry.VoucherNo</span>
                                 </td>
                                 <td>@entry.Unit</td>
                                 <td>
-                                    @GetParticulars(entry)
+                                    @entry.Particulars
                                 </td>
                                 <td><small class="text-muted">@entry.VoucherType</small></td>
                                 <td>@entry.Narration</td>
@@ -171,8 +169,8 @@
                     <tfoot class="table-light fw-bold">
                         <tr class="table-info">
                             <td colspan="7" class="text-end">Total / Closing</td>
-                            <td class="text-end text-danger">@reportResult.Entries.Where(e => (e.DebitAccountId == selectedAccountId && e.DebitAccountType == accountType)).Sum(e => e.Amount).ToString("N2")</td>
-                            <td class="text-end text-success">@reportResult.Entries.Where(e => (e.CreditAccountId == selectedAccountId && e.CreditAccountType == accountType)).Sum(e => e.Amount).ToString("N2")</td>
+                            <td class="text-end text-danger">@reportResult.Entries.Sum(e => e.DebitAmount).ToString("N2")</td>
+                            <td class="text-end text-success">@reportResult.Entries.Sum(e => e.CreditAmount).ToString("N2")</td>
                             <td class="text-end fw-bold @(reportResult.ClosingBalance < 0 ? "text-danger" : "text-primary")">
                                 @(Math.Abs(reportResult.ClosingBalance).ToString("N2")) @(reportResult.ClosingBalance < 0 ? "Dr" : "Cr")
                             </td>

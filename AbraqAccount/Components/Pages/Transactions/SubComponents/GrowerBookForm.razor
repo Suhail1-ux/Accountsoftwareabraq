@@ -300,7 +300,7 @@
 
                 foreach (var e in entries)
                 {
-                    if (e.DebitAccountId != 1) { 
+                    if (e.DebitAccountId.HasValue) { 
                          uiEntries.Add(new UIEntry {
                             Type = "Debit",
                             AccountId = e.DebitAccountId ?? 0,
@@ -314,7 +314,7 @@
                             Unit = e.Unit
                         });
                     }
-                    if (e.CreditAccountId != 1) { 
+                    if (e.CreditAccountId.HasValue) { 
                          uiEntries.Add(new UIEntry {
                             Type = "Credit",
                             AccountId = e.CreditAccountId ?? 0,

@@ -156,7 +156,7 @@ public class GeneralEntryService : IGeneralEntryService
                     VoucherNo = g.Key,
                     Date = g.First().EntryDate,
                     Entries = g.ToList(),
-                    TotalDebit = g.Sum(e => e.Amount),
+                    TotalDebit = g.Where(e => e.DebitAccountId.HasValue).Sum(e => e.Amount),
                     Status = !g.First().IsActive ? "Deleted" : g.First().Status,
                     Unit = g.First().Unit,
                     Id = g.First().Id
@@ -389,19 +389,6 @@ public class GeneralEntryService : IGeneralEntryService
                 }
             }
 
-            // Get default account for opposite side (the mediator)
-            var mediatorAccount = await _context.MasterGroups
-                .OrderBy(mg => mg.Id)
-                .FirstOrDefaultAsync();
-            
-            int mediatorAccountId = mediatorAccount?.Id ?? 1;
-            string mediatorAccountType = AccountTypes.MasterGroup;
-            
-            // Detection: Is this a 1-to-1 transaction?
-            bool isSimpleTransaction = model.Entries.Count == 2 && 
-                                      model.Entries.Any(e => e.Type == "Debit") && 
-                                      model.Entries.Any(e => e.Type == "Credit");
-
             // Generate Voucher Number (e.g., JBK/A/24-25/00320)
             var lastEntry = await _context.GeneralEntries
                 .OrderByDescending(g => g.Id)
@@ -427,98 +414,35 @@ public class GeneralEntryService : IGeneralEntryService
             var voucherNo = $"JBK/A/{yearShort}-{nextYear}/{nextNumber:D5}";
 
             // Save entries
-            if (isSimpleTransaction)
+            foreach (var entryData in model.Entries)
             {
-                // MERGE: Handle single row for 1-to-1 transaction
-                var debitData = model.Entries.First(e => e.Type == "Debit");
-                var creditData = model.Entries.First(e => e.Type == "Credit");
-
-                // Map accounts
-                int debitAccountId = debitData.AccountId;
-                string debitAccountType = debitData.AccountType;
-
-                int creditAccountId = creditData.AccountId;
-                string creditAccountType = creditData.AccountType;
-
-                var mergedEntry = new GeneralEntry
+                var generalEntry = new GeneralEntry
                 {
                     VoucherNo = voucherNo,
                     EntryDate = model.EntryDate,
                     MobileNo = model.MobileNo,
-                    DebitAccountId = debitAccountId,
-                    DebitAccountType = debitAccountType,
-                    CreditAccountId = creditAccountId,
-                    CreditAccountType = creditAccountType,
-                    Amount = debitData.Amount, // Same for both in 1-to-1
-                    Type = debitData.PaymentType, 
-                    Narration = (!string.IsNullOrEmpty(debitData.RefNoChequeUTR) ? $"Ref: {debitData.RefNoChequeUTR}. " : "") + (debitData.Narration ?? ""),
-                    ReferenceNo = debitData.RefNoChequeUTR,
+                    DebitAccountId = entryData.Type == "Debit" ? entryData.AccountId : null,
+                    DebitAccountType = entryData.Type == "Debit" ? entryData.AccountType : null,
+                    CreditAccountId = entryData.Type == "Credit" ? entryData.AccountId : null,
+                    CreditAccountType = entryData.Type == "Credit" ? entryData.AccountType : null,
+                    Amount = entryData.Amount,
+                    Type = entryData.PaymentType,
+                    PaymentType = entryData.PaymentType,
+                    Narration = (!string.IsNullOrEmpty(entryData.RefNoChequeUTR) ? $"Ref: {entryData.RefNoChequeUTR}. " : "") + (entryData.Narration ?? ""),
+                    ReferenceNo = entryData.RefNoChequeUTR,
                     CreatedAt = DateTime.Now,
                     CreatedBy = currentUser,
                     Status = "Unapproved",
                     IsActive = true,
-                    Unit = debitData.Unit,
-                    EntryAccountId = debitData.EntryAccountId,
-                    EntryForId = debitData.EntryForId,
-                    EntryForName = debitData.EntryForName,
-                    PaymentFromSubGroupId = debitData.PaymentFromSubGroupId,
-                    PaymentFromSubGroupName = debitData.PaymentFromSubGroupName
+                    Unit = entryData.Unit,
+                    PaymentFromSubGroupId = entryData.PaymentFromSubGroupId,
+                    PaymentFromSubGroupName = entryData.PaymentFromSubGroupName,
+                    EntryAccountId = entryData.EntryAccountId,
+                    EntryForId = entryData.EntryForId,
+                    EntryForName = entryData.EntryForName
                 };
-                _context.GeneralEntries.Add(mergedEntry);
-            }
-            else
-            {
-                // STANDARD: Save multiple entries with mediator
-                foreach (var entryData in model.Entries)
-                {
-                    int debitAccountId, creditAccountId;
-                    string debitAccountType, creditAccountType;
 
-                    int mappedAccountId = entryData.AccountId;
-                    string mappedAccountType = entryData.AccountType;
-                    
-                    if (entryData.Type == "Debit")
-                    {
-                        debitAccountId = mappedAccountId;
-                        debitAccountType = mappedAccountType;
-                        creditAccountId = mediatorAccountId;
-                        creditAccountType = mediatorAccountType;
-                    }
-                    else // Credit
-                    {
-                        creditAccountId = mappedAccountId;
-                        creditAccountType = mappedAccountType;
-                        debitAccountId = mediatorAccountId;
-                        debitAccountType = mediatorAccountType;
-                    }
-
-                    var generalEntry = new GeneralEntry
-                    {
-                        VoucherNo = voucherNo,
-                        EntryDate = model.EntryDate,
-                        MobileNo = model.MobileNo,
-                        DebitAccountId = debitAccountId,
-                        DebitAccountType = debitAccountType,
-                        CreditAccountId = creditAccountId,
-                        CreditAccountType = creditAccountType,
-                        Amount = entryData.Amount,
-                        Type = entryData.PaymentType,
-                        Narration = (!string.IsNullOrEmpty(entryData.RefNoChequeUTR) ? $"Ref: {entryData.RefNoChequeUTR}. " : "") + (entryData.Narration ?? ""),
-                        ReferenceNo = entryData.RefNoChequeUTR,
-                        CreatedAt = DateTime.Now,
-                        CreatedBy = currentUser,
-                        Status = "Unapproved",
-                        IsActive = true,
-                        Unit = entryData.Unit,
-                        PaymentFromSubGroupId = entryData.PaymentFromSubGroupId,
-                        PaymentFromSubGroupName = entryData.PaymentFromSubGroupName,
-                        EntryAccountId = entryData.EntryAccountId,
-                        EntryForId = entryData.EntryForId,
-                        EntryForName = entryData.EntryForName
-                    };
-
-                    _context.GeneralEntries.Add(generalEntry);
-                }
+                _context.GeneralEntries.Add(generalEntry);
             }
 
             await _context.SaveChangesAsync();
@@ -1050,106 +974,36 @@ public class GeneralEntryService : IGeneralEntryService
                 _context.GeneralEntries.RemoveRange(existingEntries);
                 await _context.SaveChangesAsync();
 
-                // 4. Create new entries (Using logic similar to CreateMultiple, but preserving VoucherNo)
-                
-                // Get default account (the mediator)
-                var mediatorAccount = await _context.MasterGroups.OrderBy(mg => mg.Id).FirstOrDefaultAsync();
-                int mediatorAccountId = mediatorAccount?.Id ?? 1;
-                string mediatorAccountType = AccountTypes.MasterGroup;
-
-                // Detection: Is this a 1-to-1 transaction?
-                bool isSimpleTransaction = model.Entries.Count == 2 && 
-                                          model.Entries.Any(e => e.Type == "Debit") && 
-                                          model.Entries.Any(e => e.Type == "Credit");
-
-                if (isSimpleTransaction)
+                // 4. Create new entries (strictly single-sided per row)
+                foreach (var entryData in model.Entries)
                 {
-                    // MERGE: Handle single row for 1-to-1 transaction
-                    var debitData = model.Entries.First(e => e.Type == "Debit");
-                    var creditData = model.Entries.First(e => e.Type == "Credit");
-
-                    int debitAccountId = debitData.AccountId;
-                    string debitAccountType = debitData.AccountType;
-
-                    int creditAccountId = creditData.AccountId;
-                    string creditAccountType = creditData.AccountType;
-
-                    var mergedEntry = new GeneralEntry
+                    var generalEntry = new GeneralEntry
                     {
                         VoucherNo = voucherNo,
                         EntryDate = model.EntryDate,
-                        DebitAccountId = debitAccountId,
-                        DebitAccountType = debitAccountType,
-                        CreditAccountId = creditAccountId,
-                        CreditAccountType = creditAccountType,
-                        Amount = debitData.Amount,
-                        Type = debitData.PaymentType, 
-                        Narration = (!string.IsNullOrEmpty(debitData.RefNoChequeUTR) ? $"Ref: {debitData.RefNoChequeUTR}. " : "") + (debitData.Narration ?? ""),
-                        ReferenceNo = debitData.RefNoChequeUTR,
+                        MobileNo = model.MobileNo,
+                        DebitAccountId = entryData.Type == "Debit" ? entryData.AccountId : null,
+                        DebitAccountType = entryData.Type == "Debit" ? entryData.AccountType : null,
+                        CreditAccountId = entryData.Type == "Credit" ? entryData.AccountId : null,
+                        CreditAccountType = entryData.Type == "Credit" ? entryData.AccountType : null,
+                        Amount = entryData.Amount,
+                        Type = entryData.PaymentType,
+                        PaymentType = entryData.PaymentType,
+                        Narration = (!string.IsNullOrEmpty(entryData.RefNoChequeUTR) ? $"Ref: {entryData.RefNoChequeUTR}. " : "") + (entryData.Narration ?? ""),
+                        ReferenceNo = entryData.RefNoChequeUTR,
                         CreatedAt = DateTime.Now,
                         CreatedBy = currentUser,
                         Status = existingEntries.FirstOrDefault()?.Status ?? "Unapproved",
                         IsActive = true,
-                        Unit = debitData.Unit ?? existingUnit, // Preserve unit
-                        PaymentFromSubGroupId = debitData.PaymentFromSubGroupId,
-                        PaymentFromSubGroupName = debitData.PaymentFromSubGroupName,
-                        EntryAccountId = debitData.EntryAccountId,
-                        EntryForId = debitData.EntryForId,
-                        EntryForName = debitData.EntryForName
+                        Unit = entryData.Unit ?? existingUnit,
+                        PaymentFromSubGroupId = entryData.PaymentFromSubGroupId,
+                        PaymentFromSubGroupName = entryData.PaymentFromSubGroupName,
+                        EntryAccountId = entryData.EntryAccountId,
+                        EntryForId = entryData.EntryForId,
+                        EntryForName = entryData.EntryForName
                     };
-                    _context.GeneralEntries.Add(mergedEntry);
-                }
-                else
-                {
-                    // STANDARD: Save multiple entries with mediator
-                    foreach (var entryData in model.Entries)
-                    {
-                        int debitAccountId, creditAccountId;
-                        string debitAccountType, creditAccountType;
 
-                        int mappedAccountId = entryData.AccountId;
-                        string mappedAccountType = entryData.AccountType;
-
-                        if (entryData.Type == "Debit")
-                        {
-                            debitAccountId = mappedAccountId;
-                            debitAccountType = mappedAccountType;
-                            creditAccountId = mediatorAccountId;
-                            creditAccountType = mediatorAccountType;
-                        }
-                        else
-                        {
-                            creditAccountId = mappedAccountId;
-                            creditAccountType = mappedAccountType;
-                            debitAccountId = mediatorAccountId;
-                            debitAccountType = mediatorAccountType;
-                        }
-
-                        var generalEntry = new GeneralEntry
-                        {
-                            VoucherNo = voucherNo,
-                            EntryDate = model.EntryDate,
-                            DebitAccountId = debitAccountId,
-                            DebitAccountType = debitAccountType,
-                            CreditAccountId = creditAccountId,
-                            CreditAccountType = creditAccountType,
-                            Amount = entryData.Amount,
-                            Type = entryData.PaymentType,
-                            Narration = (!string.IsNullOrEmpty(entryData.RefNoChequeUTR) ? $"Ref: {entryData.RefNoChequeUTR}. " : "") + (entryData.Narration ?? ""),
-                            ReferenceNo = entryData.RefNoChequeUTR,
-                            CreatedAt = DateTime.Now,
-                            Status = existingEntries.FirstOrDefault()?.Status ?? "Unapproved",
-                            IsActive = true,
-                            Unit = entryData.Unit ?? existingUnit, // Preserve unit
-                            PaymentFromSubGroupId = entryData.PaymentFromSubGroupId,
-                            PaymentFromSubGroupName = entryData.PaymentFromSubGroupName,
-                            EntryAccountId = entryData.EntryAccountId,
-                            EntryForId = entryData.EntryForId,
-                            EntryForName = entryData.EntryForName
-                        };
-
-                        _context.GeneralEntries.Add(generalEntry);
-                    }
+                    _context.GeneralEntries.Add(generalEntry);
                 }
 
                 await _context.SaveChangesAsync();
@@ -1313,12 +1167,26 @@ public class GeneralEntryService : IGeneralEntryService
         try
         {
             // Fetch BankMaster accounts filtered by SubGroupLedger ID (GroupId)
+            // Filter: Only include accounts with non-zero balance (Credit - Debit != 0)
+            // This implicitly excludes accounts with no entries and accounts that are squared off.
+            // also removed 'bm.IsActive' check to include inactive accounts if they have a remaining balance.
             var accounts = await _context.BankMasters
-                .Where(bm => bm.GroupId == groupId && bm.IsActive)
-                .OrderBy(bm => bm.AccountName)
+                .Where(bm => bm.GroupId == groupId)
                 .Select(bm => new { 
-                    id = bm.Id, 
-                    name = bm.AccountName,
+                    bm.Id, 
+                    bm.AccountName,
+                    DebitSum = _context.GeneralEntries
+                        .Where(g => g.DebitAccountId == bm.Id && g.DebitAccountType == AccountTypes.BankMaster)
+                        .Sum(g => (decimal?)g.Amount) ?? 0,
+                    CreditSum = _context.GeneralEntries
+                        .Where(g => g.CreditAccountId == bm.Id && g.CreditAccountType == AccountTypes.BankMaster)
+                        .Sum(g => (decimal?)g.Amount) ?? 0
+                })
+                .Where(x => (x.CreditSum - x.DebitSum) != 0)
+                .OrderBy(x => x.AccountName)
+                .Select(x => new { 
+                    id = x.Id, 
+                    name = x.AccountName,
                     type = AccountTypes.BankMaster
                 })
                 .ToListAsync();
@@ -1339,84 +1207,54 @@ public class GeneralEntryService : IGeneralEntryService
         try
         {
             var result = new LedgerReportResult();
-            
-            var pAccountId = new SqlParameter("@AccountId", accountId);
-            var pAccountType = new SqlParameter("@AccountType", accountType);
-            var pFromDate = new SqlParameter("@FromDate", fromDate);
-            var pToDate = new SqlParameter("@ToDate", toDate);
-            var pOpeningBalance = new SqlParameter("@OpeningBalance", SqlDbType.Decimal) 
-            { 
-                Direction = ParameterDirection.Output,
-                Precision = 18,
-                Scale = 2
-            };
+            var entries = new List<LedgerEntryViewModel>();
 
-            // Fetch Entries and get Opening Balance from SP
-            var generalEntries = await _context.GeneralEntries
-                .FromSqlRaw("EXEC GetLedgerReport @AccountId, @AccountType, @FromDate, @ToDate, @OpeningBalance OUTPUT", 
-                    pAccountId, pAccountType, pFromDate, pToDate, pOpeningBalance)
-                .ToListAsync();
+            var connectionString = _context.Database.GetDbConnection().ConnectionString;
 
-            // Set Opening Balance
-            result.OpeningBalance = pOpeningBalance.Value != DBNull.Value ? (decimal)pOpeningBalance.Value : 0;
-            
-            var allEntries = new List<GeneralEntry>();
-
-            foreach (var entry in generalEntries)
+            using (var conn = new SqlConnection(connectionString))
+            using (var cmd = new SqlCommand("GetLedgerReport", conn))
             {
-                await LoadAccountNamesAsync(entry);
-                
-                var ledgerEntry = new GeneralEntry
+                cmd.CommandType = CommandType.StoredProcedure;
+                cmd.Parameters.AddWithValue("@AccountId", accountId);
+                cmd.Parameters.AddWithValue("@AccountType", accountType);
+                cmd.Parameters.AddWithValue("@FromDate", fromDate);
+                cmd.Parameters.AddWithValue("@ToDate", toDate);
+
+                var pOpeningBalance = new SqlParameter("@OpeningBalance", SqlDbType.Decimal)
                 {
-                    Id = entry.Id,
-                    VoucherNo = entry.VoucherNo,
-                    EntryDate = entry.EntryDate,
-                    Amount = entry.Amount,
-                    Narration = entry.Narration,
-                    Status = entry.Status,
-                    Type = entry.Type,
-                    CreatedAt = entry.CreatedAt,
-                    DebitAccountId = entry.DebitAccountId,
-                    DebitAccountType = entry.DebitAccountType,
-                    CreditAccountId = entry.CreditAccountId,
-                    CreditAccountType = entry.CreditAccountType,
-                    VoucherType = !string.IsNullOrEmpty(entry.VoucherType) ? entry.VoucherType : "General Entry",
-                    PaymentType = entry.PaymentType,
-                    Unit = entry.Unit,
-                    // Copy loaded nav properties
-                    CreditMasterGroup = entry.CreditMasterGroup,
-                    CreditMasterSubGroup = entry.CreditMasterSubGroup,
-                    CreditSubGroupLedger = entry.CreditSubGroupLedger,
-                    CreditBankMasterInfo = entry.CreditBankMasterInfo,
-                    CreditFarmer = entry.CreditFarmer,
-                    DebitMasterGroup = entry.DebitMasterGroup,
-                    DebitMasterSubGroup = entry.DebitMasterSubGroup,
-                    DebitSubGroupLedger = entry.DebitSubGroupLedger,
-                    DebitBankMasterInfo = entry.DebitBankMasterInfo,
-                    DebitFarmer = entry.DebitFarmer,
-                    
-                    EntryForId = entry.EntryForId,
-                    EntryForName = entry.EntryForName,
-                    PaymentFromSubGroup = entry.PaymentFromSubGroup,
-                    PaymentFromSubGroupId = entry.PaymentFromSubGroupId,
-                    PaymentFromSubGroupName = entry.PaymentFromSubGroupName
+                    Direction = ParameterDirection.Output,
+                    Precision = 18,
+                    Scale = 2
                 };
+                cmd.Parameters.Add(pOpeningBalance);
 
-                allEntries.Add(ledgerEntry);
-            }
-            
-            result.Entries = allEntries;
+                await conn.OpenAsync();
 
-            // Calculate Closing Balance
-            decimal bal = result.OpeningBalance;
-            foreach (var entry in result.Entries)
-            {
-                bool isOurDebit = (entry.DebitAccountId == accountId && entry.DebitAccountType == accountType);
-                decimal d = isOurDebit ? entry.Amount : 0;
-                decimal c = isOurDebit ? 0 : entry.Amount;
-                bal += (c - d);
+                using (var reader = await cmd.ExecuteReaderAsync())
+                {
+                    while (await reader.ReadAsync())
+                    {
+                        entries.Add(new LedgerEntryViewModel
+                        {
+                            Date = reader.GetDateTime(reader.GetOrdinal("EntryDate")),
+                            VoucherNo = reader.IsDBNull(reader.GetOrdinal("VoucherNo")) ? "" : reader.GetString(reader.GetOrdinal("VoucherNo")),
+                            VoucherType = reader.IsDBNull(reader.GetOrdinal("VoucherType")) ? "General Entry" : reader.GetString(reader.GetOrdinal("VoucherType")),
+                            PaymentType = reader.IsDBNull(reader.GetOrdinal("PaymentType")) ? "" : reader.GetString(reader.GetOrdinal("PaymentType")),
+                            Narration = reader.IsDBNull(reader.GetOrdinal("Narration")) ? "" : reader.GetString(reader.GetOrdinal("Narration")),
+                            Unit = reader.IsDBNull(reader.GetOrdinal("Unit")) ? "" : reader.GetString(reader.GetOrdinal("Unit")),
+                            DebitAmount = reader.GetDecimal(reader.GetOrdinal("DebitAmount")),
+                            CreditAmount = reader.GetDecimal(reader.GetOrdinal("CreditAmount")),
+                            Particulars = reader.IsDBNull(reader.GetOrdinal("Particulars")) ? "" : reader.GetString(reader.GetOrdinal("Particulars"))
+                        });
+                    }
+                }
+
+                result.OpeningBalance = pOpeningBalance.Value != DBNull.Value ? (decimal)pOpeningBalance.Value : 0;
+                result.Entries = entries;
+
+                // Calculate Closing Balance
+                result.ClosingBalance = result.OpeningBalance + entries.Sum(e => e.CreditAmount - e.DebitAmount);
             }
-            result.ClosingBalance = bal;
 
             return result;
         }
@@ -1426,24 +1264,7 @@ public class GeneralEntryService : IGeneralEntryService
         }
     }
 
-    private async Task<decimal> CalculateBalanceUntilAsync(int accountId, string accountType, DateTime untilDate)
-    {
-        try
-        {
-            var geDebit = await _context.GeneralEntries
-                .Where(g => g.DebitAccountId == accountId && g.DebitAccountType == accountType && g.EntryDate < untilDate)
-                .SumAsync(g => (decimal?)g.Amount) ?? 0;
-            var geCredit = await _context.GeneralEntries
-                .Where(g => g.CreditAccountId == accountId && g.CreditAccountType == accountType && g.EntryDate < untilDate)
-                .SumAsync(g => (decimal?)g.Amount) ?? 0;
 
-            return geCredit - geDebit;
-        }
-        catch (Exception)
-        {
-            throw;
-        }
-    }
     #endregion
 
         #region Reporting Helpers
@@ -1733,13 +1554,14 @@ public class GeneralEntryService : IGeneralEntryService
                         CreatedBy = currentUser,
                         VoucherType = "Grower Book",
                         Type = "GrowerBook",
+                        PaymentType = entryData.PaymentType,
                         Unit = entryData.Unit,
                         EntryForId = entryData.EntryForId,
                         EntryForName = entryData.EntryForName,
-                        DebitAccountId = entryData.Type == "Debit" ? entryData.AccountId : 1, // Mediator if unbalanced, or set by component
-                        DebitAccountType = entryData.Type == "Debit" ? entryData.AccountType : AccountTypes.MasterGroup,
-                        CreditAccountId = entryData.Type == "Credit" ? entryData.AccountId : 1,
-                        CreditAccountType = entryData.Type == "Credit" ? entryData.AccountType : AccountTypes.MasterGroup
+                        DebitAccountId = entryData.Type == "Debit" ? entryData.AccountId : null,
+                        DebitAccountType = entryData.Type == "Debit" ? entryData.AccountType : null,
+                        CreditAccountId = entryData.Type == "Credit" ? entryData.AccountId : null,
+                        CreditAccountType = entryData.Type == "Credit" ? entryData.AccountType : null
                     };
                     _context.GeneralEntries.Add(ge);
                 }
@@ -1798,13 +1620,14 @@ public class GeneralEntryService : IGeneralEntryService
                         CreatedBy = currentUser,
                         VoucherType = "Grower Book",
                         Type = "GrowerBook",
+                        PaymentType = entryData.PaymentType,
                         Unit = entryData.Unit,
                         EntryForId = entryData.EntryForId,
                         EntryForName = entryData.EntryForName,
-                        DebitAccountId = entryData.Type == "Debit" ? entryData.AccountId : 1,
-                        DebitAccountType = entryData.Type == "Debit" ? entryData.AccountType : AccountTypes.MasterGroup,
-                        CreditAccountId = entryData.Type == "Credit" ? entryData.AccountId : 1,
-                        CreditAccountType = entryData.Type == "Credit" ? entryData.AccountType : AccountTypes.MasterGroup
+                        DebitAccountId = entryData.Type == "Debit" ? entryData.AccountId : null,
+                        DebitAccountType = entryData.Type == "Debit" ? entryData.AccountType : null,
+                        CreditAccountId = entryData.Type == "Credit" ? entryData.AccountId : null,
+                        CreditAccountType = entryData.Type == "Credit" ? entryData.AccountType : null
                     };
                     _context.GeneralEntries.Add(ge);
                 }
@@ -1834,6 +1657,72 @@ public class GeneralEntryService : IGeneralEntryService
     #endregion
 
     #region Grower Book Retrieval
+    public async Task<(List<GeneralEntryGroupViewModel> groups, int totalCount, int totalPages)> GetGrowerBookGroupsAsync(
+        DateTime? fromDate, DateTime? toDate, string? bookNo, string? status, string? unit, int page, int pageSize)
+    {
+        try
+        {
+            var query = _context.GeneralEntries
+                .Where(g => g.VoucherNo.StartsWith("GBK/"))
+                .AsQueryable();
+
+            if (status == "Deleted")
+            {
+                query = query.Where(g => !g.IsActive);
+            }
+            else
+            {
+                query = query.Where(g => g.IsActive);
+                if (!string.IsNullOrEmpty(status) && status != "All") query = query.Where(g => g.Status == status);
+            }
+
+            if (fromDate.HasValue) query = query.Where(g => g.EntryDate >= fromDate.Value);
+            if (toDate.HasValue) query = query.Where(g => g.EntryDate <= toDate.Value);
+            if (!string.IsNullOrEmpty(bookNo)) query = query.Where(g => g.VoucherNo.Contains(bookNo));
+            if (!string.IsNullOrEmpty(unit) && unit != "All") query = query.Where(g => g.Unit == unit);
+
+            var allEntries = await query.OrderByDescending(g => g.CreatedAt).ToListAsync();
+
+            var groupedEntries = allEntries
+                .GroupBy(g => g.VoucherNo)
+                .Select(g => new GeneralEntryGroupViewModel
+                {
+                    VoucherNo = g.Key,
+                    Date = g.First().EntryDate,
+                    Entries = g.ToList(),
+                    TotalDebit = g.Where(e => e.DebitAccountId.HasValue).Sum(e => e.Amount),
+                    Status = !g.First().IsActive ? "Deleted" : g.First().Status,
+                    Unit = g.First().Unit,
+                    Id = g.First().Id
+                })
+                .ToList();
+
+            var totalCount = groupedEntries.Count;
+            var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+
+            var pagedGroups = groupedEntries
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToList();
+
+            foreach (var group in pagedGroups)
+            {
+                foreach (var entry in group.Entries)
+                {
+                    await LoadAccountNamesAsync(entry);
+                    await LoadAccountDetailsAsync(entry);
+                    await LoadAccountDetailsAsync(entry, isCredit: true);
+                }
+            }
+
+            return (pagedGroups, totalCount, totalPages);
+        }
+        catch (Exception)
+        {
+            throw;
+        }
+    }
+
     public async Task<(List<GeneralEntry> entries, int totalCount, int totalPages)> GetGrowerBookEntriesAsync(
         DateTime? fromDate, DateTime? toDate, string? bookNo, string? fromGrower, string? toGrower, string? status, string? unit, int page, int pageSize)
     {

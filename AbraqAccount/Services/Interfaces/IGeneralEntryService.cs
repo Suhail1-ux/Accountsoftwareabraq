@@ -53,6 +53,9 @@ public interface IGeneralEntryService
 
     Task<(bool success, string message)> CreateBatchGrowerBookAsync(GeneralEntryBatchModel model);
     Task<(bool success, string message)> UpdateBatchGrowerBookAsync(string voucherNo, GeneralEntryBatchModel model);
+    Task<(List<GeneralEntryGroupViewModel> groups, int totalCount, int totalPages)> GetGrowerBookGroupsAsync(
+        DateTime? fromDate, DateTime? toDate, string? bookNo, string? status, string? unit, int page, int pageSize);
+
     Task<(List<GeneralEntry> entries, int totalCount, int totalPages)> GetGrowerBookEntriesAsync(DateTime? fromDate, DateTime? toDate, string? bookNo, string? fromGrower, string? toGrower, string? status, string? unit, int page, int pageSize);
 
     Task<string> GetMediatorAccountNameAsync();
