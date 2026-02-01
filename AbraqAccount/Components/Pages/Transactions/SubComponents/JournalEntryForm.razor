@@ -1,6 +1,7 @@
 @using AbraqAccount.Models
 @using AbraqAccount.Services.Interfaces
 @inject IGeneralEntryService GeneralService
+@inject ISettingsService SettingsService
 @inject NavigationManager Navigation
 
 <div class="form-container">
@@ -115,8 +116,10 @@
                     <label>Payment Type <span class="text-danger">*</span></label>
                     <select @bind="newEntry.PaymentType" class="form-control-custom">
                         <option value="">Select</option>
-                        <option value="Cash">Cash</option>
-                        <option value="Cheque">Cheque</option>
+                        @foreach (var type in paymentTypes)
+                        {
+                            <option value="@type.Name">@type.Name</option>
+                        }
                     </select>
                 </div>
             </div>
@@ -265,6 +268,7 @@
     [Parameter] public EventCallback OnSaved { get; set; }
     private GeneralEntryBatchModel model = new() { EntryDate = DateTime.Now };
     private List<UIEntry> uiEntries = new();
+    private List<PaymentType> paymentTypes = new();
     private string EntryType
     {
         get => newEntry.Type;
@@ -297,6 +301,7 @@
     {
         entryProfiles = await GeneralService.GetEntryProfilesAsync("JournalEntryBook");
         unitList = await GeneralService.GetUnitNamesAsync();
+        paymentTypes = await SettingsService.GetPaymentTypesAsync();
         
         if (unitList.Any()) selectedUnit = unitList.First();
         

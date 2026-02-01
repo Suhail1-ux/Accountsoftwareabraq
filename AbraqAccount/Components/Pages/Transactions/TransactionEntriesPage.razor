@@ -21,22 +21,9 @@
             }
             else
             {
-                <div class="add-dropdown-container">
-                    <button class="add-button" @onclick="ToggleAddDropdown" title="Add New">
-                        <i class="bi bi-plus-lg"></i>
-                    </button>
-                    @if (showAddDropdown)
-                    {
-                        <div class="add-dropdown-content show">
-                            <button class="dropdown-item" type="button" @onclick='() => EnterFormMode("Debit")'><i class="bi bi-file-earmark-plus"></i> Add Debit Note</button>
-                            <button class="dropdown-item" type="button" @onclick='() => EnterFormMode("Credit")'><i class="bi bi-file-earmark-plus"></i> Add Credit Note</button>
-                            <button class="dropdown-item" type="button" @onclick='() => EnterFormMode("Receipt")'><i class="bi bi-receipt"></i> Add Receipt Entry</button>
-                            <button class="dropdown-item" type="button" @onclick='() => EnterFormMode("Payment")'><i class="bi bi-check2-square"></i> Add Payment Settlement</button>
-                            <button class="dropdown-item" type="button" @onclick='() => EnterFormMode("Journal")'><i class="bi bi-journal-text"></i> Add Journal Entry</button>
-                            <button class="dropdown-item" type="button" @onclick='() => NavigationManager.NavigateTo("grower-book/index?action=create")'><i class="bi bi-book"></i> Add Grower Book Entry</button>
-                        </div>
-                    }
-                </div>
+                <button class="add-button" @onclick="AddNew" title="Add New">
+                    <i class="bi bi-plus-lg"></i>
+                </button>
             }
         </div>
     </div>
@@ -266,7 +253,6 @@
 
 @code {
     private string activeTab = "Debit";
-    private bool showAddDropdown = false;
     private string mode = "List"; // "List" or "Form"
     private int? editId;
     private string? editVoucher;
@@ -318,15 +304,14 @@
             editVoucher = null;
         }
 
-        showAddDropdown = false;
         // Update URL query parameter
         var uri = NavigationManager.GetUriWithQueryParameter("noteType", tabName);
         NavigationManager.NavigateTo(uri);
     }
 
-    private void ToggleAddDropdown()
+    private void AddNew()
     {
-        showAddDropdown = !showAddDropdown;
+        EnterFormMode(activeTab);
     }
 
     private void EnterFormMode(string tab)
@@ -335,7 +320,6 @@
         mode = "Form";
         editId = null;
         editVoucher = null;
-        showAddDropdown = false;
     }
 
     private void BackToList()
