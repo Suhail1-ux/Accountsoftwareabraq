@@ -114,27 +114,39 @@ public class PaymentSettlementService : IPaymentSettlementService
             
             foreach (var group in paginatedGroups)
             {
-                var creditEntry = group.Entries.FirstOrDefault(e => e.Type == "Credit");
-                var debitEntry = group.Entries.FirstOrDefault(e => e.Type == "Debit");
+                var entries = group.Entries;
+                var creditEntries = entries.Where(e => e.Type == "Credit").ToList();
+                var debitEntries = entries.Where(e => e.Type == "Debit").ToList();
                 
-                if (creditEntry != null || debitEntry != null)
+                var firstCredit = creditEntries.FirstOrDefault();
+                var firstDebit = debitEntries.FirstOrDefault();
+                
+                if (firstCredit != null || firstDebit != null)
                 {
+                    // For batches, we sum the credits as the total "Payment Amount"
+                    decimal totalAmount = creditEntries.Sum(e => e.Amount);
+                    if (totalAmount == 0) totalAmount = debitEntries.Sum(e => e.Amount);
+
+                    // Consolidate account names
+                    var distinctNames = entries.Select(e => e.AccountName).Where(n => !string.IsNullOrEmpty(n) && n != "-").Distinct().ToList();
+                    string summaryNames = string.Join(", ", distinctNames.Take(2));
+                    if (distinctNames.Count > 2) summaryNames += "...";
+
                     var viewModel = new PaymentSettlementGroupViewModel
                     {
-                        CreditEntry = creditEntry,
-                        DebitEntry = debitEntry,
+                        CreditEntryId = firstCredit?.Id ?? 0,
+                        DebitEntryId = firstDebit?.Id ?? 0,
                         PANumber = group.PANumber,
-                        SettlementDate = creditEntry?.SettlementDate ?? debitEntry?.SettlementDate ?? DateTime.Now,
-                        VendorName = creditEntry?.AccountName ?? debitEntry?.AccountName ?? "",
-                        PaymentAmount = creditEntry?.Amount ?? debitEntry?.Amount ?? 0,
-                        ApprovalStatus = creditEntry?.ApprovalStatus ?? debitEntry?.ApprovalStatus ?? "Unapproved",
-                        PaymentStatus = creditEntry?.PaymentStatus ?? debitEntry?.PaymentStatus ?? "Pending",
-                        CreditEntryId = creditEntry?.Id ?? 0,
-                        DebitEntryId = debitEntry?.Id ?? 0,
+                        SettlementDate = firstCredit?.SettlementDate ?? firstDebit?.SettlementDate ?? DateTime.Now,
+                        VendorName = summaryNames,
+                        PaymentAmount = totalAmount,
+                        ApprovalStatus = entries.All(e => e.ApprovalStatus == "Approved") ? "Approved" : 
+                                       entries.Any(e => e.ApprovalStatus == "Rejected") ? "Rejected" : "Unapproved",
+                        PaymentStatus = "Pending",
                         ClosingBal = 0, 
-                        NEFTRTGSCashForm = creditEntry?.RefNo ?? debitEntry?.RefNo,
-                        Unit = creditEntry?.Unit ?? debitEntry?.Unit,
-                        EntryForName = creditEntry?.EntryForName ?? debitEntry?.EntryForName
+                        NEFTRTGSCashForm = entries.FirstOrDefault(e => !string.IsNullOrEmpty(e.RefNo))?.RefNo,
+                        Unit = firstCredit?.Unit ?? firstDebit?.Unit,
+                        EntryForName = firstCredit?.EntryForName ?? firstDebit?.EntryForName
                     };
                     
                     groupedViewModels.Add(viewModel);
@@ -494,9 +506,12 @@ public class PaymentSettlementService : IPaymentSettlementService
          return await MapToPaymentSettlementAsync(ge);
     }
     
-    public async Task<List<PaymentSettlement>> GetSettlementEntriesByPANumberAsync(string paNumber)
+    public async Task<List<PaymentSettlement>> GetSettlementEntriesByPANumberAsync(string paNumber, string? unit = null)
     {
-         var entries = await _context.GeneralEntries.Where(p => p.VoucherNo == paNumber && p.IsActive).ToListAsync();
+         var query = _context.GeneralEntries.Where(p => p.VoucherNo == paNumber && p.IsActive);
+         if (!string.IsNullOrEmpty(unit) && unit != "ALL") query = query.Where(p => p.Unit == unit);
+         
+         var entries = await query.ToListAsync();
          var list = new List<PaymentSettlement>();
          
          foreach(var e in entries) list.Add(await MapToPaymentSettlementAsync(e));
@@ -516,6 +531,35 @@ public class PaymentSettlementService : IPaymentSettlementService
                  if (!existing.Any()) return (false, "Not found");
                  if(existing.Any(e => e.Status == "Approved")) return (false, "Cannot edit approved.");
                  
+                 // Capture old state for history (mapped for perfect comparison)
+                 string? oldValues = null;
+                 try
+                 {
+                     var oldModel = new PaymentSettlementBatchModel
+                     {
+                         SettlementDate = existing.FirstOrDefault()?.EntryDate ?? DateTime.Now,
+                         MobileNo = existing.FirstOrDefault()?.MobileNo,
+                         Entries = existing.Select(ge => new PaymentSettlementItemModel
+                         {
+                             Type = ge.DebitAccountId != null ? "Debit" : "Credit",
+                             AccountId = ge.DebitAccountId ?? ge.CreditAccountId ?? 0,
+                             AccountType = ge.DebitAccountType ?? ge.CreditAccountType ?? "",
+                             Amount = ge.Amount,
+                             Narration = ge.Narration,
+                             Unit = ge.Unit,
+                             EntryForId = ge.EntryForId,
+                             EntryForName = ge.EntryForName,
+                             PaymentType = ge.PaymentType ?? "",
+                             RefNo = ge.ReferenceNo ?? "",
+                             PaymentFromSubGroupId = ge.PaymentFromSubGroupId,
+                             PaymentFromSubGroupName = ge.PaymentFromSubGroupName,
+                             EntryAccountId = ge.EntryAccountId
+                         }).ToList()
+                     };
+                     oldValues = JsonSerializer.Serialize(oldModel);
+                 }
+                 catch { }
+
                  _context.GeneralEntries.RemoveRange(existing);
                  await _context.SaveChangesAsync();
                  
@@ -556,13 +600,25 @@ public class PaymentSettlementService : IPaymentSettlementService
                     _context.GeneralEntries.Add(ge);
                 }
                 await _context.SaveChangesAsync();
-                await transaction.CommitAsync();
-                
-                return (true, "Updated successfully");
+
+                 // History Logging
+                 try
+                 {
+                     await _transactionService.LogTransactionHistoryAsync(
+                         paNumber, "Payment Settlement", "Edit", currentUser, 
+                         remarks: "Payment Settlement Updated",
+                         oldValues: oldValues,
+                         newValues: JsonSerializer.Serialize(model));
+                 }
+                 catch { /* Ignore */ }
+
+                 await transaction.CommitAsync();
+                 
+                 return (true, "Updated successfully");
              }
              catch(Exception ex)
              {
-                 await transaction.RollbackAsync();
+                 if (transaction != null) await transaction.RollbackAsync();
                  return (false, "Error: " + ex.Message);
              }
          });
@@ -571,12 +627,20 @@ public class PaymentSettlementService : IPaymentSettlementService
 
     private async Task<string> GetAccountNameAsync(string type, int id)
     {
-         // Simple helper
-         if(type == "BankMaster") return (await _context.BankMasters.FindAsync(id))?.AccountName ?? "";
-         if(type == "Farmer") return (await _context.Farmers.FindAsync(id))?.FarmerName ?? "";
-         if(type == "Vendor") return (await _context.Vendors.FindAsync(id))?.VendorName ?? "";
-         // ...
-        return type;
+         try {
+             if (type == "BankMaster") return (await _context.BankMasters.FindAsync(id))?.AccountName ?? "";
+             if (type == "Farmer") return (await _context.Farmers.FindAsync(id))?.FarmerName ?? "";
+             if (type == "Vendor") return (await _context.Vendors.FindAsync(id))?.VendorName ?? "";
+             if (type == "SubGroupLedger") return (await _context.SubGroupLedgers.FindAsync(id))?.Name ?? "";
+             if (type == "MasterGroup") return (await _context.MasterGroups.FindAsync(id))?.Name ?? "";
+             if (type == "MasterSubGroup") return (await _context.MasterSubGroups.FindAsync(id))?.Name ?? "";
+             
+             // Check generic lookup if type is unknown or matches a custom string
+             var ledger = await _context.SubGroupLedgers.FindAsync(id);
+             if (ledger != null) return ledger.Name;
+         } catch {}
+         
+         return type ?? "";
     }
 
     public async Task<object?> GetPADetailsAsync(string paNumber)

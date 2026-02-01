@@ -24,7 +24,7 @@ public interface IPaymentSettlementService
     Task<IEnumerable<LookupItem>> GetAccountsAsync(string? searchTerm, int? paymentFromId = null, string? type = null);
     Task<IEnumerable<LookupItem>> GetEntryProfilesAsync();
     Task<PaymentSettlement?> GetSettlementByIdAsync(int id);
-    Task<List<PaymentSettlement>> GetSettlementEntriesByPANumberAsync(string paNumber);
+    Task<List<PaymentSettlement>> GetSettlementEntriesByPANumberAsync(string paNumber, string? unit = null);
     Task<(bool success, string message)> UpdateSettlementAsync(PaymentSettlementBatchModel model, string paNumber);
     Task<object?> GetPADetailsAsync(string paNumber);
     

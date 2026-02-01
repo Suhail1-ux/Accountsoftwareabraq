@@ -14,12 +14,14 @@ public class DebitNoteService : IDebitNoteService
 {
     private readonly AppDbContext _context;
     private readonly IDbContextFactory<AppDbContext> _contextFactory;
+    private readonly ITransactionEntriesService _transactionService;
     private readonly IHttpContextAccessor _httpContextAccessor;
 
-    public DebitNoteService(AppDbContext context, IDbContextFactory<AppDbContext> contextFactory, IHttpContextAccessor httpContextAccessor)
+    public DebitNoteService(AppDbContext context, IDbContextFactory<AppDbContext> contextFactory, ITransactionEntriesService transactionService, IHttpContextAccessor httpContextAccessor)
     {
         _context = context;
         _contextFactory = contextFactory;
+        _transactionService = transactionService;
         _httpContextAccessor = httpContextAccessor;
     }
 
@@ -232,6 +234,14 @@ public class DebitNoteService : IDebitNoteService
             }
 
             await _context.SaveChangesAsync();
+
+            // History Logging
+            try
+            {
+                await _transactionService.LogTransactionHistoryAsync(voucherNo, "Debit Note", "Insert", currentUser, "Debit Note Created", null, JsonSerializer.Serialize(model));
+            }
+            catch { }
+
             return (true, $"Debit Note created successfully! Voucher: {voucherNo}");
         }
         catch (Exception ex)
@@ -244,14 +254,39 @@ public class DebitNoteService : IDebitNoteService
     {
         try
         {
+            var currentUser = GetCurrentUsername();
             var existingEntries = await _context.GeneralEntries.Where(r => r.VoucherNo == voucherNo).ToListAsync();
+            
+            // Capture old values for history (mapped to model for perfect comparison)
+            string? oldValues = null;
+            try
+            {
+                var oldModel = new GeneralEntryBatchModel
+                {
+                    EntryDate = existingEntries.FirstOrDefault()?.EntryDate ?? DateTime.Now,
+                    MobileNo = existingEntries.FirstOrDefault()?.MobileNo,
+                    Entries = existingEntries.Select(ge => new GeneralEntryItemModel
+                    {
+                        Type = ge.DebitAccountId != null ? "Debit" : "Credit",
+                        AccountId = ge.DebitAccountId ?? ge.CreditAccountId ?? 0,
+                        AccountType = ge.DebitAccountType ?? ge.CreditAccountType ?? "",
+                        Amount = ge.Amount,
+                        Narration = ge.Narration,
+                        Unit = ge.Unit,
+                        EntryForId = ge.EntryForId,
+                        EntryForName = ge.EntryForName,
+                        PaymentType = ge.PaymentType ?? "",
+                        RefNoChequeUTR = ge.ReferenceNo ?? ""
+                    }).ToList()
+                };
+                oldValues = JsonSerializer.Serialize(oldModel);
+            }
+            catch { }
+
             _context.GeneralEntries.RemoveRange(existingEntries);
             await _context.SaveChangesAsync();
             
-            // Re-create with same voucher number logic (need to ensure CreateBatch version can take a preset voucherNo)
-            // For now, I'll inline the creation part to keep it simple and ensure same voucherNo.
-            
-            var currentUser = GetCurrentUsername();
+            // Re-create with same voucher number logic
             foreach (var entryData in model.Entries)
             {
                 var ge = new GeneralEntry
@@ -278,6 +313,14 @@ public class DebitNoteService : IDebitNoteService
                 _context.GeneralEntries.Add(ge);
             }
             await _context.SaveChangesAsync();
+
+            // History Logging
+            try
+            {
+                await _transactionService.LogTransactionHistoryAsync(voucherNo, "Debit Note", "Edit", currentUser, "Debit Note Edited", oldValues, JsonSerializer.Serialize(model));
+            }
+            catch { }
+
             return (true, "Updated successfully");
         }
         catch (Exception ex)
@@ -307,6 +350,14 @@ public class DebitNoteService : IDebitNoteService
              }
 
              await _context.SaveChangesAsync();
+
+             // History Logging
+             try
+             {
+                 await _transactionService.LogTransactionHistoryAsync(ge.VoucherNo, "Debit Note", "Delete", GetCurrentUsername(), "Debit Note Deleted");
+             }
+             catch { }
+
              return (true, "Deleted successfully");
         }
         catch (Exception ex)
@@ -354,6 +405,14 @@ public class DebitNoteService : IDebitNoteService
             }
 
             await _context.SaveChangesAsync();
+
+            // History Logging
+            try
+            {
+                await _transactionService.LogTransactionHistoryAsync(ge.VoucherNo, "Debit Note", "Approve", GetCurrentUsername(), "Debit Note Approved");
+            }
+            catch { }
+
             return (true, "Approved successfully");
         }
         catch (Exception ex)
@@ -381,6 +440,14 @@ public class DebitNoteService : IDebitNoteService
             }
 
             await _context.SaveChangesAsync();
+
+            // History Logging
+            try
+            {
+                await _transactionService.LogTransactionHistoryAsync(ge.VoucherNo, "Debit Note", "Unapprove", GetCurrentUsername(), "Debit Note Unapproved");
+            }
+            catch { }
+
             return (true, "Unapproved successfully");
         }
         catch (Exception ex)

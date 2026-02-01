@@ -48,7 +48,7 @@
 
 <div class="table-card">
     <div class="table-wrapper">
-        <table class="table-notes">
+        <table class="table-notes table-striped">
             <thead>
                 <tr>
                     <th>
@@ -96,13 +96,9 @@
                             <td>@(item.EntryForName ?? "-")</td>
                             <td>
                                 <div>
-                                    @if (item.CreditEntry != null)
+                                    @if (!string.IsNullOrEmpty(item.VendorName))
                                     {
-                                        <div class="text-primary">@item.CreditEntry.AccountName (Cr)</div>
-                                    }
-                                    @if (item.DebitEntry != null)
-                                    {
-                                        <div class="text-danger">@item.DebitEntry.AccountName (Dr)</div>
+                                        <div class="text-primary">@item.VendorName</div>
                                     }
                                 </div>
                             </td>
@@ -128,14 +124,14 @@
                                         {
                                             @if (item.ApprovalStatus != "Approved")
                                             {
-                                                <button class="action-icon edit-icon" type="button" @onclick="() => OnEdit.InvokeAsync(item.PANumber)" title="Edit">
+                                                <button class="action-icon edit-icon" type="button" @onclick='async () => await OnEdit.InvokeAsync((item.PANumber, item.Unit ?? ""))' title="Edit">
                                                     <i class="bi bi-pencil"></i>
                                                 </button>
                                             }
                                             <NavLink href="@($"transactions/payment-settlement/details/{item.PANumber}")" class="action-icon view-icon" title="View Details">
                                                 <i class="bi bi-eye"></i>
                                             </NavLink>
-                                            <button class="action-icon history-icon" @onclick="() => ShowHistory(item.PANumber)" title="History">
+                                            <button class="action-icon history-icon" type="button" @onclick="() => ShowHistory(item.PANumber)" title="History">
                                                 <i class="bi bi-info-circle"></i>
                                             </button>
                                             @if (item.ApprovalStatus != "Approved")
@@ -224,9 +220,10 @@
 
 
 <ConfirmationModal @ref="confirmationModal" OnConfirm="HandleConfirmation" />
+<TransactionHistoryModal @ref="historyModal" />
 
 @code {
-    [Parameter] public EventCallback<string> OnEdit { get; set; }
+    [Parameter] public EventCallback<(string voucher, string unit)> OnEdit { get; set; }
     private List<PaymentSettlementGroupViewModel>? settlementGroups;
     private List<string> units = new();
     private int currentPage = 1;
@@ -343,10 +340,12 @@
         // Implement modal or navigation
     }
 
-    private async Task ShowHistory(string paNumber)
+    private async Task ShowHistory(string paNo)
     {
-        // Implement history modal
+        if (historyModal != null) await historyModal.Show(paNo);
     }
+
+    private TransactionHistoryModal? historyModal;
 
     private ConfirmationModal? confirmationModal;
     private int pendingId;
@@ -408,6 +407,6 @@
 }
 <style>
     .table-notes tbody tr:nth-child(even) {
-        background-color: #f9f9f9;
+        background-color: #e9ecef !important;
     }
 </style>

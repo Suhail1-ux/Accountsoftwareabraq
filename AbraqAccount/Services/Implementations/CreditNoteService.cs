@@ -14,12 +14,14 @@ public class CreditNoteService : ICreditNoteService
 {
     private readonly AppDbContext _context; 
     private readonly IDbContextFactory<AppDbContext> _contextFactory; 
+    private readonly ITransactionEntriesService _transactionService;
     private readonly IHttpContextAccessor _httpContextAccessor;
 
-    public CreditNoteService(AppDbContext context, IDbContextFactory<AppDbContext> contextFactory, IHttpContextAccessor httpContextAccessor)
+    public CreditNoteService(AppDbContext context, IDbContextFactory<AppDbContext> contextFactory, ITransactionEntriesService transactionService, IHttpContextAccessor httpContextAccessor)
     {
         _context = context;
         _contextFactory = contextFactory;
+        _transactionService = transactionService;
         _httpContextAccessor = httpContextAccessor;
     }
 
@@ -237,6 +239,14 @@ public class CreditNoteService : ICreditNoteService
             }
 
             await _context.SaveChangesAsync();
+
+            // History Logging
+            try
+            {
+                await _transactionService.LogTransactionHistoryAsync(nextNo, "Credit Note", "Insert", currentUser, "Credit Note Created", null, JsonSerializer.Serialize(model));
+            }
+            catch { }
+
             return (true, "Created successfully");
         }
         catch (Exception ex)
@@ -249,11 +259,38 @@ public class CreditNoteService : ICreditNoteService
     {
         try
         {
+            var currentUser = GetCurrentUsername();
             var existingEntries = await _context.GeneralEntries.Where(r => r.VoucherNo == voucherNo).ToListAsync();
+            
+            // Capture old values for history (mapped to model for perfect comparison)
+            string? oldValues = null;
+            try
+            {
+                var oldModel = new GeneralEntryBatchModel
+                {
+                    EntryDate = existingEntries.FirstOrDefault()?.EntryDate ?? DateTime.Now,
+                    MobileNo = existingEntries.FirstOrDefault()?.MobileNo,
+                    Entries = existingEntries.Select(ge => new GeneralEntryItemModel
+                    {
+                        Type = ge.DebitAccountId != null ? "Debit" : "Credit",
+                        AccountId = ge.DebitAccountId ?? ge.CreditAccountId ?? 0,
+                        AccountType = ge.DebitAccountType ?? ge.CreditAccountType ?? "",
+                        Amount = ge.Amount,
+                        Narration = ge.Narration,
+                        Unit = ge.Unit,
+                        EntryForId = ge.EntryForId,
+                        EntryForName = ge.EntryForName,
+                        PaymentType = ge.PaymentType ?? "",
+                        RefNoChequeUTR = ge.ReferenceNo ?? ""
+                    }).ToList()
+                };
+                oldValues = JsonSerializer.Serialize(oldModel);
+            }
+            catch { }
+
             _context.GeneralEntries.RemoveRange(existingEntries);
             await _context.SaveChangesAsync();
             
-            var currentUser = GetCurrentUsername();
             foreach (var entryData in model.Entries)
             {
                 var ge = new GeneralEntry
@@ -280,6 +317,14 @@ public class CreditNoteService : ICreditNoteService
                 _context.GeneralEntries.Add(ge);
             }
             await _context.SaveChangesAsync();
+
+            // History Logging
+            try
+            {
+                await _transactionService.LogTransactionHistoryAsync(voucherNo, "Credit Note", "Edit", currentUser, "Credit Note Edited", oldValues, JsonSerializer.Serialize(model));
+            }
+            catch { }
+
             return (true, "Updated successfully");
         }
         catch (Exception ex)
@@ -356,6 +401,14 @@ public class CreditNoteService : ICreditNoteService
                 }
 
                 await _context.SaveChangesAsync();
+
+                // History Logging
+                try
+                {
+                    await _transactionService.LogTransactionHistoryAsync(ge.VoucherNo, "Credit Note", "Delete", GetCurrentUsername(), "Credit Note Deleted");
+                }
+                catch { }
+
                 return (true, "Deleted successfully");
             }
             return (false, "Not found");
@@ -387,6 +440,14 @@ public class CreditNoteService : ICreditNoteService
             }
 
             await _context.SaveChangesAsync();
+
+            // History Logging
+            try
+            {
+                await _transactionService.LogTransactionHistoryAsync(ge.VoucherNo, "Credit Note", "Approve", GetCurrentUsername(), "Credit Note Approved");
+            }
+            catch { }
+
             return (true, "Approved successfully");
         }
         catch (Exception ex)
@@ -414,6 +475,14 @@ public class CreditNoteService : ICreditNoteService
             }
 
             await _context.SaveChangesAsync();
+
+            // History Logging
+            try
+            {
+                await _transactionService.LogTransactionHistoryAsync(ge.VoucherNo, "Credit Note", "Unapprove", GetCurrentUsername(), "Credit Note Unapproved");
+            }
+            catch { }
+
             return (true, "Unapproved successfully");
         }
         catch (Exception ex)

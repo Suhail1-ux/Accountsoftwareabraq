@@ -959,13 +959,31 @@ public class GeneralEntryService : IGeneralEntryService
                     return (false, "Journal Entry not found.");
                 }
 
-                // Capture old state for history
-                var oldState = new {
-                    EntryDate = existingEntries.First().EntryDate,
-                    Entries = existingEntries.Select(e => new {
-                        e.DebitAccountId, e.DebitAccountType, e.CreditAccountId, e.CreditAccountType, e.Amount, e.Type, e.Narration, e.ReferenceNo, e.PaymentFromSubGroupId
-                    }).ToList()
-                };
+                // Capture old state for history (mapped for perfect comparison)
+                string? oldValues = null;
+                try
+                {
+                    var oldModel = new GeneralEntryBatchModel
+                    {
+                        EntryDate = existingEntries.FirstOrDefault()?.EntryDate ?? DateTime.Now,
+                        MobileNo = existingEntries.FirstOrDefault()?.MobileNo,
+                        Entries = existingEntries.Select(ge => new GeneralEntryItemModel
+                        {
+                            Type = ge.DebitAccountId != null ? "Debit" : "Credit",
+                            AccountId = ge.DebitAccountId ?? ge.CreditAccountId ?? 0,
+                            AccountType = ge.DebitAccountType ?? ge.CreditAccountType ?? "",
+                            Amount = ge.Amount,
+                            Narration = ge.Narration,
+                            Unit = ge.Unit,
+                            EntryForId = ge.EntryForId,
+                            EntryForName = ge.EntryForName,
+                            PaymentType = ge.PaymentType ?? "",
+                            RefNoChequeUTR = ge.ReferenceNo ?? ""
+                        }).ToList()
+                    };
+                    oldValues = JsonSerializer.Serialize(oldModel);
+                }
+                catch { }
 
                 // Capture existing Unit to preserve it if not provided
                 var existingUnit = existingEntries.First().Unit;
@@ -1014,7 +1032,7 @@ public class GeneralEntryService : IGeneralEntryService
                     await _transactionService.LogTransactionHistoryAsync(
                         voucherNo, "Journal", "Edit", currentUser, 
                         remarks: "Voucher Updated",
-                        oldValues: JsonSerializer.Serialize(oldState),
+                        oldValues: oldValues,
                         newValues: JsonSerializer.Serialize(model));
                 }
                 catch { /* Ignore */ }
@@ -1602,6 +1620,32 @@ public class GeneralEntryService : IGeneralEntryService
                 var existingEntries = await _context.GeneralEntries.Where(g => g.VoucherNo == voucherNo).ToListAsync();
                 if (existingEntries.Any(e => e.Status == "Approved")) return (false, "Approved entries cannot be modified.");
                 
+                // Capture old state for history (mapped for perfect comparison)
+                string? oldValues = null;
+                try
+                {
+                    var oldModel = new GeneralEntryBatchModel
+                    {
+                        EntryDate = existingEntries.FirstOrDefault()?.EntryDate ?? DateTime.Now,
+                        MobileNo = existingEntries.FirstOrDefault()?.MobileNo,
+                        Entries = existingEntries.Select(ge => new GeneralEntryItemModel
+                        {
+                            Type = ge.DebitAccountId != null ? "Debit" : "Credit",
+                            AccountId = ge.DebitAccountId ?? ge.CreditAccountId ?? 0,
+                            AccountType = ge.DebitAccountType ?? ge.CreditAccountType ?? "",
+                            Amount = ge.Amount,
+                            Narration = ge.Narration,
+                            Unit = ge.Unit,
+                            EntryForId = ge.EntryForId,
+                            EntryForName = ge.EntryForName,
+                            PaymentType = ge.PaymentType ?? "",
+                            RefNoChequeUTR = ge.ReferenceNo ?? ""
+                        }).ToList()
+                    };
+                    oldValues = JsonSerializer.Serialize(oldModel);
+                }
+                catch { }
+
                 _context.GeneralEntries.RemoveRange(existingEntries);
                 await _context.SaveChangesAsync();
 
@@ -1640,6 +1684,7 @@ public class GeneralEntryService : IGeneralEntryService
                     await _transactionService.LogTransactionHistoryAsync(
                         voucherNo, "Grower Book", "Update", currentUser, 
                         remarks: "Grower Book Batch Updated",
+                        oldValues: oldValues,
                         newValues: JsonSerializer.Serialize(model));
                 }
                 catch { /* Ignore */ }

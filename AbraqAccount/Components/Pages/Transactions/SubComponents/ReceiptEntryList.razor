@@ -48,7 +48,7 @@
 
 <div class="table-card">
     <div class="table-wrapper">
-        <table class="table-notes">
+        <table class="table-notes table-striped">
             <thead>
                 <tr>
                     <th>
@@ -123,7 +123,7 @@
                                     <NavLink href="@($"transactions/receipt-entry/details/{group.VoucherNo}")" class="action-icon view-icon" title="View">
                                         <i class="bi bi-eye"></i>
                                     </NavLink>
-                                    <button class="action-icon history-icon" @onclick="() => ShowHistory(group.VoucherNo)" title="History">
+                                    <button class="action-icon history-icon" type="button" @onclick="() => ShowHistory(group.VoucherNo)" title="History">
                                         <i class="bi bi-info-circle"></i>
                                     </button>
                                     @if (group.Status != "Approved")
@@ -180,8 +180,12 @@
     .table-notes { width: 100%; border-collapse: collapse; }
     .table-notes th { padding: 0.75rem; text-align: left; background: #f8f9fa; border-bottom: 2px solid #dee2e6; }
     .table-notes td { padding: 0.75rem; border-bottom: 1px solid #dee2e6; }
-    .table-notes tbody tr:nth-child(odd) { background-color: #e9ecef; }
-    .table-notes tbody tr:nth-child(even) { background-color: #ffffff; }
+    .table-notes tbody tr:nth-child(even) {
+        background-color: #e9ecef !important;
+    }
+    .table-notes tbody tr:nth-child(odd) {
+        background-color: #ffffff !important;
+    }
     
     .badge { padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem; }
     .badge-unapproved { background-color: #ffc107; color: black; }
@@ -207,6 +211,7 @@
 
 
 <ConfirmationModal @ref="confirmationModal" OnConfirm="HandleConfirmation" />
+<TransactionHistoryModal @ref="historyModal" />
 
 @code {
     [Parameter] public EventCallback<string> OnEdit { get; set; }
@@ -325,8 +330,10 @@
 
     private async Task ShowHistory(string voucherNo)
     {
-        // Implement history modal
+        if (historyModal != null) await historyModal.Show(voucherNo);
     }
+
+    private TransactionHistoryModal? historyModal;
 
     private ConfirmationModal? confirmationModal;
     private int pendingCreditId;

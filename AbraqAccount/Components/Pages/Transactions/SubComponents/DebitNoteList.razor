@@ -125,6 +125,9 @@
                                         <NavLink href="@($"transactions/debit-note/details/{item.Id}")" class="action-icon view-icon" title="View Details">
                                             <i class="bi bi-eye"></i>
                                         </NavLink>
+                                        <button class="action-icon history-icon" type="button" @onclick="() => ShowHistory(item.DebitNoteNo)" title="History">
+                                            <i class="bi bi-info-circle"></i>
+                                        </button>
                                         @if (item.Status == "Approved")
                                         {
                                             <button class="action-icon approved-icon" @onclick="() => ConfirmUnapprove(item.Id)" title="Unapprove">
@@ -146,6 +149,9 @@
                                         <NavLink href="@($"transactions/debit-note/details/{item.Id}")" class="action-icon view-icon" title="View Details">
                                             <i class="bi bi-eye"></i>
                                         </NavLink>
+                                        <button class="action-icon history-icon" type="button" @onclick="() => ShowHistory(item.DebitNoteNo)" title="History">
+                                            <i class="bi bi-info-circle"></i>
+                                        </button>
                                     }
                                 </div>
                             </td>
@@ -247,7 +253,7 @@
     .badge-rejected { background-color: #dc3545; color: white; }
 
     .action-icons { display: flex; gap: 0.5rem; }
-    .action-icon { color: #6c757d; font-size: 1.1rem; cursor: pointer; text-decoration: none; }
+    .action-icon { color: #6c757d; font-size: 1.1rem; cursor: pointer; text-decoration: none; border: none; background: none; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
     .action-icon:hover { color: #007bff; }
     .text-danger:hover { color: #dc3545 !important; }
     .approved-icon { color: #28a745; border: none; background: none; }
@@ -268,6 +274,7 @@
 
 
 <ConfirmationModal @ref="confirmationModal" OnConfirm="HandleConfirmation" />
+<TransactionHistoryModal @ref="historyModal" />
 
 @code {
     [Parameter] public EventCallback<string> OnEdit { get; set; }
@@ -389,6 +396,12 @@
         }
     }
 
+    private async Task ShowHistory(string vNo)
+    {
+        if (historyModal != null) await historyModal.Show(vNo);
+    }
+
+    private TransactionHistoryModal? historyModal;
     private ConfirmationModal? confirmationModal;
     private int pendingId;
     private string pendingAction = "";

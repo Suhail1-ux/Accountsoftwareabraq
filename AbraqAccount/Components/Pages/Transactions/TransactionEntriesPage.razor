@@ -66,7 +66,7 @@
             @if (activeTab == "Debit") { <DebitNoteForm @ref="debitForm" VoucherNo="@editVoucher" OnSaved="BackToList" /> }
             else if (activeTab == "Credit") { <CreditNoteForm @ref="creditForm" VoucherNo="@editVoucher" OnSaved="BackToList" /> }
             else if (activeTab == "Receipt") { <ReceiptEntryForm @ref="receiptForm" VoucherNo="@editVoucher" OnSaved="BackToList" /> }
-            else if (activeTab == "Payment") { <PaymentSettlementForm @ref="paymentForm" PANumber="@editVoucher" OnSaved="BackToList" /> }
+            else if (activeTab == "Payment") { <PaymentSettlementForm @ref="paymentForm" PANumber="@editVoucher" Unit="@editUnit" OnSaved="BackToList" /> }
             else if (activeTab == "Journal") { <JournalEntryForm @ref="journalForm" VoucherNo="@editVoucher" OnSaved="BackToList" /> }
         }
     </div>
@@ -256,6 +256,7 @@
     private string mode = "List"; // "List" or "Form"
     private int? editId;
     private string? editVoucher;
+    private string? editUnit;
 
     // Form references for direct submission from header
     private DebitNoteForm? debitForm;
@@ -296,12 +297,14 @@
             mode = "Form";
             editId = null;
             editVoucher = null;
+            editUnit = null;
         }
         else
         {
             mode = "List";
             editId = null;
             editVoucher = null;
+            editUnit = null;
         }
 
         // Update URL query parameter
@@ -320,6 +323,7 @@
         mode = "Form";
         editId = null;
         editVoucher = null;
+        editUnit = null;
     }
 
     private void BackToList()
@@ -327,6 +331,7 @@
         mode = "List";
         editId = null;
         editVoucher = null;
+        editUnit = null;
     }
 
     private async Task SubmitCurrentForm()
@@ -342,7 +347,7 @@
     private void EditDebitNote(string voucher) { mode = "Form"; activeTab = "Debit"; editVoucher = voucher; }
     private void EditCreditNote(string voucher) { mode = "Form"; activeTab = "Credit"; editVoucher = voucher; }
     private void EditReceipt(string voucher) { mode = "Form"; activeTab = "Receipt"; editVoucher = voucher; }
-    private void EditPayment(string voucher) { mode = "Form"; activeTab = "Payment"; editVoucher = voucher; }
+    private void EditPayment((string voucher, string unit) data) { mode = "Form"; activeTab = "Payment"; editVoucher = data.voucher; editUnit = data.unit; }
     private void EditJournal(string voucher) { mode = "Form"; activeTab = "Journal"; editVoucher = voucher; }
 
     private void NavigateToGrowerBook()

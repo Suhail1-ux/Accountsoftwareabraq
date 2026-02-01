@@ -185,8 +185,8 @@
                                 <td>@entry.Unit</td>
                                 <td>@entry.Type</td>
                                 <td>@entry.AccountName</td>
-                                <td class="text-end">@entry.Debit.ToString("N2")</td>
-                                <td class="text-end">@entry.Credit.ToString("N2")</td>
+                                <td class="text-end">@(entry.Debit > 0 ? entry.Debit.ToString("N2") : "")</td>
+                                <td class="text-end">@(entry.Credit > 0 ? entry.Credit.ToString("N2") : "")</td>
                                 <td>@entry.PaymentType</td>
                                 <td>@entry.RefNo</td>
                                 <td>@entry.Narration</td>
@@ -265,6 +265,7 @@
 
 @code {
     [Parameter] public string? PANumber { get; set; }
+    [Parameter] public string? Unit { get; set; }
     [Parameter] public bool IsReadOnly { get; set; }
     [Parameter] public EventCallback OnSaved { get; set; }
     private PaymentSettlementBatchModel model = new() { SettlementDate = DateTime.Now };
@@ -308,7 +309,7 @@
         
         if (IsEdit)
         {
-            var entries = await SettlementService.GetSettlementEntriesByPANumberAsync(PANumber!);
+            var entries = await SettlementService.GetSettlementEntriesByPANumberAsync(PANumber!, Unit);
             if (entries != null && entries.Any())
             {
                 model.SettlementDate = entries.First().SettlementDate;

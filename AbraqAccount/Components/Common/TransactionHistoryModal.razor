@@ -1,0 +1,397 @@
+@using AbraqAccount.Models
+@using AbraqAccount.Services.Interfaces
+@using System.Text.Json
+@inject ITransactionEntriesService TransactionService
+
+@if (IsVisible)
+{
+    <div class="modal-backdrop fade show" style="z-index: 1050;"></div>
+    <div class="modal fade show" style="display: block; z-index: 1055;" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+            <div class="modal-content border-0 shadow-lg">
+                <div class="modal-header bg-light border-bottom-0">
+                    <h5 class="modal-title fw-bold">Transaction History - @voucherNo</h5>
+                    <button type="button" class="btn-close" @onclick="Close" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="bg-light">
+                                <tr>
+                                    <th class="px-4 py-3">Action</th>
+                                    <th class="px-4 py-3">User</th>
+                                    <th class="px-4 py-3 text-center">Date & Time</th>
+                                    <th class="px-4 py-3">Action Details / Remarks</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (historyList == null)
+                                {
+                                    <tr><td colspan="4" class="text-center py-5"><div class="spinner-border spinner-border-sm text-primary me-2"></div>Loading...</td></tr>
+                                }
+                                else if (!historyList.Any())
+                                {
+                                    <tr><td colspan="4" class="text-center py-5 text-muted">No history found for this voucher.</td></tr>
+                                }
+                                else
+                                {
+                                    @foreach (var history in historyList)
+                                    {
+                                        <tr>
+                                            <td class="px-4 py-3 align-middle">
+                                                <span class="@GetActionBadgeClass(history.Action)">@history.Action</span>
+                                            </td>
+                                            <td class="px-4 py-3 align-middle">@history.User</td>
+                                            <td class="px-4 py-3 align-middle text-center">@history.ActionDate.ToString("dd/MM/yyyy HH:mm:ss")</td>
+                                            <td class="px-4 py-3 align-middle">
+                                                <div class="d-flex align-items-center justify-content-between">
+                                                    <span>@history.Remarks</span>
+                                                    @if (history.Action == "Edit" && !string.IsNullOrEmpty(history.OldValues) && !string.IsNullOrEmpty(history.NewValues))
+                                                    {
+                                                        <button class="btn btn-sm btn-outline-info border-0 p-1 ms-2" title="View Changes" @onclick="() => ShowChanges(history)">
+                                                            <i class="bi bi-info-circle-fill"></i>
+                                                        </button>
+                                                    }
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    }
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer border-top-0">
+                    <button type="button" class="btn btn-secondary px-4" @onclick="Close">Ok</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@if (ShowChangesModal)
+{
+    <div class="modal-backdrop fade show" style="z-index: 1060;"></div>
+    <div class="modal fade show" style="display: block; z-index: 1065;" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header bg-info text-white">
+                    <h5 class="modal-title">Changes for @selectedHistory?.VoucherNo</h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="CloseChanges"></button>
+                </div>
+                <div class="modal-body overflow-auto" style="max-height: 70vh;">
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-sm">
+                            <thead class="bg-light">
+                                <tr>
+                                    <th>Field Name</th>
+                                    <th class="text-danger">Old Value</th>
+                                    <th class="text-success">New Value</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (DetectedChanges.Any())
+                                {
+                                    @foreach (var change in DetectedChanges)
+                                    {
+                                        <tr>
+                                            <td class="fw-bold bg-light">@change.FieldName</td>
+                                            <td class="text-muted text-decoration-line-through">@change.OldValue</td>
+                                            <td class="fw-bold">@change.NewValue</td>
+                                        </tr>
+                                    }
+                                }
+                                else
+                                {
+                                    <tr>
+                                        <td colspan="3" class="text-center py-3 text-muted">No actual data fields changed (metadata only).</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CloseChanges">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .badge {
+        font-weight: 500;
+        padding: 0.5em 0.8em;
+    }
+</style>
+
+@code {
+    private bool IsVisible { get; set; }
+    private string voucherNo = "";
+    private List<TransactionHistory>? historyList;
+    private bool ShowChangesModal { get; set; }
+    private TransactionHistory? selectedHistory;
+    private List<ChangeDetail> DetectedChanges { get; set; } = new();
+
+    public async Task Show(string vNo)
+    {
+        voucherNo = vNo;
+        IsVisible = true;
+        historyList = null;
+        StateHasChanged();
+        historyList = await TransactionService.GetTransactionHistoryAsync(vNo);
+        StateHasChanged();
+    }
+
+    private void Close()
+    {
+        IsVisible = false;
+        historyList = null;
+    }
+
+    private void ShowChanges(TransactionHistory history)
+    {
+        selectedHistory = history;
+        DetectedChanges = CompareJson(history.OldValues, history.NewValues);
+        ShowChangesModal = true;
+    }
+
+    private void CloseChanges()
+    {
+        ShowChangesModal = false;
+    }
+
+    private string GetActionBadgeClass(string action) => action switch
+    {
+        "Insert" => "badge bg-success-subtle text-success border border-success-subtle",
+        "Edit" => "badge bg-info-subtle text-info border border-info-subtle",
+        "Delete" => "badge bg-danger-subtle text-danger border border-danger-subtle",
+        "Approve" => "badge bg-primary-subtle text-primary border border-primary-subtle",
+        _ => "badge bg-secondary-subtle text-secondary border border-secondary-subtle"
+    };
+
+    private List<ChangeDetail> CompareJson(string? oldJson, string? newJson)
+    {
+        var changes = new List<ChangeDetail>();
+        if (string.IsNullOrEmpty(oldJson) || string.IsNullOrEmpty(newJson)) return changes;
+
+        try
+        {
+            var oldDoc = JsonDocument.Parse(oldJson);
+            var newDoc = JsonDocument.Parse(newJson);
+
+            JsonElement oldRoot = oldDoc.RootElement;
+            JsonElement newRoot = newDoc.RootElement;
+
+            // ALIGNMENT LOGIC: If one is a list and other is a model with 'Entries', align them
+            if (oldRoot.ValueKind == JsonValueKind.Array && newRoot.ValueKind == JsonValueKind.Object && newRoot.TryGetProperty("Entries", out var newEntries))
+            {
+                CompareElements("Entries", oldRoot, newEntries, changes);
+                
+                // Still check other top-level fields in NewRoot
+                foreach (var prop in newRoot.EnumerateObject())
+                {
+                    if (prop.Name != "Entries")
+                        CompareElements(prop.Name, default, prop.Value, changes);
+                }
+            }
+            else if (oldRoot.ValueKind == JsonValueKind.Object && oldRoot.TryGetProperty("Entries", out var oldEntries) && newRoot.ValueKind == JsonValueKind.Object && newRoot.TryGetProperty("Entries", out var newEntries2))
+            {
+                 // Both are normalized or batch models
+                 foreach (var prop in newRoot.EnumerateObject())
+                 {
+                     if (prop.Name != "Entries")
+                     {
+                         oldRoot.TryGetProperty(prop.Name, out var oldProp);
+                         CompareElements(prop.Name, oldProp, prop.Value, changes);
+                     }
+                 }
+                 CompareElements("Entries", oldEntries, newEntries2, changes);
+            }
+            else
+            {
+                CompareElements("", oldRoot, newRoot, changes);
+            }
+        }
+        catch (Exception ex)
+        {
+            changes.Add(new ChangeDetail { FieldName = "Error", NewValue = "Failed to parse changes: " + ex.Message });
+        }
+
+        return changes;
+    }
+
+    private void CompareElements(string prefix, JsonElement oldEl, JsonElement newEl, List<ChangeDetail> changes)
+    {
+        if (newEl.ValueKind == JsonValueKind.Undefined) return;
+        
+        var oldVal = GetValueString(oldEl);
+        var newVal = GetValueString(newEl);
+
+        // DRIL-DOWN LOGIC:
+        // Only return early if these are NOT structural elements (Obj/Array) and match semantically.
+        if (newEl.ValueKind != JsonValueKind.Object && newEl.ValueKind != JsonValueKind.Array)
+        {
+            if (oldEl.ValueKind != JsonValueKind.Undefined && Normalize(oldVal) == Normalize(newVal)) return;
+        }
+
+        if (newEl.ValueKind == JsonValueKind.Object)
+        {
+            // ... (keep object recursion if really needed, but focus on the noise reduction)
+            foreach (var property in newEl.EnumerateObject())
+            {
+                var name = property.Name;
+                if (name == "CreatedAt" || name == "UpdatedAt" || name == "CreatedBy" || name == "UpdatedBy" || name == "IsActive") continue;
+                if (name == "VoucherType" || name == "VoucherNo" || name == "Id") continue; 
+
+                var currentPath = string.IsNullOrEmpty(prefix) ? name : $"{prefix} : {name}";
+                
+                JsonElement oldProp = default;
+                bool foundOld = false;
+
+                if (oldEl.ValueKind == JsonValueKind.Object)
+                {
+                    // Case-insensitive lookup
+                    var prop = oldEl.EnumerateObject().FirstOrDefault(p => p.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+                    if (prop.Value.ValueKind != JsonValueKind.Undefined)
+                    {
+                        oldProp = prop.Value;
+                        foundOld = true;
+                    }
+                    else
+                    {
+                        var legacyName = name switch {
+                            "AccountId" => (HasValue(oldEl, "DebitAccountId")) ? "DebitAccountId" : "CreditAccountId",
+                            "AccountType" => (HasValue(oldEl, "DebitAccountType")) ? "DebitAccountType" : "CreditAccountType",
+                            "Type" => (HasValue(oldEl, "DebitAccountId")) ? "DebitAccountId" : "CreditAccountId",
+                            "RefNo" => "ReferenceNo",
+                            "RefNoChequeUTR" => "ReferenceNo",
+                            "ReceiptDate" => "EntryDate",
+                            _ => null
+                        };
+
+                        if (legacyName != null)
+                        {
+                            var lp = oldEl.EnumerateObject().FirstOrDefault(p => p.Name.Equals(legacyName, StringComparison.OrdinalIgnoreCase));
+                            if (lp.Value.ValueKind != JsonValueKind.Undefined)
+                            {
+                                oldProp = lp.Value;
+                                foundOld = true;
+                                if (name == "Type")
+                                {
+                                    var isDebit = lp.Name.StartsWith("Debit", StringComparison.OrdinalIgnoreCase);
+                                    var oldTypeStr = isDebit ? "Debit" : "Credit";
+                                    // Also check if the old data had a literal "Type" property with "DebitNote"
+                                    var literalType = oldEl.EnumerateObject().FirstOrDefault(p => p.Name.Equals("Type", StringComparison.OrdinalIgnoreCase));
+                                    if (literalType.Value.ValueKind != JsonValueKind.Undefined)
+                                    {
+                                        var ltStr = literalType.Value.GetString();
+                                        if (ltStr != null && (ltStr.Contains("Note", StringComparison.OrdinalIgnoreCase) || 
+                                                              ltStr.Contains("Settlement", StringComparison.OrdinalIgnoreCase) || 
+                                                              ltStr.Contains("Grower", StringComparison.OrdinalIgnoreCase) || 
+                                                              ltStr.Contains("Receipt", StringComparison.OrdinalIgnoreCase)))
+                                        {
+                                            // It's a technical label, ignore if the side (Debit/Credit) matches
+                                            if (oldTypeStr.Equals(newVal, StringComparison.OrdinalIgnoreCase)) continue;
+                                        }
+                                    }
+                                    if (oldTypeStr.Equals(newVal, StringComparison.OrdinalIgnoreCase)) continue;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                CompareElements(currentPath, foundOld ? oldProp : default, property.Value, changes);
+            }
+        }
+        else if (newEl.ValueKind == JsonValueKind.Array)
+        {
+             var newArr = newEl.EnumerateArray().ToList();
+             var oldArr = (oldEl.ValueKind == JsonValueKind.Array) ? oldEl.EnumerateArray().ToList() : new List<JsonElement>();
+
+             for (int i = 0; i < newArr.Count; i++)
+             {
+                 var label = string.IsNullOrEmpty(prefix) ? $"Item {i+1}" : $"{prefix} #{i+1}";
+                 CompareElements(label, i < oldArr.Count ? oldArr[i] : default, newArr[i], changes);
+             }
+        }
+        else
+        {
+            // Pushing the normalized change
+            // Fix: Check semantic equality first to skip " (none) -> (none) " rows
+            if (Normalize(oldVal) == Normalize(newVal)) return;
+
+            // Special Date Normalization: If it looks like a date, compare just the parts that matter
+            if (prefix.ToLower().Contains("date") && DateTime.TryParse(oldVal, out var d1) && DateTime.TryParse(newVal, out var d2))
+            {
+                if (d1.Date == d2.Date) return; // Same day, ignore time if it was just logged auto-timestamp
+                changes.Add(new ChangeDetail { FieldName = SplitCamelCase(prefix), OldValue = d1.ToString("dd-MM-yyyy"), NewValue = d2.ToString("dd-MM-yyyy") });
+            }
+            else
+            {
+                changes.Add(new ChangeDetail { FieldName = SplitCamelCase(prefix), OldValue = oldVal, NewValue = newVal });
+            }
+        }
+    }
+
+    private string GetValueString(JsonElement element)
+    {
+        if (element.ValueKind == JsonValueKind.Undefined || element.ValueKind == JsonValueKind.Null) return "(none)";
+
+        return element.ValueKind switch
+        {
+            JsonValueKind.String => element.GetString() ?? "",
+            JsonValueKind.Number => element.TryGetDecimal(out var d) ? d.ToString("N2") : element.GetRawText(),
+            JsonValueKind.True => "Yes",
+            JsonValueKind.False => "No",
+            JsonValueKind.Object => "{ ... }",
+            JsonValueKind.Array => $"List ({element.GetArrayLength()} items)",
+            _ => element.GetRawText()
+        };
+    }
+
+    private string Normalize(string s)
+    {
+        if (s == "-" || s == "(none)" || string.IsNullOrWhiteSpace(s)) return "";
+        
+        // Remove commas and normalize decimal strings for comparison
+        if (s.Contains(",") || s.Contains("."))
+        {
+            if (decimal.TryParse(s, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var d))
+                return d.ToString("0.####"); // Stable format for comparison
+        }
+        
+        return s.Trim();
+    }
+
+    private bool HasValue(JsonElement element, string propertyName)
+    {
+        if (element.ValueKind != JsonValueKind.Object) return false;
+        var prop = element.EnumerateObject().FirstOrDefault(p => p.Name.Equals(propertyName, StringComparison.OrdinalIgnoreCase));
+        return prop.Value.ValueKind != JsonValueKind.Undefined && prop.Value.ValueKind != JsonValueKind.Null;
+    }
+
+    private string SplitCamelCase(string str)
+    {
+        if (string.IsNullOrEmpty(str)) return "Data";
+        
+        // Split camel case for readability
+        var result = System.Text.RegularExpressions.Regex.Replace(str, "([a-z])([A-Z])", "$1 $2");
+        
+        // Clean up common prefixes
+        result = result.Replace("Entries : ", "")
+                       .Replace("Entries #", "Item #")
+                       .Replace(" : ", " › ");
+        
+        return result;
+    }
+
+    private class ChangeDetail
+    {
+        public string FieldName { get; set; } = "";
+        public string OldValue { get; set; } = "";
+        public string NewValue { get; set; } = "";
+    }
+}

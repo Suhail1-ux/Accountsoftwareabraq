@@ -267,6 +267,14 @@ public class ReceiptEntryService : IReceiptEntryService
             }
 
             await _context.SaveChangesAsync();
+
+            // History Logging
+            try
+            {
+                await _transactionService.LogTransactionHistoryAsync(voucherNo, "Receipt Entry", "Insert", currentUser, "Receipt Created", null, JsonSerializer.Serialize(model));
+            }
+            catch { }
+
             return (true, "Receipt Entry created successfully!");
         }
         catch (Exception ex)
@@ -382,10 +390,54 @@ public class ReceiptEntryService : IReceiptEntryService
         // ... (Logic similar to Create, remove old by VoucherNo, add new)
          try
         {
+            var currentUser = GetCurrentUsername();
             var existingEntries = await _context.GeneralEntries.Where(r => r.VoucherNo == voucherNo).ToListAsync();
+            
+            // Capture old values for history (mapped to model for perfect comparison)
+            string? oldValues = null;
+            try
+            {
+                var oldModel = new ReceiptEntryBatchModel
+                {
+                    ReceiptDate = existingEntries.FirstOrDefault()?.EntryDate ?? DateTime.Now,
+                    MobileNo = existingEntries.FirstOrDefault()?.MobileNo,
+                    Entries = existingEntries.Select(ge => new ReceiptEntryItemModel
+                    {
+                        Type = ge.DebitAccountId != null ? "Debit" : "Credit",
+                        AccountId = ge.DebitAccountId ?? ge.CreditAccountId ?? 0,
+                        AccountType = ge.DebitAccountType ?? ge.CreditAccountType ?? "",
+                        Amount = ge.Amount,
+                        Narration = ge.Narration,
+                        Unit = ge.Unit,
+                        EntryForId = ge.EntryForId,
+                        EntryForName = ge.EntryForName,
+                        PaymentType = ge.PaymentType ?? "",
+                        RefNoChequeUTR = ge.ReferenceNo ?? "",
+                        PaymentFromSubGroupId = ge.PaymentFromSubGroupId,
+                        PaymentFromSubGroupName = ge.PaymentFromSubGroupName,
+                        EntryAccountId = ge.EntryAccountId
+                    }).ToList()
+                };
+                oldValues = JsonSerializer.Serialize(oldModel);
+            }
+            catch { }
+
             _context.GeneralEntries.RemoveRange(existingEntries);
             await _context.SaveChangesAsync();
-            return await CreateMultipleReceiptsAsync(model, voucherNo);
+            
+            var result = await CreateMultipleReceiptsAsync(model, voucherNo);
+            
+            if (result.success)
+            {
+                // History Logging
+                try
+                {
+                    await _transactionService.LogTransactionHistoryAsync(voucherNo, "Receipt Entry", "Edit", currentUser, "Receipt Edited", oldValues, JsonSerializer.Serialize(model));
+                }
+                catch { }
+            }
+            
+            return result;
         }
         catch(Exception ex) { return (false, ex.Message); }
     }
@@ -405,6 +457,14 @@ public class ReceiptEntryService : IReceiptEntryService
              _context.Update(e);
          }
          await _context.SaveChangesAsync();
+
+         // History Logging
+         try
+         {
+             await _transactionService.LogTransactionHistoryAsync(entry.VoucherNo, "Receipt Entry", "Approve", GetCurrentUsername(), "Receipt Approved");
+         }
+         catch { }
+
          return (true, "Approved successfully");
     }
 
@@ -418,6 +478,14 @@ public class ReceiptEntryService : IReceiptEntryService
              _context.Update(e);
          }
          await _context.SaveChangesAsync();
+
+         // History Logging
+         try
+         {
+             await _transactionService.LogTransactionHistoryAsync(entry.VoucherNo, "Receipt Entry", "Unapprove", GetCurrentUsername(), "Receipt Unapproved");
+         }
+         catch { }
+
          return (true, "Unapproved successfully");
     }
     #endregion
