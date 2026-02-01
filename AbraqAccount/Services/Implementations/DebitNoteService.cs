@@ -551,9 +551,8 @@ public class DebitNoteService : IDebitNoteService
 
     public async Task<IEnumerable<LookupItem>> GetEntryProfilesAsync()
     {
-         var types = new[] { "Global", "DebitNote", "JournalEntryBook" };
          return await _context.EntryForAccounts
-                .Where(e => types.Contains(e.TransactionType)) 
+                .Where(e => e.TransactionType == "DebitNote") 
                 .OrderBy(e => e.AccountName)
                 .Select(e => new LookupItem { Id = e.Id, Name = e.AccountName })
                 .ToListAsync();

@@ -107,7 +107,8 @@
                         SearchFunc="SearchAccountsForNew"
                         OnAccountSelected="OnAccountSelectedForNew"
                         InitialValue="@newEntry.AccountName"
-                        CssClass="form-control-custom" />
+                        CssClass="form-control-custom"
+                        Disabled="@(selectedProfileId == null || selectedProfileId == 0)" />
                 </div>
             </div>
             <div class="col-md-2">
