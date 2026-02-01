@@ -142,9 +142,16 @@ public class GeneralEntryService : IGeneralEntryService
             if (fromDate.HasValue) query = query.Where(g => g.EntryDate >= fromDate.Value);
             if (toDate.HasValue) query = query.Where(g => g.EntryDate <= toDate.Value);
 
-            // Exclude 'Grower Book' entries (which start with GBK/) as they have their own tab
-            // VoucherType is NotMapped, so we must filter by VoucherNo pattern or other DB column
-            query = query.Where(g => !g.VoucherNo.StartsWith("GBK/"));
+            // Only include Journal Entry Book types
+            // Explicitly exclude other types that have their own tabs
+            query = query.Where(g => g.VoucherType == "Journal Entry Book" || 
+                                     g.VoucherType == "Journal" || 
+                                     (string.IsNullOrEmpty(g.VoucherType) && 
+                                      !g.VoucherNo.StartsWith("GBK/") && 
+                                      !g.VoucherNo.StartsWith("PA") && 
+                                      !g.VoucherNo.StartsWith("RE") && 
+                                      !g.VoucherNo.StartsWith("DN") && 
+                                      !g.VoucherNo.StartsWith("CN")));
 
             // Fetch all matching entries to group effectively (pagination is tricky with grouping, so filtering first is key)
             var allEntries = await query.OrderByDescending(g => g.CreatedAt).ToListAsync();
@@ -427,6 +434,7 @@ public class GeneralEntryService : IGeneralEntryService
                     CreditAccountType = entryData.Type == "Credit" ? entryData.AccountType : null,
                     Amount = entryData.Amount,
                     Type = entryData.PaymentType,
+                    VoucherType = "Journal Entry Book",
                     PaymentType = entryData.PaymentType,
                     Narration = (!string.IsNullOrEmpty(entryData.RefNoChequeUTR) ? $"Ref: {entryData.RefNoChequeUTR}. " : "") + (entryData.Narration ?? ""),
                     ReferenceNo = entryData.RefNoChequeUTR,
@@ -1006,6 +1014,7 @@ public class GeneralEntryService : IGeneralEntryService
                         CreditAccountType = entryData.Type == "Credit" ? entryData.AccountType : null,
                         Amount = entryData.Amount,
                         Type = entryData.PaymentType,
+                        VoucherType = "Journal Entry Book",
                         PaymentType = entryData.PaymentType,
                         Narration = (!string.IsNullOrEmpty(entryData.RefNoChequeUTR) ? $"Ref: {entryData.RefNoChequeUTR}. " : "") + (entryData.Narration ?? ""),
                         ReferenceNo = entryData.RefNoChequeUTR,
