@@ -128,6 +128,9 @@ public class PaymentSettlementService : IPaymentSettlementService
                     if (totalAmount == 0) totalAmount = debitEntries.Sum(e => e.Amount);
 
                     // Consolidate account names
+                    var creditNames = entries.Where(e => e.Type == "Credit").Select(e => e.AccountName).Where(n => !string.IsNullOrEmpty(n) && n != "-").Distinct().ToList();
+                    var debitNames = entries.Where(e => e.Type == "Debit").Select(e => e.AccountName).Where(n => !string.IsNullOrEmpty(n) && n != "-").Distinct().ToList();
+                    
                     var distinctNames = entries.Select(e => e.AccountName).Where(n => !string.IsNullOrEmpty(n) && n != "-").Distinct().ToList();
                     string summaryNames = string.Join(", ", distinctNames.Take(2));
                     if (distinctNames.Count > 2) summaryNames += "...";
@@ -146,7 +149,9 @@ public class PaymentSettlementService : IPaymentSettlementService
                         ClosingBal = 0, 
                         NEFTRTGSCashForm = entries.FirstOrDefault(e => !string.IsNullOrEmpty(e.RefNo))?.RefNo,
                         Unit = firstCredit?.Unit ?? firstDebit?.Unit,
-                        EntryForName = firstCredit?.EntryForName ?? firstDebit?.EntryForName
+                        EntryForName = firstCredit?.EntryForName ?? firstDebit?.EntryForName,
+                        CreditAccountNames = string.Join(", ", creditNames),
+                        DebitAccountNames = string.Join(", ", debitNames)
                     };
                     
                     groupedViewModels.Add(viewModel);

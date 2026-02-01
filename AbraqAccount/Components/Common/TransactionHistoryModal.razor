@@ -46,7 +46,7 @@
                                             <td class="px-4 py-3 align-middle">
                                                 <div class="d-flex align-items-center justify-content-between">
                                                     <span>@history.Remarks</span>
-                                                    @if (history.Action == "Edit" && !string.IsNullOrEmpty(history.OldValues) && !string.IsNullOrEmpty(history.NewValues))
+                                                    @if ((history.Action == "Edit" || history.Action == "Update") && !string.IsNullOrEmpty(history.OldValues) && !string.IsNullOrEmpty(history.NewValues))
                                                     {
                                                         <button class="btn btn-sm btn-outline-info border-0 p-1 ms-2" title="View Changes" @onclick="() => ShowChanges(history)">
                                                             <i class="bi bi-info-circle-fill"></i>

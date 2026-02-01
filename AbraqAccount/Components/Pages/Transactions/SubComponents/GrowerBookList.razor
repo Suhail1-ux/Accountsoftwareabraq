@@ -108,18 +108,6 @@
                                 <div class="action-icons">
                                     @if (item.Status != "Deleted")
                                     {
-                                        <NavLink href="@($"grower-book/details/{item.VoucherNo}")" class="action-icon view-icon" title="View">
-                                            <i class="bi bi-eye"></i>
-                                        </NavLink>
-                                        <button class="action-icon history-icon" type="button" @onclick="() => ShowHistory(item.VoucherNo)" title="History">
-                                            <i class="bi bi-info-circle"></i>
-                                        </button>
-                                        @if (item.Status != "Approved")
-                                        {
-                                            <button class="action-icon edit-icon" type="button" @onclick="() => OnEdit.InvokeAsync(item.VoucherNo)" title="Edit">
-                                                <i class="bi bi-pencil"></i>
-                                            </button>
-                                        }
                                         @if (item.Status == "Approved")
                                         {
                                             <button class="action-icon approved-icon" @onclick="() => ConfirmUnapprove(item.VoucherNo)" title="Unapprove">
@@ -131,6 +119,28 @@
                                             <button class="action-icon approve-icon" @onclick="() => ConfirmApprove(item.VoucherNo)" title="Approve">
                                                 <i class="bi bi-hand-thumbs-up"></i>
                                             </button>
+                                        }
+
+                                        @if (item.Status != "Approved")
+                                        {
+                                            <button class="action-icon edit-icon" type="button" @onclick="() => OnEdit.InvokeAsync(item.VoucherNo)" title="Edit">
+                                                <i class="bi bi-pencil"></i>
+                                            </button>
+                                        }
+
+                                        <NavLink href="@($"grower-book/details/{item.VoucherNo}")" class="action-icon view-icon" title="View">
+                                            <i class="bi bi-eye"></i>
+                                        </NavLink>
+                                    }
+
+                                    <button class="action-icon history-icon" type="button" @onclick="() => ShowHistory(item.VoucherNo)" title="History">
+                                        <i class="bi bi-info-circle"></i>
+                                    </button>
+
+                                    @if (item.Status != "Deleted")
+                                    {
+                                        @if (item.Status != "Approved")
+                                        {
                                             <button class="action-icon delete-icon" @onclick="() => ConfirmDelete(item.VoucherNo)" title="Delete">
                                                 <i class="bi bi-trash"></i>
                                             </button>
@@ -138,7 +148,7 @@
                                     }
                                     else
                                     {
-                                        <span class="text-muted">Deleted</span>
+                                        <span class="text-muted ms-2">Deleted</span>
                                     }
                                 </div>
                             </td>

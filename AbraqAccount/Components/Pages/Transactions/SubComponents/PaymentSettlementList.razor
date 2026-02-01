@@ -96,9 +96,13 @@
                             <td>@(item.EntryForName ?? "-")</td>
                             <td>
                                 <div>
-                                    @if (!string.IsNullOrEmpty(item.VendorName))
+                                    @if (!string.IsNullOrEmpty(item.CreditAccountNames))
                                     {
-                                        <div class="text-primary">@item.VendorName</div>
+                                        <div class="text-primary">@item.CreditAccountNames (Cr)</div>
+                                    }
+                                    @if (!string.IsNullOrEmpty(item.DebitAccountNames))
+                                    {
+                                        <div class="text-danger">@item.DebitAccountNames (Dr)</div>
                                     }
                                 </div>
                             </td>
@@ -131,12 +135,20 @@
                                             <NavLink href="@($"transactions/payment-settlement/details/{item.PANumber}")" class="action-icon view-icon" title="View Details">
                                                 <i class="bi bi-eye"></i>
                                             </NavLink>
-                                            <button class="action-icon history-icon" type="button" @onclick="() => ShowHistory(item.PANumber)" title="History">
-                                                <i class="bi bi-info-circle"></i>
-                                            </button>
+                                        }
+                                    }
+                                    
+                                    <button class="action-icon history-icon" type="button" @onclick="() => ShowHistory(item.PANumber)" title="History">
+                                        <i class="bi bi-info-circle"></i>
+                                    </button>
+
+                                    @if (item.ApprovalStatus != "Deleted")
+                                    {
+                                        @if (item.CreditEntryId > 0 || item.DebitEntryId > 0)
+                                        {
                                             @if (item.ApprovalStatus != "Approved")
                                             {
-                                                <button class="action-icon delete-icon" @onclick="() => ConfirmDelete(item.CreditEntryId)" title="Delete">
+                                                <button class="action-icon delete-icon" @onclick="() => ConfirmDelete(item.CreditEntryId > 0 ? item.CreditEntryId : item.DebitEntryId)" title="Delete">
                                                     <i class="bi bi-trash"></i>
                                                 </button>
                                             }
@@ -144,7 +156,7 @@
                                     }
                                     else
                                     {
-                                        <span class="text-muted">Deleted</span>
+                                        <span class="text-muted ms-2">Deleted</span>
                                     }
                                 </div>
                             </td>

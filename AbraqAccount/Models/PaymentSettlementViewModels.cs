@@ -40,6 +40,8 @@ public class PaymentSettlementGroupViewModel
     public int DebitEntryId { get; set; }
     public decimal? ClosingBal { get; set; }
     public string? NEFTRTGSCashForm { get; set; }
+    public string? CreditAccountNames { get; set; }
+    public string? DebitAccountNames { get; set; }
     public string? Unit { get; set; }
     public string? EntryForName { get; set; }
 }
