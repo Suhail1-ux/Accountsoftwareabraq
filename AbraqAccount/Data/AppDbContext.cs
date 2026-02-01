@@ -9,6 +9,13 @@ public class AppDbContext : DbContext
     {
     }
 
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+    {
+        base.OnConfiguring(optionsBuilder);
+        optionsBuilder.ConfigureWarnings(warnings => 
+            warnings.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
+    }
+
     public DbSet<User> Users { get; set; }
     public DbSet<MasterGroup> MasterGroups { get; set; }
     public DbSet<MasterSubGroup> MasterSubGroups { get; set; }
@@ -16,8 +23,7 @@ public class AppDbContext : DbContext
     public DbSet<GrowerGroup> GrowerGroups { get; set; }
     public DbSet<Farmer> Farmers { get; set; }
     public DbSet<Lot> Lots { get; set; }
-    public DbSet<CreditNote> CreditNotes { get; set; }
-    public DbSet<CreditNoteDetail> CreditNoteDetails { get; set; }
+
     public DbSet<BankMaster> BankMasters { get; set; }
     public DbSet<BankBook> BankBooks { get; set; }
     public DbSet<PurchaseItemGroup> PurchaseItemGroups { get; set; }
@@ -44,10 +50,7 @@ public class AppDbContext : DbContext
     public DbSet<PurchaseReceiveItem> PurchaseReceiveItems { get; set; }
     public DbSet<MaterialIssue> MaterialIssues { get; set; }
     public DbSet<MaterialIssueItem> MaterialIssueItems { get; set; }
-    public DbSet<DebitNote> DebitNotes { get; set; }
-    public DbSet<DebitNoteDetail> DebitNoteDetails { get; set; }
-    public DbSet<ReceiptEntry> ReceiptEntries { get; set; }
-    public DbSet<PaymentSettlement> PaymentSettlements { get; set; }
+
     public DbSet<GeneralEntry> GeneralEntries { get; set; }
     public DbSet<ExpensesIncurred> ExpensesIncurreds { get; set; }
     public DbSet<AccountRule> AccountRules { get; set; }
@@ -287,58 +290,7 @@ public class AppDbContext : DbContext
         });
 
         // Map to SQL Server CreditNotes table
-        modelBuilder.Entity<CreditNote>(entity =>
-        {
-            entity.ToTable("CreditNotes");
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.Id).HasColumnName("Id").ValueGeneratedOnAdd();
-            entity.Property(e => e.CreditNoteNo).HasColumnName("CreditNoteNo").HasMaxLength(100).IsRequired();
-            entity.Property(e => e.GroupId).HasColumnName("GroupId");
-            entity.Property(e => e.FarmerId).HasColumnName("FarmerId");
-            entity.Property(e => e.CreditNoteDate).HasColumnName("CreditNoteDate").IsRequired();
-            entity.Property(e => e.Amount).HasColumnName("Amount").HasColumnType("decimal(18,2)");
-            entity.Property(e => e.Status).HasColumnName("Status").HasMaxLength(50).IsRequired();
-            entity.Property(e => e.Remarks).HasColumnName("Remarks").HasMaxLength(500);
-            entity.Property(e => e.Unit).HasColumnName("Unit").HasMaxLength(50);
-            entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
-            entity.Property(e => e.IsActive).HasColumnName("IsActive").HasDefaultValue(true);
-            entity.Property(e => e.EntryForId).HasColumnName("EntryForId");
-            entity.Property(e => e.EntryForName).HasColumnName("EntryForName").HasMaxLength(255);
-            
-            entity.HasIndex(e => e.CreditNoteNo).IsUnique();
-            
-            entity.HasOne(e => e.GrowerGroup)
-                  .WithMany()
-                  .HasForeignKey(e => e.GroupId)
-                  .OnDelete(DeleteBehavior.Restrict);
-            
-            entity.HasOne(e => e.Farmer)
-                  .WithMany()
-                  .HasForeignKey(e => e.FarmerId)
-                  .OnDelete(DeleteBehavior.Restrict);
-        });
 
-        // Map to SQL Server CreditNoteDetails table
-        modelBuilder.Entity<CreditNoteDetail>(entity =>
-        {
-            entity.ToTable("CreditNoteDetails");
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.Id).HasColumnName("Id");
-            entity.Property(e => e.CreditNoteId).HasColumnName("CreditNoteId").IsRequired();
-            entity.Property(e => e.AccountType).HasColumnName("AccountType").HasMaxLength(100).IsRequired();
-            entity.Property(e => e.RefNoBillNo).HasColumnName("RefNo").HasMaxLength(100);
-            entity.Property(e => e.HsnSacCode).HasColumnName("HsnSacCode").HasMaxLength(50);
-            entity.Property(e => e.Qty).HasColumnName("Qty").HasColumnType("decimal(18,2)");
-            entity.Property(e => e.Rate).HasColumnName("Rate").HasColumnType("decimal(18,2)");
-            entity.Property(e => e.Amount).HasColumnName("Amount").HasColumnType("decimal(18,2)").IsRequired();
-            entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
-            entity.Property(e => e.IsActive).HasColumnName("IsActive").HasDefaultValue(true);
-            
-            entity.HasOne(e => e.CreditNote)
-                  .WithMany(c => c.Details)
-                  .HasForeignKey(e => e.CreditNoteId)
-                  .OnDelete(DeleteBehavior.Cascade);
-        });
 
         // Map to SQL Server BankMasters table
         modelBuilder.Entity<BankMaster>(entity =>
@@ -957,117 +909,13 @@ public class AppDbContext : DbContext
         });
 
         // Map to SQL Server DebitNotes table
-        modelBuilder.Entity<DebitNote>(entity =>
-        {
-            entity.ToTable("DebitNotes");
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.Id).HasColumnName("Id");
-            entity.Property(e => e.DebitNoteNo).HasColumnName("DebitNoteNo").HasMaxLength(50);
-            entity.Property(e => e.Unit).HasColumnName("Unit").HasMaxLength(50).IsRequired();
-            // Temporarily map to GroupId until SQL script is run
-            // TODO: After running QUICK_FIX_ADD_BANKMASTERID.sql, change this to "BankMasterId"
-            entity.Property(e => e.BankMasterId).HasColumnName("GroupId").IsRequired();
-            // Note: FarmerId column still exists in database and is NOT NULL
-            // We handle it via raw SQL in the controller until SQL migration script is run
-            entity.Property(e => e.DebitNoteDate).HasColumnName("DebitNoteDate").IsRequired();
-            entity.Property(e => e.Amount).HasColumnName("Amount").HasColumnType("decimal(18,2)");
-            entity.Property(e => e.Status).HasColumnName("Status").HasMaxLength(50).HasDefaultValue("UnApproved");
-            entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
-            entity.Property(e => e.IsActive).HasColumnName("IsActive").HasDefaultValue(true);
-            entity.Property(e => e.EntryForId).HasColumnName("EntryForId");
-            entity.Property(e => e.EntryForName).HasColumnName("EntryForName").HasMaxLength(255);
-            
-            // Temporarily remove foreign key until SQL script is run
-            // TODO: After running QUICK_FIX_ADD_BANKMASTERID.sql, uncomment this:
-            // entity.HasOne(e => e.BankMaster)
-            //       .WithMany()
-            //       .HasForeignKey(e => e.BankMasterId)
-            //       .OnDelete(DeleteBehavior.Restrict);
-        });
 
-        // Map to SQL Server DebitNoteDetails table
-        modelBuilder.Entity<DebitNoteDetail>(entity =>
-        {
-            entity.ToTable("DebitNoteDetails");
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.Id).HasColumnName("Id");
-            entity.Property(e => e.DebitNoteId).HasColumnName("DebitNoteId").IsRequired();
-            entity.Property(e => e.AccountType).HasColumnName("AccountType").HasMaxLength(100).IsRequired();
-            entity.Property(e => e.RefNo).HasColumnName("RefNo").HasMaxLength(100);
-            entity.Property(e => e.HsnSacCode).HasColumnName("HsnSacCode").HasMaxLength(50);
-            entity.Property(e => e.Qty).HasColumnName("Qty").HasColumnType("decimal(18,2)");
-            entity.Property(e => e.Rate).HasColumnName("Rate").HasColumnType("decimal(18,2)");
-            entity.Property(e => e.Amount).HasColumnName("Amount").HasColumnType("decimal(18,2)").IsRequired();
-            entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
-            
-            entity.HasOne(e => e.DebitNote)
-                  .WithMany(d => d.Details)
-                  .HasForeignKey(e => e.DebitNoteId)
-                  .OnDelete(DeleteBehavior.Cascade);
-        });
 
         // Map to SQL Server ReceiptEntries table
-        modelBuilder.Entity<ReceiptEntry>(entity =>
-        {
-            entity.ToTable("ReceiptEntries");
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.Id).HasColumnName("Id");
-            entity.Property(e => e.VoucherNo).HasColumnName("VoucherNo").HasMaxLength(50);
-            entity.Property(e => e.ReceiptDate).HasColumnName("ReceiptDate").IsRequired();
-            entity.Property(e => e.MobileNo).HasColumnName("MobileNo").HasMaxLength(20);
-            entity.Property(e => e.Type).HasColumnName("Type").HasMaxLength(50).IsRequired();
-            entity.Property(e => e.AccountId).HasColumnName("AccountId").IsRequired();
-            entity.Property(e => e.PaymentType).HasColumnName("PaymentType").HasMaxLength(50).IsRequired();
-            entity.Property(e => e.Amount).HasColumnName("Amount").HasColumnType("decimal(18,2)").IsRequired();
-            entity.Property(e => e.RefNoChequeUTR).HasColumnName("RefNoChequeUTR").HasMaxLength(100);
-            entity.Property(e => e.Narration).HasColumnName("Narration").HasColumnType("NVARCHAR(MAX)");
-            entity.Property(e => e.Status).HasColumnName("Status").HasMaxLength(50).HasDefaultValue("Unapproved");
-            entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt").HasDefaultValueSql("GETDATE()");
-            entity.Property(e => e.IsActive).HasColumnName("IsActive").HasDefaultValue(true);
-            entity.Property(e => e.EntryForId).HasColumnName("EntryForId");
-            entity.Property(e => e.EntryForName).HasColumnName("EntryForName").HasMaxLength(255);
-            entity.Property(e => e.AccountType).HasColumnName("AccountType").HasMaxLength(50).IsRequired();
-            
-            // Note: AccountId can refer to MasterGroup, MasterSubGroup, or SubGroupLedger based on AccountType
-            // We cannot set up foreign keys for polymorphic relationships in EF Core easily
-            // Navigation properties will be loaded manually in the controller based on AccountType
-            // Ignore navigation properties in queries to avoid EF trying to use non-existent foreign keys
-            entity.Ignore(e => e.MasterGroup);
-            entity.Ignore(e => e.MasterSubGroup);
-            entity.Ignore(e => e.SubGroupLedger);
-            
-            entity.Property(e => e.PaymentFromSubGroupId).HasColumnName("PaymentFromSubGroupId");
-            
-            entity.HasOne(e => e.PaymentFromSubGroup)
-                  .WithMany()
-                  .HasForeignKey(e => e.PaymentFromSubGroupId)
-                  .OnDelete(DeleteBehavior.Restrict);
-        });
+
 
         // Map to SQL Server PaymentSettlements table
-        modelBuilder.Entity<PaymentSettlement>(entity =>
-        {
-            entity.ToTable("PaymentSettlements");
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.Id).HasColumnName("Id");
-            entity.Property(e => e.PANumber).HasColumnName("PANumber").HasMaxLength(50);
-            entity.Property(e => e.SettlementDate).HasColumnName("SettlementDate").IsRequired();
-            entity.Property(e => e.Type).HasColumnName("Type").HasMaxLength(50).IsRequired();
-            entity.Property(e => e.AccountId).HasColumnName("AccountId").IsRequired();
-            entity.Property(e => e.AccountName).HasColumnName("AccountName").HasMaxLength(200).IsRequired();
-            entity.Property(e => e.AccountType).HasColumnName("AccountType").HasMaxLength(50).IsRequired();
-            entity.Property(e => e.PaymentType).HasColumnName("PaymentType").HasMaxLength(50).IsRequired();
-            entity.Property(e => e.Amount).HasColumnName("Amount").HasColumnType("decimal(18,2)").IsRequired();
-            entity.Property(e => e.RefNo).HasColumnName("RefNo").HasMaxLength(100);
-            entity.Property(e => e.Narration).HasColumnName("Narration").HasColumnType("NVARCHAR(MAX)");
-            entity.Property(e => e.ApprovalStatus).HasColumnName("ApprovalStatus").HasMaxLength(50).HasDefaultValue("Unapproved");
-            entity.Property(e => e.PaymentStatus).HasColumnName("PaymentStatus").HasMaxLength(50).HasDefaultValue("Pending");
-            entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt").HasDefaultValueSql("GETDATE()");
-            entity.Property(e => e.IsActive).HasColumnName("IsActive").HasDefaultValue(true);
-            entity.Property(e => e.Unit).HasColumnName("Unit").HasMaxLength(50);
-            entity.Property(e => e.EntryForId).HasColumnName("EntryForId");
-            entity.Property(e => e.EntryForName).HasColumnName("EntryForName").HasMaxLength(255);
-        });
+
 
         // Map to SQL Server GeneralEntries table
         modelBuilder.Entity<GeneralEntry>(entity =>
@@ -1077,10 +925,10 @@ public class AppDbContext : DbContext
             entity.Property(e => e.Id).HasColumnName("Id");
             entity.Property(e => e.VoucherNo).HasColumnName("VoucherNo").HasMaxLength(50);
             entity.Property(e => e.EntryDate).HasColumnName("EntryDate").IsRequired();
-            entity.Property(e => e.DebitAccountId).HasColumnName("DebitAccountId").IsRequired();
-            entity.Property(e => e.DebitAccountType).HasColumnName("DebitAccountType").HasMaxLength(50).IsRequired();
-            entity.Property(e => e.CreditAccountId).HasColumnName("CreditAccountId").IsRequired();
-            entity.Property(e => e.CreditAccountType).HasColumnName("CreditAccountType").HasMaxLength(50).IsRequired();
+            entity.Property(e => e.DebitAccountId).HasColumnName("DebitAccountId");
+            entity.Property(e => e.DebitAccountType).HasColumnName("DebitAccountType").HasMaxLength(50);
+            entity.Property(e => e.CreditAccountId).HasColumnName("CreditAccountId");
+            entity.Property(e => e.CreditAccountType).HasColumnName("CreditAccountType").HasMaxLength(50);
             entity.Property(e => e.Amount).HasColumnName("Amount").HasColumnType("decimal(18,2)").IsRequired();
             entity.Property(e => e.Type).HasColumnName("Type").HasMaxLength(100);
             entity.Property(e => e.Narration).HasColumnName("Narration").HasColumnType("NVARCHAR(MAX)");

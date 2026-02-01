@@ -89,6 +89,9 @@
                         <ColumnFilter Title="Date" TItem="CreditNote" TValue="string" Items="originalCreditNotes" Property="@(x => x.CreditNoteDate.ToString("dd/MM/yyyy"))" OnFilter="@(v => HandleColumnFilter("Date", v))" Align="left" />
                     </th>
                     <th>
+                        <ColumnFilter Title="Entry For" TItem="CreditNote" TValue="string" Items="originalCreditNotes" Property="@(x => x.EntryForName ?? "-")" OnFilter="@(v => HandleColumnFilter("EntryForName", v))" Align="left" />
+                    </th>
+                    <th>
                         <ColumnFilter Title="Credit" TItem="CreditNote" TValue="string" Items="originalCreditNotes" Property="@(x => x.CreditAccountName ?? "-")" OnFilter="@(v => HandleColumnFilter("CreditAccountName", v))" />
                     </th>
                     <th>
@@ -121,6 +124,7 @@
                             <td>@item.CreditNoteNo</td>
                             <td>@item.Unit</td>
                             <td>@item.CreditNoteDate.ToString("dd/MM/yyyy")</td>
+                            <td>@(item.EntryForName ?? "-")</td>
                             <td>@(item.CreditAccountName ?? "-")</td>
                             <td>@(item.DebitAccountName ?? "-")</td>
                             <td>@(item.Amount?.ToString("N2") ?? "0.00")</td>
@@ -131,7 +135,7 @@
                                 <div class="action-icons">
                                     @if (item.Status != "Approved")
                                     {
-                                        <button class="action-icon edit-icon" type="button" @onclick="() => OnEdit.InvokeAsync(item.Id)" title="Edit">
+                                        <button class="action-icon edit-icon" type="button" @onclick="() => OnEdit.InvokeAsync(item.CreditNoteNo)" title="Edit">
                                             <i class="bi bi-pencil"></i>
                                         </button>
                                     }
@@ -234,7 +238,7 @@
 <ConfirmationModal @ref="confirmationModal" OnConfirm="HandleConfirmation" />
 
 @code {
-    [Parameter] public EventCallback<int> OnEdit { get; set; }
+    [Parameter] public EventCallback<string> OnEdit { get; set; }
     private List<CreditNote>? creditNotes;
     private List<string> units = new();
     private IEnumerable<SelectListItem>? growerGroups;
@@ -278,7 +282,9 @@
                  object? val = col switch {
                      "CreditNoteNo" => item.CreditNoteNo,
                      "Unit" => item.Unit,
+
                      "Date" => item.CreditNoteDate.ToString("dd/MM/yyyy"),
+                     "EntryForName" => item.EntryForName ?? "-",
                      "CreditAccountName" => item.CreditAccountName ?? "-",
                      "DebitAccountName" => item.DebitAccountName ?? "-",
                      "Amount" => item.Amount,

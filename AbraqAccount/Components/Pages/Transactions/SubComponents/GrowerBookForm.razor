@@ -1,13 +1,11 @@
 @using AbraqAccount.Models
 @using AbraqAccount.Services.Interfaces
-@using AbraqAccount.Components.Common
 @inject IGeneralEntryService GeneralEntryService
-@inject ISettingsService SettingsService
 @inject NavigationManager Navigation
 
 <div class="form-container">
     <div class="form-section-title">
-        Grower Book - @(IsReadOnly ? "Details" : (string.IsNullOrEmpty(VoucherNo) ? "Add" : "Edit"))
+        Grower Book - @(IsReadOnly ? "Details" : (IsEdit ? "Edit" : "Add"))
     </div>
 
     @if (!string.IsNullOrEmpty(errorMessage))
@@ -15,375 +13,434 @@
         <div class="alert alert-danger">@errorMessage</div>
     }
 
-    <EditForm Model="@item" OnValidSubmit="SubmitForm">
-        <DataAnnotationsValidator />
-        
-        <!-- Header Fields -->
-        <div class="row mb-4">
-            <div class="col-md-4">
-                <div class="form-group-custom">
-                    <label class="form-label text-muted">Transaction Date <span class="text-danger">*</span></label>
-                    @if (IsReadOnly)
-                    {
-                        <div class="fw-bold fs-6">@item.EntryDate.ToString("dd/MM/yyyy")</div>
-                    }
-                    else
-                    {
-                        <InputDate @bind-Value="item.EntryDate" class="form-control-custom" />
-                    }
-                </div>
+    <!-- Header Fields -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="form-group-custom">
+                <label class="form-label text-muted">Transaction Date</label>
+                @if (IsReadOnly)
+                {
+                    <div class="fw-bold fs-6">@model.EntryDate.ToString("dd/MM/yyyy")</div>
+                }
+                else
+                {
+                    <input type="date" @bind="model.EntryDate" class="form-control-custom" />
+                }
             </div>
-            <div class="col-md-4">
-                <div class="form-group-custom">
-                    <label class="form-label text-muted">Entry For</label>
-                    @if (IsReadOnly)
-                    {
-                        <div class="fw-bold fs-6">@(entryProfiles?.FirstOrDefault(p => p.Id == item.EntryForId)?.Name ?? "")</div>
-                    }
-                    else
-                    {
-                        <InputSelect @bind-Value="item.EntryForId" class="form-control-custom" @oninput="OnEntryForChanged">
-                            <option value="0">Select Entry For</option>
-                            @if (entryProfiles != null)
+        </div>
+        <div class="col-md-3">
+            <div class="form-group-custom">
+                <label class="form-label text-muted">Entry For</label>
+                @if (IsReadOnly)
+                {
+                    <div class="fw-bold fs-6">@(entryProfiles?.FirstOrDefault(p => p.Id == selectedProfileId)?.Name ?? "-")</div>
+                }
+                else
+                {
+                    <select @onchange="OnProfileChanged" class="form-control-custom">
+                        <option value="">Select Entry Profile</option>
+                        @if (entryProfiles != null)
+                        {
+                            @foreach (var profile in entryProfiles)
                             {
-                                foreach (var p in entryProfiles)
-                                {
-                                    <option value="@p.Id">@p.Name</option>
-                                }
+                                <option value="@profile.Id" selected="@(selectedProfileId == profile.Id)">@profile.Name</option>
                             }
-                        </InputSelect>
-                    }
+                        }
+                    </select>
+                }
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="form-group-custom">
+                <label class="form-label text-muted">Unit <span class="text-danger">*</span></label>
+                @if (IsReadOnly)
+                {
+                    <div class="fw-bold fs-6">@selectedUnit</div>
+                }
+                else
+                {
+                    <select @bind="selectedUnit" class="form-control-custom">
+                        @foreach (var unit in unitList)
+                        {
+                            <option value="@unit">@unit</option>
+                        }
+                    </select>
+                }
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="form-group-custom">
+                <label class="form-label text-muted">Mobile No.</label>
+                @if (IsReadOnly)
+                {
+                    <div class="fw-bold fs-6">@model.MobileNo</div>
+                }
+                else
+                {
+                    <input type="text" @bind="model.MobileNo" class="form-control-custom" placeholder="Enter Mobile No" />
+                }
+            </div>
+        </div>
+    </div>
+
+    <!-- Transaction Details Section -->
+    @if (!IsReadOnly)
+    {
+    <div class="transaction-details-section">
+        <div class="section-subtitle mb-3">Transaction Details</div>
+        <div class="row mb-3">
+            <div class="col-md-2">
+                <div class="form-group-custom">
+                    <label>Type <span class="text-danger">*</span></label>
+                    <select @bind="EntryType" class="form-control-custom">
+                        <option value="Debit">Grower Debit</option>
+                        <option value="Credit">Grower Credit</option>
+                    </select>
                 </div>
             </div>
-            <div class="col-md-4">
+            <div class="col-md-3">
                 <div class="form-group-custom">
-                    <label class="form-label text-muted">Unit <span class="text-danger">*</span></label>
-                    @if (IsReadOnly)
+                    <label>Account <span class="text-danger">*</span></label>
+                    <AbraqAccount.Components.Common.AccountSearch 
+                        Placeholder="Search Account Name" 
+                        SearchFunc="SearchAccountsForNew"
+                        OnAccountSelected="OnAccountSelectedForNew"
+                        InitialValue="@newEntry.AccountName"
+                        CssClass="form-control-custom" />
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="form-group-custom">
+                    <label>Amount <span class="text-danger">*</span></label>
+                    <input type="number" step="0.01" @bind="newEntry.Amount" class="form-control-custom" placeholder="Enter Amount" />
+                </div>
+            </div>
+            <div class="col-md-5">
+                <div class="form-group-custom">
+                    <label>Narration</label>
+                    <textarea @bind="newEntry.Narration" class="form-control-custom" rows="1" placeholder="Enter Narration"></textarea>
+                </div>
+            </div>
+        </div>
+        <div class="d-flex justify-content-end gap-2 mb-4">
+            <button type="button" class="btn-add-custom" @onclick="AddNewRow">Add</button>
+            <button type="button" class="btn-clear-row-custom" @onclick="ClearNewEntry">Clear</button>
+        </div>
+    </div>
+    }
+
+    <!-- Details Table -->
+    <div class="details-table-section">
+        <div class="section-subtitle mb-3">Grower Book Details</div>
+        <div class="table-responsive">
+            <table class="table table-custom-bordered">
+                <thead>
+                    <tr>
+                        <th>Unit</th>
+                        <th>Type</th>
+                        <th>Account</th>
+                        <th>Debit(Rs)</th>
+                        <th>Credit(Rs)</th>
+                        <th>Narration</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (!uiEntries.Any())
                     {
-                        <div class="fw-bold fs-6">@item.Unit</div>
+                        <tr>
+                            <td colspan="7" class="text-center text-muted py-4">No entries added yet. Use the form above to add entries.</td>
+                        </tr>
                     }
                     else
                     {
-                        <InputSelect @bind-Value="item.Unit" class="form-control-custom">
-                            <option value="">Select Unit</option>
-                            @if (units != null)
-                            {
-                                foreach (var u in units)
-                                {
-                                    <option value="@u">@u</option>
-                                }
-                            }
-                        </InputSelect>
+                        @foreach (var entry in uiEntries)
+                        {
+                            <tr>
+                                <td>@entry.Unit</td>
+                                <td>@entry.Type</td>
+                                <td>@entry.AccountName</td>
+                                <td class="text-end">@entry.Debit.ToString("N2")</td>
+                                <td class="text-end">@entry.Credit.ToString("N2")</td>
+                                <td>@entry.Narration</td>
+                                <td>
+                                    @if (!IsReadOnly)
+                                    {
+                                        <button class="btn-edit-row me-2" @onclick="() => EditEntry(entry)" title="Edit">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <button class="btn-delete-row" @onclick="() => RemoveEntry(entry)" title="Delete">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    }
+                                </td>
+                            </tr>
+                        }
                     }
-                </div>
-            </div>
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <td colspan="3" class="text-end fw-bold">Total</td>
+                        <td class="text-end fw-bold">@TotalDebit.ToString("N2")</td>
+                        <td class="text-end fw-bold">@TotalCredit.ToString("N2")</td>
+                        <td colspan="2"></td>
+                    </tr>
+                </tfoot>
+            </table>
         </div>
+    </div>
 
-        <!-- Transaction Details Section -->
-        <div class="transaction-details-section">
-            <div class="section-subtitle mb-3">Transaction Details</div>
-            
-            <div class="row mb-3">
-                <div class="col-md-4">
-                    <div class="form-group-custom">
-                        <label class="form-label text-muted">Grower Credit *</label>
-                        @if (IsReadOnly)
-                        {
-                            <div class="fw-bold fs-6">@creditAccountName</div>
-                        }
-                        else
-                        {
-                            <AccountSearch Label="" 
-                                          SearchFunc="@(term => SearchCreditAccounts(term))" 
-                                          OnAccountSelected="@(a => { item.CreditAccountId = a.Id; item.CreditAccountType = "BankMaster"; creditAccountName = a.Name; })"
-                                          InitialValue="@creditAccountName"
-                                          Required="true"
-                                          Disabled="@(item.EntryForId == null || item.EntryForId == 0)"
-                                          CssClass="@(item.CreditAccountId == 0 ? "form-control-custom is-invalid" : "form-control-custom")" />
-                        }
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="form-group-custom">
-                        <label class="form-label text-muted">Grower Debit *</label>
-                        @if (IsReadOnly)
-                        {
-                            <div class="fw-bold fs-6">@debitAccountName</div>
-                        }
-                        else
-                        {
-                            <AccountSearch Label="" 
-                                          SearchFunc="@(term => SearchDebitAccounts(term))" 
-                                          OnAccountSelected="@(a => { item.DebitAccountId = a.Id; item.DebitAccountType = "BankMaster"; debitAccountName = a.Name; })"
-                                          InitialValue="@debitAccountName"
-                                          Required="true"
-                                          Disabled="@(item.EntryForId == null || item.EntryForId == 0)"
-                                          CssClass="@(item.DebitAccountId == 0 ? "form-control-custom is-invalid" : "form-control-custom")" />
-                        }
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="form-group-custom">
-                        <label class="form-label text-muted">Amount <span class="text-danger">*</span></label>
-                        @if (IsReadOnly)
-                        {
-                            <div class="fw-bold fs-6 text-primary">@item.Amount.ToString("N2")</div>
-                        }
-                        else
-                        {
-                            <InputNumber @bind-Value="item.Amount" class="form-control-custom" min="0.01" step="0.01" placeholder="Enter Amount" />
-                        }
-                    </div>
-                </div>
-            </div>
-
-            <div class="row mb-4">
-                <div class="col-12">
-                    <div class="form-group-custom">
-                        <label class="form-label text-muted">Particular</label>
-                        @if (IsReadOnly)
-                        {
-                             <div class="fw-bold fs-6">@(string.IsNullOrEmpty(item.Narration) ? "-" : item.Narration)</div>
-                        }
-                        else
-                        {
-                            <InputTextArea @bind-Value="item.Narration" class="form-control-custom" rows="2" placeholder="Enter Particular" />
-                        }
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="form-footer-actions">
-            @if (!IsReadOnly)
-            {
-                <button type="submit" class="btn-save-custom" disabled="@isSubmitting">
-                    @if (isSubmitting) { <span class="spinner-border spinner-border-sm me-1"></span> }
-                    @(string.IsNullOrEmpty(VoucherNo) ? "Save" : "Update")
-                </button>
-                <button type="button" class="btn-cancel-custom" @onclick="Cancel">Cancel</button>
-            }
-            else
-            {
-                <a href="grower-book/index" class="btn-cancel-custom text-decoration-none d-inline-flex align-items-center">
-                    <i class="bi bi-arrow-left me-1"></i> Back to List
-                </a>
-            }
-        </div>
-    </EditForm>
+    <div class="form-footer-actions">
+        @if (!IsReadOnly)
+        {
+            <button type="button" class="btn-save-custom" @onclick="SubmitForm" disabled="@(isSubmitting || !IsBalanced)">
+                @if (isSubmitting) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                Save
+            </button>
+            <button type="button" class="btn-cancel-custom" @onclick="Cancel">Cancel</button>
+        }
+        else
+        {
+            <a href="grower-book/index" class="btn-cancel-custom text-decoration-none d-inline-flex align-items-center">
+                <i class="bi bi-arrow-left me-1"></i> Back to List
+            </a>
+        }
+    </div>
 </div>
 
 <style>
-    .form-container {
-        background: white;
-        padding: 1.5rem;
-        border: 1px solid #e0e0e0;
-        border-radius: 4px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-    }
-    .form-section-title {
-        font-size: 1.1rem;
-        font-weight: 500;
-        color: #495057;
-        margin-bottom: 2rem;
-        padding-bottom: 0.75rem;
-        border-bottom: 1px solid #f0f0f0;
-    }
-    .section-subtitle {
-        font-size: 1rem;
-        font-weight: 600;
-        color: #444;
-        border-bottom: 1px solid #eee;
-        padding-bottom: 0.5rem;
-    }
-    .form-group-custom {
-        margin-bottom: 1rem;
-    }
-    .form-group-custom label {
-        display: block;
-        font-size: 0.9rem;
-        font-weight: 600;
-        color: #333;
-        margin-bottom: 0.5rem;
-    }
-    .form-control-custom {
-        width: 100%;
-        padding: 0.6rem 0.75rem;
-        border: 1px solid #ced4da;
-        border-radius: 4px;
-        font-size: 0.9rem;
-        background-color: #fff;
-    }
-    .form-control-custom:focus {
-        border-color: #80bdff;
-        outline: 0;
-        box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
-    }
-    .form-footer-actions {
-        display: flex;
-        justify-content: flex-end;
-        gap: 0.5rem;
-        padding-top: 1.5rem;
-        border-top: 1px solid #f0f0f0;
-        margin-top: 2rem;
-    }
-    .btn-save-custom {
-        background-color: #6c757d;
-        color: white;
-        border: none;
-        padding: 0.5rem 2rem;
-        border-radius: 4px;
-        font-weight: 500;
-    }
-    .btn-cancel-custom {
-        background-color: #e9ecef;
-        color: #495057;
-        border: none;
-        padding: 0.5rem 2rem;
-        border-radius: 4px;
-        font-weight: 500;
-    }
+    .form-container { background: white; padding: 1.5rem; border: 1px solid #e0e0e0; border-radius: 4px; }
+    .form-section-title { font-size: 1.1rem; font-weight: 500; color: #495057; margin-bottom: 2rem; padding-bottom: 0.75rem; border-bottom: 2px solid #28a745; }
+    .section-subtitle { font-size: 1rem; font-weight: 600; color: #444; border-bottom: 1px solid #eee; padding-bottom: 0.5rem; }
+    .form-group-custom { margin-bottom: 1rem; }
+    .form-group-custom label { display: block; font-size: 0.85rem; font-weight: 600; color: #333; margin-bottom: 0.4rem; }
+    .form-control-custom { width: 100%; padding: 0.5rem 0.75rem; border: 1px solid #ced4da; border-radius: 4px; font-size: 0.9rem; }
+    .btn-add-custom { background-color: #28a745; color: white; border: none; padding: 0.5rem 2rem; border-radius: 4px; font-weight: 500; }
+    .btn-clear-row-custom { background-color: #f8f9fa; color: #333; border: 1px solid #ced4da; padding: 0.5rem 2rem; border-radius: 4px; font-weight: 500; }
+    .table-custom-bordered { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    .table-custom-bordered th { background: #f8f9fa; padding: 0.75rem; border: 1px solid #dee2e6; text-align: left; }
+    .table-custom-bordered td { padding: 0.75rem; border: 1px solid #dee2e6; }
+    .btn-delete-row { background: none; border: none; color: #dc3545; cursor: pointer; }
+    .btn-edit-row { background: none; border: none; color: #ffc107; cursor: pointer; }
+    .form-footer-actions { display: flex; justify-content: flex-end; gap: 0.5rem; padding-top: 1.5rem; border-top: 1px solid #f0f0f0; margin-top: 2rem; }
+    .btn-save-custom { background-color: #6c757d; color: white; border: none; padding: 0.5rem 2rem; border-radius: 4px; font-weight: 500; }
+    .btn-cancel-custom { background-color: #e9ecef; color: #495057; border: none; padding: 0.5rem 2rem; border-radius: 4px; font-weight: 500; }
 </style>
 
 @code {
     [Parameter] public string? VoucherNo { get; set; }
     [Parameter] public bool IsReadOnly { get; set; }
-    [Parameter] public EventCallback OnSaved { get; set; } // If used as a component
-    
-    private GeneralEntry item = new() { EntryDate = DateTime.Today, Type = "GrowerBook" };
-    private IEnumerable<LookupItem>? entryProfiles;
-    private List<string> units = new();
-    private string creditAccountName = "";
-    private string debitAccountName = "";
+    [Parameter] public EventCallback OnSaved { get; set; }
+    private GeneralEntryBatchModel model = new() { EntryDate = DateTime.Now };
+    private List<UIEntry> uiEntries = new();
+    private string EntryType
+    {
+        get => newEntry.Type;
+        set
+        {
+            if (newEntry.Type != value)
+            {
+                newEntry.Type = value;
+                newEntry.AccountId = 0;
+                newEntry.AccountName = "";
+                newEntry.AccountType = "";
+            }
+        }
+    }
+
+    private UIEntry newEntry = new() { Type = "Debit", PaymentType = "" };
+    private string selectedUnit = "";
+    private List<string> unitList = new(); 
+    private bool IsEdit => !string.IsNullOrEmpty(VoucherNo);
     private bool isSubmitting;
     private string? errorMessage;
+    private IEnumerable<LookupItem>? entryProfiles;
+    private int? selectedProfileId;
+
+    private decimal TotalDebit => uiEntries.Sum(e => e.Debit);
+    private decimal TotalCredit => uiEntries.Sum(e => e.Credit);
+    private bool IsBalanced => Math.Abs(TotalDebit - TotalCredit) < 0.01m && uiEntries.Count > 0;
 
     protected override async Task OnInitializedAsync()
     {
-        // Load Entry Profiles relevant to Grower Book if any, or general ones
         entryProfiles = await GeneralEntryService.GetEntryProfilesAsync("GrowerBook");
-        units = await GeneralEntryService.GetUnitNamesAsync();
-    }
-
-    protected override async Task OnParametersSetAsync()
-    {
-        if (!string.IsNullOrEmpty(VoucherNo))
+        unitList = await GeneralEntryService.GetUnitNamesAsync();
+        
+        if (unitList.Any()) selectedUnit = unitList.First();
+        
+        if (IsEdit)
         {
-            var entries = await GeneralEntryService.GetVoucherEntriesAsync(VoucherNo);
-            if (entries.Any())
+            var entries = await GeneralEntryService.GetVoucherEntriesAsync(VoucherNo!);
+            if (entries != null && entries.Any())
             {
-                var first = entries.First();
-                // Map to item for editing
-                item = first;
-                // Note: Double entry logic might require adjusting how we load credit/debit 
-                // but GeneralEntry usually stores them normalized or we pick the primary one.
-                // Assuming standard structure where one entry represents the row.
-                
-                // Manually populate the local name fields since the property is read-only (computed)
-                // We trust the computed property for initialization
-                creditAccountName = item.CreditAccountName;
-                debitAccountName = item.DebitAccountName;
+                model.EntryDate = entries.First().EntryDate;
+                model.MobileNo = entries.First().MobileNo;
+                selectedProfileId = entries.First().EntryForId;
+                selectedUnit = entries.First().Unit ?? (unitList.Any() ? unitList.First() : "");
+
+                foreach (var e in entries)
+                {
+                    if (e.DebitAccountId != 1) { 
+                         uiEntries.Add(new UIEntry {
+                            Type = "Debit",
+                            AccountId = e.DebitAccountId ?? 0,
+                            AccountType = e.DebitAccountType,
+                            AccountName = e.DebitAccountName,
+                            Debit = e.Amount,
+                            Credit = 0,
+                            Amount = e.Amount,
+                            Narration = e.Narration ?? "",
+                            Unit = e.Unit
+                        });
+                    }
+                    if (e.CreditAccountId != 1) { 
+                         uiEntries.Add(new UIEntry {
+                            Type = "Credit",
+                            AccountId = e.CreditAccountId ?? 0,
+                            AccountType = e.CreditAccountType,
+                            AccountName = e.CreditAccountName,
+                            Debit = 0,
+                            Credit = e.Amount,
+                            Amount = e.Amount,
+                            Narration = e.Narration ?? "",
+                            Unit = e.Unit
+                        });
+                    }
+                }
             }
         }
-        else
-        {
-             item = new GeneralEntry { EntryDate = DateTime.Today, Type = "GrowerBook" };
-             creditAccountName = "";
-             debitAccountName = "";
-             
-             if (units.Any()) item.Unit = units.First();
-        }
     }
 
-    private async Task<IEnumerable<LookupItem>> SearchCreditAccounts(string term)
+    private async Task<IEnumerable<LookupItem>> SearchAccountsForNew(string term)
     {
-        // Specific search for Grower Book - Credit Side
-        return await GeneralEntryService.GetGrowerAccountsAsync(term, "GrowerBook", "Credit", item.EntryForId);
+        // For Grower Book, we use the specific GetGrowerAccountsAsync if possible, or general.
+        // The original code used GetGrowerAccountsAsync.
+        return await GeneralEntryService.GetGrowerAccountsAsync(term, "GrowerBook", newEntry.Type, selectedProfileId);
     }
 
-    private async Task<IEnumerable<LookupItem>> SearchDebitAccounts(string term)
+    private void OnAccountSelectedForNew(LookupItem account)
     {
-        // Specific search for Grower Book - Debit Side
-        return await GeneralEntryService.GetGrowerAccountsAsync(term, "GrowerBook", "Debit", item.EntryForId);
+        newEntry.AccountId = account.Id;
+        newEntry.AccountType = account.Type ?? "BankMaster";
+        newEntry.AccountName = account.Name;
     }
 
-    private void OnEntryForChanged(ChangeEventArgs e)
+    private void AddNewRow()
     {
-        if (int.TryParse(e.Value?.ToString(), out int profileId) && profileId > 0)
+        if (newEntry.AccountId == 0 || newEntry.Amount <= 0)
         {
-            var profile = entryProfiles?.FirstOrDefault(p => p.Id == profileId);
-            item.EntryForName = profile?.Name;
-            item.EntryForId = profileId; // Ensure it's set
+            errorMessage = "Please select account and enter amount.";
+            return;
         }
-        else
+
+        var entryToAdd = new UIEntry
         {
-            item.EntryForId = null;
-            item.EntryForName = null;
-            
-            // Clear selections if no profile
-            item.DebitAccountId = 0;
-            debitAccountName = "";
-            item.CreditAccountId = 0;
-            creditAccountName = "";
-        }
+            Unit = selectedUnit,
+            Type = newEntry.Type,
+            AccountId = newEntry.AccountId,
+            AccountType = newEntry.AccountType,
+            AccountName = newEntry.AccountName,
+            Amount = newEntry.Amount,
+            Debit = newEntry.Type == "Debit" ? newEntry.Amount : 0,
+            Credit = newEntry.Type == "Credit" ? newEntry.Amount : 0,
+            Narration = newEntry.Narration
+        };
+
+        uiEntries.Add(entryToAdd);
+        ClearNewEntry();
+        errorMessage = null;
+    }
+
+    private void ClearNewEntry()
+    {
+        newEntry = new UIEntry { Type = "Debit", PaymentType = "" };
+    }
+
+    private void RemoveEntry(UIEntry entry)
+    {
+        uiEntries.Remove(entry);
+    }
+
+    private void EditEntry(UIEntry entry)
+    {
+        EntryType = entry.Type;
+        newEntry.AccountId = entry.AccountId;
+        newEntry.AccountType = entry.AccountType;
+        newEntry.AccountName = entry.AccountName;
+        newEntry.Amount = entry.Amount;
+        newEntry.Narration = entry.Narration;
+        
+        if (!string.IsNullOrEmpty(entry.Unit) && unitList.Contains(entry.Unit)) selectedUnit = entry.Unit;
+
+        uiEntries.Remove(entry);
+    }
+
+    private void OnProfileChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out int profileId)) selectedProfileId = profileId;
+        else selectedProfileId = null;
     }
 
     public async Task SubmitForm()
     {
-        errorMessage = null;
-        if (item.EntryForId == null || item.EntryForId == 0)
+        if (!IsBalanced)
         {
-            errorMessage = "Please select 'Entry For' profile.";
-            return;
-        }
-        if (item.CreditAccountId == 0 || item.DebitAccountId == 0 || item.Amount <= 0)
-        {
-            errorMessage = "Please fill all required fields.";
+            errorMessage = "Entries are not balanced. (Debit must equal Credit)";
             return;
         }
 
         isSubmitting = true;
-        (bool success, string message) result;
+        errorMessage = null;
 
-        if (!string.IsNullOrEmpty(VoucherNo))
+        model.Entries = uiEntries.Select(e => new GeneralEntryItemModel
         {
-             result = await GeneralEntryService.UpdateGrowerBookEntryAsync(item);
+            Type = e.Type,
+            AccountId = e.AccountId,
+            AccountType = e.AccountType,
+            Amount = e.Amount,
+            Narration = e.Narration,
+            EntryForId = selectedProfileId,
+            EntryForName = entryProfiles?.FirstOrDefault(p => p.Id == selectedProfileId)?.Name,
+            Unit = e.Unit
+        }).ToList();
+
+        (bool success, string message) result;
+        if (IsEdit)
+        {
+            result = await GeneralEntryService.UpdateBatchGrowerBookAsync(VoucherNo!, model);
         }
         else
         {
-             result = await GeneralEntryService.CreateGrowerBookEntryAsync(item);
+            result = await GeneralEntryService.CreateBatchGrowerBookAsync(model);
         }
-        
-        isSubmitting = false;
 
         if (result.success)
         {
-            if (OnSaved.HasDelegate)
-            {
-                await OnSaved.InvokeAsync();
-            }
-            else
-            {
-                // Navigate back to list or refresh
-                Navigation.NavigateTo("grower-book/index"); 
-            }
+            if (OnSaved.HasDelegate) await OnSaved.InvokeAsync();
+            else Navigation.NavigateTo("grower-book/index");
         }
-        else
-        {
-            errorMessage = result.message;
-        }
+        else errorMessage = result.message;
+        
+        isSubmitting = false;
     }
 
-    private void Cancel()
+    private async Task Cancel()
     {
-        // If we are in a modal/component logic, delegate back or navigate
-        if (OnSaved.HasDelegate)
-        {
-             // For cancel, we might want a separate OnCancel or just assume standard flow
-             // But if we just want to go back:
-             // Since OnSaved implies "done with form", we can misuse it or better just navigate if not handled.
-             // However, specific requirement is "Redirect properly to their list".
-        }
-        Navigation.NavigateTo("grower-book/index"); 
+        if (OnSaved.HasDelegate) await OnSaved.InvokeAsync();
+        else Navigation.NavigateTo("grower-book/index");
+    }
+
+    private class UIEntry
+    {
+        public string Type { get; set; } = "Debit";
+        public int AccountId { get; set; }
+        public string AccountType { get; set; } = "";
+        public string AccountName { get; set; } = "";
+        public string PaymentType { get; set; } = "";
+        public decimal Amount { get; set; }
+        public decimal Debit { get; set; }
+        public decimal Credit { get; set; }
+        public string Narration { get; set; } = "";
+        public string? Unit { get; set; }
     }
 }

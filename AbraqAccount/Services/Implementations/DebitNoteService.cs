@@ -47,92 +47,238 @@ public class DebitNoteService : IDebitNoteService
     {
         try
         {
-            var query = _context.DebitNotes.Where(d => d.IsActive).AsQueryable();
+            var query = _context.GeneralEntries
+                .Where(g => g.VoucherType == "Debit Note" && g.IsActive)
+                .AsQueryable();
 
             if (!string.IsNullOrEmpty(unit) && unit != "ALL") query = query.Where(d => d.Unit == unit);
-            if (!string.IsNullOrEmpty(debitNoteNo)) query = query.Where(d => d.DebitNoteNo.Contains(debitNoteNo));
+            if (!string.IsNullOrEmpty(debitNoteNo)) query = query.Where(d => d.VoucherNo.Contains(debitNoteNo));
             if (!string.IsNullOrEmpty(status)) query = query.Where(d => d.Status == status);
-            if (fromDate.HasValue) query = query.Where(d => d.DebitNoteDate >= fromDate.Value);
-            if (toDate.HasValue) query = query.Where(d => d.DebitNoteDate <= toDate.Value);
+            if (fromDate.HasValue) query = query.Where(d => d.EntryDate >= fromDate.Value);
+            if (toDate.HasValue) query = query.Where(d => d.EntryDate <= toDate.Value);
 
-            // Fetch all matching notes first (in-memory filtration for polymorphic names required)
-            var allDebitNotes = await query.OrderByDescending(d => d.CreatedAt).ToListAsync();
+            // 1. Get unique VoucherNos for pagination
+            var voucherQuery = query.Select(x => x.VoucherNo).Distinct();
             
-            // Populate Polymorphic Names
-            await PopulateAccountNamesAsync(allDebitNotes);
+            var totalCount = await voucherQuery.CountAsync();
+            var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+
+            // 2. Get specific VoucherNos for this page
+            var pageVoucherNos = await voucherQuery
+                .OrderByDescending(v => v)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            // 3. Fetch all entries for these vouchers
+            var generalEntries = await _context.GeneralEntries
+                .Where(x => pageVoucherNos.Contains(x.VoucherNo))
+                .OrderByDescending(d => d.CreatedAt)
+                .ToListAsync();
+
+            var notes = new List<DebitNote>();
+            var groupedEntries = generalEntries.GroupBy(x => x.VoucherNo);
+
+            foreach (var group in groupedEntries)
+            {
+                var first = group.First();
+                
+                 // Calculate Totals and aggregate names
+                var debitSum = group.Where(x => x.DebitAccountId != null).Sum(x => x.Amount);
+                var creditSum = group.Where(x => x.CreditAccountId != null).Sum(x => x.Amount);
+                var displayAmount = Math.Max(debitSum, creditSum);
+
+                // For display names
+                var creditNames = new List<string>();
+                var debitNames = new List<string>();
+
+                foreach(var item in group)
+                {
+                    if (item.CreditAccountId.HasValue) 
+                        creditNames.Add(await GetAccountNameAsync(item.CreditAccountType, item.CreditAccountId.Value));
+                    if (item.DebitAccountId.HasValue) 
+                        debitNames.Add(await GetAccountNameAsync(item.DebitAccountType, item.DebitAccountId.Value));
+                }
+
+                var note = await MapToDebitNoteAsync(first);
+                
+                 // Override with aggregated values
+                note.Amount = displayAmount;
+                note.CreditAccountName = string.Join(", ", creditNames.Distinct());
+                if (creditNames.Count > 1) note.CreditAccountName += " (Split)";
+
+                note.DebitAccountName = string.Join(", ", debitNames.Distinct());
+                if (debitNames.Count > 1) note.DebitAccountName += " (Split)";
+
+                notes.Add(note);
+            }
+            
+            // Re-apply sorting to match pagination
+            notes = notes.OrderByDescending(d => d.DebitNoteNo).ToList();
 
             if (!string.IsNullOrEmpty(vendor))
             {
-                allDebitNotes = allDebitNotes
+                 notes = notes
                     .Where(d => (d.CreditAccountName != null && d.CreditAccountName.Contains(vendor, StringComparison.OrdinalIgnoreCase)) 
                              || (d.DebitAccountName != null && d.DebitAccountName.Contains(vendor, StringComparison.OrdinalIgnoreCase)))
                     .ToList();
+                 // Note: Filtering after pagination is imperfect but necessary without JOINs.
             }
 
-            var totalCount = allDebitNotes.Count;
-            var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
-
-            var debitNotes = allDebitNotes.Skip((page - 1) * pageSize).Take(pageSize).ToList();
-
-            return (debitNotes, totalCount, totalPages);
+            return (notes, totalCount, totalPages);
         }
         catch (Exception)
         {
             throw;
         }
     }
+
+    private async Task<DebitNote> MapToDebitNoteAsync(GeneralEntry ge)
+    {
+        var note = new DebitNote
+        {
+            Id = ge.Id,
+            DebitNoteNo = ge.VoucherNo,
+            DebitNoteDate = ge.EntryDate,
+            DebitAccountId = ge.DebitAccountId ?? 0,
+            DebitAccountType = ge.DebitAccountType,
+            CreditAccountId = ge.CreditAccountId ?? 0,
+            CreditAccountType = ge.CreditAccountType,
+            Amount = ge.Amount,
+            Narration = ge.Narration,
+            Status = ge.Status,
+            Unit = ge.Unit,
+            EntryForId = ge.EntryForId,
+            EntryForName = ge.EntryForName,
+            CreatedAt = ge.CreatedAt,
+            CreatedBy = ge.CreatedBy,
+            IsActive = ge.IsActive,
+            // Map BankMasterId from legacy mapping logic? 
+            // We can try to revive it or assume it's obsolete. 
+            // Given consolidation, we should rely on Accounts.
+        };
+
+        note.DebitAccountName = await GetAccountNameAsync(note.DebitAccountType, note.DebitAccountId);
+        note.CreditAccountName = await GetAccountNameAsync(note.CreditAccountType, note.CreditAccountId);
+
+        // Mock Details for UI compatibility
+        note.Details = new List<DebitNoteDetail>
+        {
+            new DebitNoteDetail
+            {
+                Amount = ge.Amount,
+                AccountType = "General"
+            }
+        };
+
+        return note;
+    }
     #endregion
 
     #region Create
-    public async Task<(bool success, string message)> CreateDebitNoteAsync(DebitNote debitNote, IFormCollection? form = null)
+    public async Task<(bool success, string message)> CreateBatchDebitNoteAsync(GeneralEntryBatchModel model)
+    {
+        var currentUser = GetCurrentUsername();
+        if (model == null || model.Entries == null || model.Entries.Count == 0)
+        {
+            return (false, "No entries to save.");
+        }
+
+        try
+        {
+            // Generate Voucher Number DNXXXXXX
+            var lastGe = await _context.GeneralEntries
+                .Where(g => g.VoucherType == "Debit Note")
+                .OrderByDescending(g => g.Id)
+                .FirstOrDefaultAsync();
+
+            int nextNoteNo = 1;
+            if (lastGe != null && lastGe.VoucherNo.StartsWith("DN"))
+            {
+                if (int.TryParse(lastGe.VoucherNo.Replace("DN", ""), out int lastNum))
+                    nextNoteNo = lastNum + 1;
+            }
+            string voucherNo = $"DN{nextNoteNo:D6}";
+
+            foreach (var entryData in model.Entries)
+            {
+                var ge = new GeneralEntry
+                {
+                    VoucherNo = voucherNo,
+                    EntryDate = model.EntryDate,
+                    MobileNo = model.MobileNo,
+                    VoucherType = "Debit Note",
+                    // Split Posting:
+                    // If Debit: DebitAccount = Selected, CreditAccount = null
+                    // If Credit: CreditAccount = Selected, DebitAccount = null
+                    DebitAccountId = entryData.Type == "Debit" ? entryData.AccountId : null,
+                    DebitAccountType = entryData.Type == "Debit" ? entryData.AccountType : null,
+                    
+                    CreditAccountId = entryData.Type == "Credit" ? entryData.AccountId : null,
+                    CreditAccountType = entryData.Type == "Credit" ? entryData.AccountType : null,
+                    
+                    Amount = entryData.Amount,
+                    Narration = entryData.Narration,
+                    Status = "UnApproved",
+                    Unit = entryData.Unit,
+                    EntryForId = entryData.EntryForId,
+                    EntryForName = entryData.EntryForName,
+                    CreatedAt = DateTime.Now,
+                    CreatedBy = currentUser,
+                    IsActive = true,
+                    Type = "DebitNote"
+                };
+                _context.GeneralEntries.Add(ge);
+            }
+
+            await _context.SaveChangesAsync();
+            return (true, $"Debit Note created successfully! Voucher: {voucherNo}");
+        }
+        catch (Exception ex)
+        {
+            return (false, "Error: " + ex.Message);
+        }
+    }
+
+    public async Task<(bool success, string message)> UpdateBatchDebitNoteAsync(string voucherNo, GeneralEntryBatchModel model)
     {
         try
         {
-            var details = form != null ? GetDetailsFromForm(form) : debitNote.Details;
-            if (!details.Any()) 
-            {
-                 // Create default detail from header amount if no details provided
-                 details.Add(new DebitNoteDetail 
-                 { 
-                     AccountType = "General", 
-                     Amount = debitNote.Amount ?? 0,
-                     RefNo = "",
-                     HsnSacCode = "",
-                     Qty = 0,
-                     Rate = 0
-                 });
-            }
-
-            // Generate No
-            var lastNote = await _context.DebitNotes.OrderByDescending(d => d.Id).FirstOrDefaultAsync();
-            int nextNoteNo = 1;
-            if (lastNote != null && !string.IsNullOrEmpty(lastNote.DebitNoteNo) && int.TryParse(lastNote.DebitNoteNo.Replace("DN", ""), out int lastNumber))
-            {
-                nextNoteNo = lastNumber + 1;
-            }
-            debitNote.DebitNoteNo = $"DN{nextNoteNo:D6}";
-            debitNote.Amount = details.Sum(d => d.Amount);
-            debitNote.CreatedAt = DateTime.Now;
-            debitNote.CreatedBy = GetCurrentUsername();
-            debitNote.Status = debitNote.Status ?? "UnApproved";
-            debitNote.IsActive = true;
-
-            // Handle BankMasterId safely: Allow null, do not force 0
-            // if (debitNote.BankMasterId == null) debitNote.BankMasterId = 0; 
-
-            // Assign details properties
-            foreach (var detail in details)
-            {
-                detail.CreatedAt = DateTime.Now;
-            }
-
-            _context.DebitNotes.Add(debitNote);
+            var existingEntries = await _context.GeneralEntries.Where(r => r.VoucherNo == voucherNo).ToListAsync();
+            _context.GeneralEntries.RemoveRange(existingEntries);
             await _context.SaveChangesAsync();
-
-            // Store legacy mapping if needed (keeping original logic)
-            await StoreBankMasterIdMappingAsync(debitNote.Id, debitNote.BankMasterId ?? 0);
-
-            return (true, $"Debit Note created successfully! {details.Count} detail(s) added.");
+            
+            // Re-create with same voucher number logic (need to ensure CreateBatch version can take a preset voucherNo)
+            // For now, I'll inline the creation part to keep it simple and ensure same voucherNo.
+            
+            var currentUser = GetCurrentUsername();
+            foreach (var entryData in model.Entries)
+            {
+                var ge = new GeneralEntry
+                {
+                    VoucherNo = voucherNo,
+                    EntryDate = model.EntryDate,
+                    MobileNo = model.MobileNo,
+                    VoucherType = "Debit Note",
+                    DebitAccountId = entryData.Type == "Debit" ? entryData.AccountId : null,
+                    DebitAccountType = entryData.Type == "Debit" ? entryData.AccountType : null,
+                    CreditAccountId = entryData.Type == "Credit" ? entryData.AccountId : null,
+                    CreditAccountType = entryData.Type == "Credit" ? entryData.AccountType : null,
+                    Amount = entryData.Amount,
+                    Narration = entryData.Narration,
+                    Status = "UnApproved",
+                    Unit = entryData.Unit,
+                    EntryForId = entryData.EntryForId,
+                    EntryForName = entryData.EntryForName,
+                    CreatedAt = DateTime.Now,
+                    CreatedBy = currentUser,
+                    IsActive = true,
+                    Type = "DebitNote"
+                };
+                _context.GeneralEntries.Add(ge);
+            }
+            await _context.SaveChangesAsync();
+            return (true, "Updated successfully");
         }
         catch (Exception ex)
         {
@@ -146,14 +292,12 @@ public class DebitNoteService : IDebitNoteService
     {
         try
         {
-             var note = await _context.DebitNotes.FindAsync(id);
-             if (note == null) return (false, "Not found");
+             var ge = await _context.GeneralEntries.FindAsync(id);
+             if (ge == null) return (false, "Not found");
              
-             var currentUser = GetCurrentUsername();
-             note.IsActive = false;
-             note.UpdatedAt = DateTime.Now;
-             note.UpdatedBy = currentUser;
-             _context.Update(note);
+             // Hard Delete to match consolidation pattern
+             _context.GeneralEntries.Remove(ge); 
+
              await _context.SaveChangesAsync();
              return (true, "Deleted successfully");
         }
@@ -169,25 +313,9 @@ public class DebitNoteService : IDebitNoteService
     {
         try
         {
-            var note = await _context.DebitNotes
-                .Include(d => d.Details)
-                .FirstOrDefaultAsync(m => m.Id == id);
-                
-            if (note != null)
-            {
-                 // Populate Polymorphic Names
-                 note.CreditAccountName = await GetAccountNameAsync(note.CreditAccountType, note.CreditAccountId);
-                 note.DebitAccountName = await GetAccountNameAsync(note.DebitAccountType, note.DebitAccountId);
-
-                 // Legacy Support (Optional)
-                 var mappings = await LoadBankMasterIdMappingsAsync();
-                 if (mappings.TryGetValue(note.Id, out int mappedBankMasterId))
-                 {
-                     var account = await _context.BankMasters.FindAsync(mappedBankMasterId);
-                     if (account != null) note.BankMaster = account;
-                 }
-            }
-            return note;
+            var ge = await _context.GeneralEntries.FirstOrDefaultAsync(g => g.Id == id);
+            if (ge == null) return null;
+            return await MapToDebitNoteAsync(ge);
         }
         catch (Exception)
         {
@@ -196,92 +324,19 @@ public class DebitNoteService : IDebitNoteService
     }
     #endregion
 
-    #region Edit
-    public async Task<(bool success, string message)> UpdateDebitNoteAsync(DebitNote model, IFormCollection? form = null)
-    {
-        try
-        {
-            var note = await _context.DebitNotes.FindAsync(model.Id);
-            if (note == null) return (false, "Not found");
-            if (note.Status == "Approved") return (false, "Cannot edit approved note");
 
-            // Update Fields
-            note.Unit = model.Unit;
-            note.DebitNoteDate = model.DebitNoteDate;
-            note.Narration = model.Narration;
-            note.Amount = model.Amount;
-
-            // Update Entry For
-            note.EntryForId = model.EntryForId;
-            note.EntryForName = model.EntryForName;
-
-            // Update Polymorphic Fields
-            // If IDs are provided in model. If 0, assume unchanged? 
-            // No, binding should provide them.
-            if (model.CreditAccountId > 0) 
-            {
-                note.CreditAccountId = model.CreditAccountId;
-                note.CreditAccountType = model.CreditAccountType ?? note.CreditAccountType;
-            }
-            if (model.DebitAccountId > 0)
-            {
-                note.DebitAccountId = model.DebitAccountId;
-                note.DebitAccountType = model.DebitAccountType ?? note.DebitAccountType;
-            }
-            
-            // Update details?
-            // If we are using dummy details, we should update the dummy detail amount too.
-            var details = await _context.DebitNoteDetails.Where(d => d.DebitNoteId == note.Id).ToListAsync();
-            if (details.Any())
-            {
-                // If specific details exist, what do we do?
-                // If user is editing Amount only, we might break details matching.
-                // PROPOSAL: Update the first detail to match Amount if only one detail exists and looks like dummy.
-                if (details.Count == 1 && details[0].AccountType == "General")
-                {
-                    details[0].Amount = note.Amount ?? 0;
-                }
-            }
-            else
-            {
-                 // Create default detail
-                 _context.DebitNoteDetails.Add(new DebitNoteDetail 
-                 { 
-                     DebitNoteId = note.Id,
-                     AccountType = "General", 
-                     Amount = note.Amount ?? 0,
-                     RefNo = "",
-                     HsnSacCode = "",
-                     Qty = 0,
-                     Rate = 0
-                 });
-            }
-
-            note.UpdatedAt = DateTime.Now;
-            note.UpdatedBy = GetCurrentUsername();
-
-            await _context.SaveChangesAsync();
-            return (true, "Updated successfully");
-        }
-        catch (Exception ex)
-        {
-            return (false, "Error: " + ex.Message);
-        }
-    }
-    #endregion
 
     #region Approval
     public async Task<(bool success, string message)> ApproveDebitNoteAsync(int id)
     {
         try
         {
-            var note = await _context.DebitNotes.FindAsync(id);
-            if (note == null) return (false, "Not found");
+            var ge = await _context.GeneralEntries.FindAsync(id);
+            if (ge == null) return (false, "Not found");
             
-            var currentUser = GetCurrentUsername();
-            note.Status = "Approved";
-            note.UpdatedAt = DateTime.Now;
-            note.UpdatedBy = currentUser;
+            ge.Status = "Approved";
+            ge.UpdatedAt = DateTime.Now;
+            ge.UpdatedBy = GetCurrentUsername();
             await _context.SaveChangesAsync();
             return (true, "Approved successfully");
         }
@@ -295,15 +350,12 @@ public class DebitNoteService : IDebitNoteService
     {
         try
         {
-            var note = await _context.DebitNotes.FindAsync(id);
-            if (note == null) return (false, "Not found");
+            var ge = await _context.GeneralEntries.FindAsync(id);
+            if (ge == null) return (false, "Not found");
             
-            if (note.Status != "Approved") return (false, "Note is not approved");
-
-            var currentUser = GetCurrentUsername();
-            note.Status = "UnApproved";
-            note.UpdatedAt = DateTime.Now;
-            note.UpdatedBy = currentUser;
+            ge.Status = "UnApproved";
+            ge.UpdatedAt = DateTime.Now;
+            ge.UpdatedBy = GetCurrentUsername();
             await _context.SaveChangesAsync();
             return (true, "Unapproved successfully");
         }
@@ -335,7 +387,7 @@ public class DebitNoteService : IDebitNoteService
             };
             viewBag.StatusList = new SelectList(statusList, "Value", "Text");
 
-            var accountTypeList = new List<SelectListItem>
+             var accountTypeList = new List<SelectListItem>
             {
                 new SelectListItem { Value = "", Text = "Select" },
                 new SelectListItem { Value = "Discount", Text = "Discount" },
@@ -348,16 +400,8 @@ public class DebitNoteService : IDebitNoteService
             };
             viewBag.AccountTypeList = new SelectList(accountTypeList, "Value", "Text");
 
-            var entryProfiles = await _context.EntryForAccounts
-                .Where(e => e.TransactionType == "Global" || e.TransactionType == "DebitNote") 
-                .OrderBy(e => e.AccountName)
-                .Select(e => new SelectListItem
-                {
-                    Value = e.Id.ToString(),
-                    Text = e.AccountName
-                })
-                .ToListAsync();
-            viewBag.EntryProfiles = new SelectList(entryProfiles, "Value", "Text");
+            var entryProfiles = await GetEntryProfilesAsync();
+            viewBag.EntryProfiles = new SelectList(entryProfiles, "Value", "Name");
         }
         catch (Exception)
         {
@@ -369,13 +413,8 @@ public class DebitNoteService : IDebitNoteService
     {
         try
         {
-            // USE FRESH CONTEXT to avoid concurrency issues
             using var context = await _contextFactory.CreateDbContextAsync();
-
-            // 1. Fetch Rules dictionary for fast lookup
-            var rules = await context.AccountRules
-                .Where(r => r.RuleType == "AllowedNature")
-                .ToListAsync();
+            var rules = await context.AccountRules.Where(r => r.RuleType == "AllowedNature").ToListAsync();
 
             string? GetRuleValue(string accountType, int accountId, int? entryId)
             {
@@ -403,17 +442,14 @@ public class DebitNoteService : IDebitNoteService
                 return false;
             }
 
-            // Helper to check if account is allowed (for global search fallback)
             bool IsAllowed(string accountType, int accountId, string? fallbackType = null, int? fallbackId = null)
             {
-                // 1. Check Specific Account Rule
                 string? ruleValue = GetRuleValue(accountType, accountId, entryAccountId);
                 if (ruleValue != null)
                 {
                     return CheckRule(ruleValue);
                 }
 
-                // 2. Check Fallback Group Rule
                 if (fallbackType != null && fallbackId.HasValue)
                 {
                     string? fallbackRuleValue = GetRuleValue(fallbackType, fallbackId.Value, entryAccountId);
@@ -422,97 +458,50 @@ public class DebitNoteService : IDebitNoteService
                         return CheckRule(fallbackRuleValue);
                     }
                 }
-                return true; // No rule = Allowed
+                return true; 
             }
-
-            // ---------------------------------------------------------
-            // LOGIC MATCHING MVC GeneralEntryService
-            // ---------------------------------------------------------
 
             if (entryAccountId.HasValue)
             {
-                // STRICT FILTERING: Only show accounts allowed by the Profile's Rules
-
-                // 1. Get Rules for this Profile
                 var profileRules = rules.Where(r => r.EntryAccountId == entryAccountId.Value).ToList();
 
-                // 2. Build Allowed ID Sets
-                var allowedSubGroupIds = profileRules
-                    .Where(r => r.AccountType == "SubGroupLedger" && CheckRule(r.Value))
-                    .Select(r => r.AccountId)
-                    .ToHashSet();
+                var allowedSubGroupIds = profileRules.Where(r => r.AccountType == "SubGroupLedger" && CheckRule(r.Value)).Select(r => r.AccountId).ToHashSet();
+                var allowedGrowerGroupIds = profileRules.Where(r => r.AccountType == "GrowerGroup" && CheckRule(r.Value)).Select(r => r.AccountId).ToHashSet();
+                var allowedBankMasterIds = profileRules.Where(r => r.AccountType == "BankMaster" && CheckRule(r.Value)).Select(r => r.AccountId).ToHashSet();
+                var allowedFarmerIds = profileRules.Where(r => r.AccountType == "Farmer" && CheckRule(r.Value)).Select(r => r.AccountId).ToHashSet();
 
-                var allowedGrowerGroupIds = profileRules
-                    .Where(r => r.AccountType == "GrowerGroup" && CheckRule(r.Value))
-                    .Select(r => r.AccountId)
-                    .ToHashSet();
-
-                var allowedBankMasterIds = profileRules
-                    .Where(r => r.AccountType == "BankMaster" && CheckRule(r.Value))
-                    .Select(r => r.AccountId)
-                    .ToHashSet();
-
-                var allowedFarmerIds = profileRules
-                    .Where(r => r.AccountType == "Farmer" && CheckRule(r.Value))
-                    .Select(r => r.AccountId)
-                    .ToHashSet();
-
-                // 3. Query DB with Allowed List
-                var bankMastersQuery = context.BankMasters.Where(bm => bm.IsActive);
-                var farmersQuery = context.Farmers.Where(f => f.IsActive);
-
-                if (!string.IsNullOrEmpty(searchTerm))
-                {
-                    bankMastersQuery = bankMastersQuery.Where(bm => bm.AccountName.Contains(searchTerm));
-                    farmersQuery = farmersQuery.Where(f => f.FarmerName.Contains(searchTerm));
-                }
-
-                // Execute Queries - Filtering by ID sets
-                var bankMasters = await bankMastersQuery
+                var bankMasters = await context.BankMasters
+                    .Where(bm => bm.IsActive && (string.IsNullOrEmpty(searchTerm) || bm.AccountName.Contains(searchTerm)))
                     .Where(bm => allowedBankMasterIds.Contains(bm.Id) || allowedSubGroupIds.Contains(bm.GroupId))
-                    .OrderBy(bm => bm.AccountName)
-                    .Take(50)
-                    .ToListAsync();
+                    .OrderBy(bm => bm.AccountName).Take(50).ToListAsync();
 
-                var farmers = await farmersQuery
+                var farmers = await context.Farmers
+                    .Where(f => f.IsActive && (string.IsNullOrEmpty(searchTerm) || f.FarmerName.Contains(searchTerm)))
                     .Where(f => allowedFarmerIds.Contains(f.Id) || allowedGrowerGroupIds.Contains(f.GroupId))
-                    .OrderBy(f => f.FarmerName)
-                    .Take(50)
-                    .ToListAsync();
+                    .OrderBy(f => f.FarmerName).Take(50).ToListAsync();
 
                 var results = new List<LookupItem>();
                 results.AddRange(bankMasters.Select(bm => new LookupItem { Id = bm.Id, Name = bm.AccountName, Type = "BankMaster", AccountNumber = bm.AccountNumber }));
-                results.AddRange(farmers.Select(f => new LookupItem { Id = f.Id, Name = f.FarmerName, Type = "Farmer", AccountNumber = f.FarmerCode })); // Assuming FarmerCode
-
-                return results.OrderBy(r => r.Name).Take(100).ToList();
+                results.AddRange(farmers.Select(f => new LookupItem { Id = f.Id, Name = f.FarmerName, Type = "Farmer", AccountNumber = f.FarmerCode }));
+                return results;
             }
             else
             {
-                // GLOBAL SEARCH (No Profile Selected) - Fallback to previous logic (fetch then filter)
+                var bankMasters = await context.BankMasters
+                   .Where(bm => bm.IsActive && (string.IsNullOrEmpty(searchTerm) || bm.AccountName.Contains(searchTerm)))
+                   .OrderBy(bm => bm.AccountName).Take(200).ToListAsync();
+
+                var farmers = await context.Farmers
+                   .Where(f => f.IsActive && (string.IsNullOrEmpty(searchTerm) || f.FarmerName.Contains(searchTerm)))
+                   .OrderBy(f => f.FarmerName).Take(200).ToListAsync();
                 
-                var bankMastersQuery = context.BankMasters.Where(bm => bm.IsActive);
-                var farmersQuery = context.Farmers.Where(f => f.IsActive);
-
-                if (!string.IsNullOrEmpty(searchTerm))
-                {
-                    bankMastersQuery = bankMastersQuery.Where(bm => bm.AccountName.Contains(searchTerm));
-                    farmersQuery = farmersQuery.Where(f => f.FarmerName.Contains(searchTerm));
-                }
-
-                var bankMasters = await bankMastersQuery.OrderBy(bm => bm.AccountName).Take(200).ToListAsync();
-                var farmers = await farmersQuery.OrderBy(f => f.FarmerName).Take(200).ToListAsync();
-
-                var results = new List<LookupItem>();
-
-                results.AddRange(bankMasters
-                    .Where(bm => IsAllowed("BankMaster", bm.Id, "SubGroupLedger", bm.GroupId))
+                 var results = new List<LookupItem>();
+                results.AddRange(bankMasters.Where(bm => IsAllowed("BankMaster", bm.Id, "SubGroupLedger", bm.GroupId))
                     .Select(bm => new LookupItem { Id = bm.Id, Name = bm.AccountName, Type = "BankMaster", AccountNumber = bm.AccountNumber }));
-
-                results.AddRange(farmers
-                    .Where(f => IsAllowed("Farmer", f.Id, "GrowerGroup", f.GroupId))
+                results.AddRange(farmers.Where(f => IsAllowed("Farmer", f.Id, "GrowerGroup", f.GroupId))
                     .Select(f => new LookupItem { Id = f.Id, Name = f.FarmerName, Type = "Farmer", AccountNumber = f.FarmerCode }));
-
-                return results.OrderBy(r => r.Name).Take(100).ToList();
+                
+                return results;
             }
         }
         catch (Exception)
@@ -520,210 +509,61 @@ public class DebitNoteService : IDebitNoteService
             throw;
         }
     }
-    #endregion
 
-    #region Processing
-    private List<DebitNoteDetail> GetDetailsFromForm(IFormCollection form)
-    {
-        try
-        {
-            var details = new List<DebitNoteDetail>();
-            var detailIndex = 0;
-
-            while (form.ContainsKey($"details[{detailIndex}].AccountType"))
-            {
-                var accountType = form[$"details[{detailIndex}].AccountType"].ToString();
-                var amountStr = form[$"details[{detailIndex}].Amount"].ToString();
-
-                if (!string.IsNullOrEmpty(accountType) && !string.IsNullOrEmpty(amountStr) && decimal.TryParse(amountStr, out decimal amount))
-                {
-                    var detail = new DebitNoteDetail
-                    {
-                        AccountType = accountType,
-                        RefNo = form[$"details[{detailIndex}].RefNo"].ToString(),
-                        HsnSacCode = form[$"details[{detailIndex}].HsnSacCode"].ToString(),
-                        Qty = decimal.TryParse(form[$"details[{detailIndex}].Qty"].ToString(), out decimal qty) ? qty : null,
-                        Rate = decimal.TryParse(form[$"details[{detailIndex}].Rate"].ToString(), out decimal rate) ? rate : null,
-                        Amount = amount,
-                        CreatedAt = DateTime.Now
-                    };
-                    details.Add(detail);
-                }
-                detailIndex++;
-            }
-            return details;
-        }
-        catch (Exception)
-        {
-            throw;
-        }
-    }
-    #endregion
-
-    #region Legacy Mappings
-    private async Task StoreBankMasterIdMappingAsync(int debitNoteId, int bankMasterId)
-    {
-        try
-        {
-            var basePath = AppContext.BaseDirectory;
-            var projectRoot = Path.GetFullPath(Path.Combine(basePath, "..", "..", "..", ".."));
-            var mappingPath = Path.Combine(projectRoot, "Data", "DebitNoteBankMasterMapping.json");
-            var directory = Path.GetDirectoryName(mappingPath);
-            if (directory != null && !Directory.Exists(directory)) Directory.CreateDirectory(directory);
-
-            Dictionary<int, int> mappings = new Dictionary<int, int>();
-            if (System.IO.File.Exists(mappingPath))
-            {
-                var json = await System.IO.File.ReadAllTextAsync(mappingPath);
-                if (!string.IsNullOrEmpty(json)) mappings = JsonSerializer.Deserialize<Dictionary<int, int>>(json) ?? new Dictionary<int, int>();
-            }
-
-            mappings[debitNoteId] = bankMasterId;
-            var updatedJson = JsonSerializer.Serialize(mappings, new JsonSerializerOptions { WriteIndented = true });
-            await System.IO.File.WriteAllTextAsync(mappingPath, updatedJson);
-        }
-        catch { }
-    }
-
-    private async Task<Dictionary<int, int>> LoadBankMasterIdMappingsAsync()
-    {
-        try
-        {
-            var basePath = AppContext.BaseDirectory;
-            var projectRoot = Path.GetFullPath(Path.Combine(basePath, "..", "..", "..", ".."));
-            var mappingPath = Path.Combine(projectRoot, "Data", "DebitNoteBankMasterMapping.json");
-            if (System.IO.File.Exists(mappingPath))
-            {
-                var json = await System.IO.File.ReadAllTextAsync(mappingPath);
-                if (!string.IsNullOrEmpty(json)) return JsonSerializer.Deserialize<Dictionary<int, int>>(json) ?? new Dictionary<int, int>();
-            }
-        }
-        catch { }
-        return new Dictionary<int, int>();
-    }
-    #endregion
-
-    #region Account Helper
     private async Task<string> GetAccountNameAsync(string type, int id)
     {
-        try
-        {
-            if (id == 0) return "N/A";
-            
-            string typeLower = type?.ToLower() ?? "";
+        using var context = await _contextFactory.CreateDbContextAsync(); 
+        if (id == 0) return "N/A";
+        string typeLower = type?.ToLower() ?? "";
 
-            if (typeLower.Contains("farmer"))
-            {
-                var f = await _context.Farmers.FindAsync(id);
-                return f?.FarmerName ?? "Unknown Farmer";
-            }
-            if (typeLower.Contains("growergroup"))
-            {
-                 var g = await _context.GrowerGroups.FindAsync(id);
-                 return g?.GroupName ?? "Unknown Group";
-            }
-            if (typeLower.Contains("bankmaster"))
-            {
-                var b = await _context.BankMasters.FindAsync(id);
-                return b?.AccountName ?? "Unknown Bank";
-            }
-            if (typeLower.Contains("subgroupledger"))
-            {
-                var s = await _context.SubGroupLedgers.Include(x => x.MasterGroup).Include(x => x.MasterSubGroup).FirstOrDefaultAsync(x => x.Id == id);
-                return s?.Name ?? "Unknown Account";
-            }
-            if (typeLower.Contains("mastergroup"))
-            {
-                 var mg = await _context.MasterGroups.FindAsync(id);
-                 return mg?.Name ?? "Unknown Group";
-            }
+        if (typeLower.Contains("farmer")) return (await context.Farmers.FindAsync(id))?.FarmerName ?? "";
+        if (typeLower.Contains("bankmaster")) return (await context.BankMasters.FindAsync(id))?.AccountName ?? "";
+        if (typeLower.Contains("growergroup")) return (await context.GrowerGroups.FindAsync(id))?.GroupName ?? "";
+        if (typeLower.Contains("mastergroup")) return (await context.MasterGroups.FindAsync(id))?.Name ?? "";
+        if (typeLower.Contains("subgroupledger")) {
+             var s = await context.SubGroupLedgers.Include(x => x.MasterGroup).Include(x => x.MasterSubGroup).FirstOrDefaultAsync(x => x.Id == id);
+             return s?.Name ?? "";
+        }
 
-            return type + " (ID: " + id + ")";
-        }
-        catch (Exception)
-        {
-            throw;
-        }
+        return type;
     }
-    #endregion
 
-    #region Utils
     public async Task PopulateAccountNamesAsync(IEnumerable<DebitNote> notes)
     {
-        try
+        foreach (var note in notes)
         {
-            foreach (var note in notes)
-            {
-                note.CreditAccountName = await GetAccountNameAsync(note.CreditAccountType, note.CreditAccountId);
-                note.DebitAccountName = await GetAccountNameAsync(note.DebitAccountType, note.DebitAccountId);
-            }
-        }
-        catch (Exception)
-        {
-            throw;
+            note.DebitAccountName = await GetAccountNameAsync(note.DebitAccountType, note.DebitAccountId);
+            note.CreditAccountName = await GetAccountNameAsync(note.CreditAccountType, note.CreditAccountId);
         }
     }
-
+    
     public async Task<int?> GetEntryProfileIdAsync(int creditAccountId, string creditType, int debitAccountId, string debitType)
     {
-        try
-        {
-            // specific rule for the credit account
-            var creditRule = await _context.AccountRules
-                .Where(r => r.AccountType == creditType && r.AccountId == creditAccountId && r.EntryAccountId != null)
-                .Select(r => r.EntryAccountId)
-                .FirstOrDefaultAsync();
-
-            if (creditRule.HasValue) return creditRule;
-
-            // specific rule for the debit account
-            var debitRule = await _context.AccountRules
-                .Where(r => r.AccountType == debitType && r.AccountId == debitAccountId && r.EntryAccountId != null)
-                .Select(r => r.EntryAccountId)
-                .FirstOrDefaultAsync();
-
-            if (debitRule.HasValue) return debitRule;
-            
-            return null;
-        }
-        catch (Exception)
-        {
-            throw;
-        }
+         using var context = await _contextFactory.CreateDbContextAsync();
+         var creditRule = await context.AccountRules.FirstOrDefaultAsync(r => r.AccountType == creditType && r.AccountId == creditAccountId && r.EntryAccountId != null);
+         if (creditRule != null) return creditRule.EntryAccountId;
+         
+          var debitRule = await context.AccountRules.FirstOrDefaultAsync(r => r.AccountType == debitType && r.AccountId == debitAccountId && r.EntryAccountId != null);
+         if (debitRule != null) return debitRule.EntryAccountId;
+         
+         return null;
     }
 
     public async Task<IEnumerable<LookupItem>> GetEntryProfilesAsync()
     {
-        try
-        {
-            return await _context.EntryForAccounts
-                .Where(e => e.TransactionType == "Global" || e.TransactionType == "DebitNote") 
+         var types = new[] { "Global", "DebitNote", "JournalEntryBook" };
+         return await _context.EntryForAccounts
+                .Where(e => types.Contains(e.TransactionType)) 
                 .OrderBy(e => e.AccountName)
                 .Select(e => new LookupItem { Id = e.Id, Name = e.AccountName })
                 .ToListAsync();
-        }
-        catch (Exception)
-        {
-            throw;
-        }
     }
 
     public async Task<IEnumerable<string>> GetUnitNamesAsync()
     {
-        try
-        {
-            return await _context.UnitMasters
-                .OrderBy(u => u.UnitName)
-                .Select(u => u.UnitName ?? "")
-                .Where(u => !string.IsNullOrEmpty(u))
-                .Distinct()
-                .ToListAsync();
-        }
-        catch (Exception)
-        {
-            throw;
-        }
+        return await _context.UnitMasters.Select(u => u.UnitName ?? "").Distinct().ToListAsync();
     }
+
+
     #endregion
 }
-

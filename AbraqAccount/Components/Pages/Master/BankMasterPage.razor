@@ -4,6 +4,7 @@
 @using AbraqAccount.Extensions
 @using AbraqAccount.Services.Interfaces
 @using Microsoft.AspNetCore.Mvc.Rendering
+@using AbraqAccount.Components.Common
 @inject IBankMasterService BankMasterService
 @inject IHttpContextAccessor HttpContextAccessor
 @inject IJSRuntime JS
@@ -37,24 +38,42 @@
             <table class="table-bank-master">
                 <thead>
                     <tr>
-                        <th>Account Name</th>
-                        <th>Group</th>
-                        <th>Address</th>
-                        <th>Phone</th>
-                        <th>Email</th>
-                        <th>Bank Account No</th>
-                        <th>IFSC</th>
-                        <th>Branch Name</th>
-                        <th>Status</th>
+                        <th>
+                            <ColumnFilter Title="Account Name" TItem="BankMaster" TValue="string" Items="originalBanks" Property="@(x => x.AccountName)" OnFilter="@(v => HandleColumnFilter("AccountName", v))" Align="left" />
+                        </th>
+                        <th>
+                            <ColumnFilter Title="Group" TItem="BankMaster" TValue="string" Items="originalBanks" Property="@(x => x.Group?.Name ?? "-")" OnFilter="@(v => HandleColumnFilter("Group", v))" Align="left" />
+                        </th>
+                        <th>
+                            <ColumnFilter Title="Address" TItem="BankMaster" TValue="string" Items="originalBanks" Property="@(x => x.Address ?? "-")" OnFilter="@(v => HandleColumnFilter("Address", v))" />
+                        </th>
+                        <th>
+                            <ColumnFilter Title="Phone" TItem="BankMaster" TValue="string" Items="originalBanks" Property="@(x => x.Phone ?? "-")" OnFilter="@(v => HandleColumnFilter("Phone", v))" />
+                        </th>
+                        <th>
+                            <ColumnFilter Title="Email" TItem="BankMaster" TValue="string" Items="originalBanks" Property="@(x => x.Email ?? "-")" OnFilter="@(v => HandleColumnFilter("Email", v))" />
+                        </th>
+                        <th>
+                            <ColumnFilter Title="Bank Account No" TItem="BankMaster" TValue="string" Items="originalBanks" Property="@(x => x.AccountNumber ?? "-")" OnFilter="@(v => HandleColumnFilter("AccountNumber", v))" />
+                        </th>
+                        <th>
+                            <ColumnFilter Title="IFSC" TItem="BankMaster" TValue="string" Items="originalBanks" Property="@(x => x.IfscCode ?? "-")" OnFilter="@(v => HandleColumnFilter("IfscCode", v))" />
+                        </th>
+                        <th>
+                            <ColumnFilter Title="Branch Name" TItem="BankMaster" TValue="string" Items="originalBanks" Property="@(x => x.BranchName ?? "-")" OnFilter="@(v => HandleColumnFilter("BranchName", v))" />
+                        </th>
+                        <th>
+                            <ColumnFilter Title="Status" TItem="BankMaster" TValue="string" Items="originalBanks" Property="@(x => x.Status ?? "Inactive")" OnFilter="@(v => HandleColumnFilter("Status", v))" />
+                        </th>
                         <th>Action</th>
                     </tr>
                 </thead>
                 <tbody>
-                    @if (banks == null)
+                    @if (filteredBanks == null)
                     {
                         <tr><td colspan="10" style="text-align: center; padding: 2rem;">Loading...</td></tr>
                     }
-                    else if (!banks.Any())
+                    else if (!filteredBanks.Any())
                     {
                         <tr>
                             <td colspan="10" style="text-align: center; padding: 2rem; color: #999;">
@@ -64,7 +83,7 @@
                     }
                     else
                     {
-                        @foreach (var account in banks)
+                        @foreach (var account in filteredBanks)
                         {
                             <tr>
                                 <td>@account.AccountName</td>
@@ -76,8 +95,8 @@
                                 <td>@(account.IfscCode ?? "-")</td>
                                 <td>@(account.BranchName ?? "-")</td>
                                 <td>
-                                    <span class="badge @(account.Status == "Active" ? "badge-active" : "badge-inactive")">
-                                        @account.Status
+                                    <span class="badge @(account.Status == "1" ? "badge-active" : "badge-inactive")">
+                                        @(account.Status == "1" ? "Active" : "Inactive")
                                     </span>
                                 </td>
                                 <td>
@@ -138,8 +157,8 @@
                         <div class="col-md-4">
                             <label class="form-label">Status<span class="required">*</span></label>
                             <select @bind="editingBank.Status" class="form-control">
-                                <option value="Active">Active</option>
-                                <option value="Inactive">Inactive</option>
+                                <option value="1">Active</option>
+                                <option value="0">Inactive</option>
                             </select>
                         </div>
                         
@@ -233,12 +252,14 @@
 </style>
 
 @code {
-    private IEnumerable<BankMaster>? banks;
+    private List<BankMaster>? filteredBanks;
+    private List<BankMaster> originalBanks = new();
     private List<SelectListItem>? groups;
     private BankMaster editingBank = new();
     private bool showFormModal = false;
     private string? successMessage;
     private bool submitted = false;
+    private Dictionary<string, object> activeColumnFilters = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -248,7 +269,56 @@
 
     private async Task LoadData()
     {
-        banks = await BankMasterService.GetAllActiveBankMastersAsync();
+        var result = await BankMasterService.GetAllActiveBankMastersAsync();
+        originalBanks = result.ToList();
+        filteredBanks = originalBanks.ToList();
+        if (activeColumnFilters.Any()) FilterLocalData();
+    }
+
+    private void HandleColumnFilter<T>(string column, List<T> selectedValues)
+    {
+        if (selectedValues == null || !selectedValues.Any()) 
+            activeColumnFilters.Remove(column);
+        else 
+            activeColumnFilters[column] = selectedValues;
+
+        FilterLocalData();
+    }
+
+    private void FilterLocalData()
+    {
+        if (originalBanks == null) return;
+        
+        var query = originalBanks.AsEnumerable();
+
+        foreach(var kvp in activeColumnFilters)
+        {
+             var col = kvp.Key;
+             var filterValues = kvp.Value as System.Collections.IEnumerable;
+             if (filterValues == null) continue;
+             
+             query = query.Where(item => {
+                 object? val = col switch {
+                     "AccountName" => item.AccountName,
+                     "Group" => item.Group?.Name ?? "-",
+                     "Address" => item.Address ?? "-",
+                     "Phone" => item.Phone ?? "-",
+                     "Email" => item.Email ?? "-",
+                     "AccountNumber" => item.AccountNumber ?? "-",
+                     "IfscCode" => item.IfscCode ?? "-",
+                     "BranchName" => item.BranchName ?? "-",
+                     "Status" => item.Status ?? "Inactive",
+                     _ => null
+                 };
+                 
+                 foreach(var f in filterValues) {
+                     if (object.Equals(f, val)) return true;
+                 }
+                 return false;
+             });
+        }
+        
+        filteredBanks = query.ToList();
     }
 
     private void OpenCreateModal()

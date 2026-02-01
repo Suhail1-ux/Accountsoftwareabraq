@@ -51,7 +51,7 @@
                 }
             </div>
         </div>
-        <div class="col-md-3">
+        <div class="col-md-2">
             <div class="form-group-custom">
                 <label class="form-label text-muted">Unit <span class="text-danger">*</span></label>
                 @if (IsReadOnly)
@@ -66,6 +66,19 @@
                             <option value="@unit">@unit</option>
                         }
                     </select>
+                }
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="form-group-custom">
+                <label class="form-label text-muted">Mobile No</label>
+                @if (IsReadOnly)
+                {
+                    <div class="fw-bold fs-6">@(string.IsNullOrEmpty(model.MobileNo) ? "-" : model.MobileNo)</div>
+                }
+                else
+                {
+                    <input type="text" @bind="model.MobileNo" class="form-control-custom" placeholder="Mobile Number" />
                 }
             </div>
         </div>

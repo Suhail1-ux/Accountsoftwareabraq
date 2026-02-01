@@ -5,6 +5,7 @@ namespace AbraqAccount.Models;
 public class PaymentSettlementBatchModel
 {
     public DateTime SettlementDate { get; set; }
+    public string? MobileNo { get; set; }
     public List<PaymentSettlementItemModel> Entries { get; set; } = new();
 }
 
@@ -40,5 +41,6 @@ public class PaymentSettlementGroupViewModel
     public decimal? ClosingBal { get; set; }
     public string? NEFTRTGSCashForm { get; set; }
     public string? Unit { get; set; }
+    public string? EntryForName { get; set; }
 }
 

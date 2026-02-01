@@ -10,8 +10,8 @@ public interface IDebitNoteService
         string? unit, string? debitNoteNo, string? vendor, string? status, 
         DateTime? fromDate, DateTime? toDate, int page, int pageSize);
     
-    Task<(bool success, string message)> CreateDebitNoteAsync(DebitNote model, IFormCollection? form = null);
-    Task<(bool success, string message)> UpdateDebitNoteAsync(DebitNote model, IFormCollection? form = null);
+    Task<(bool success, string message)> CreateBatchDebitNoteAsync(GeneralEntryBatchModel model);
+    Task<(bool success, string message)> UpdateBatchDebitNoteAsync(string voucherNo, GeneralEntryBatchModel model);
     Task<(bool success, string message)> DeleteDebitNoteAsync(int id);
     Task<(bool success, string message)> ApproveDebitNoteAsync(int id);
     Task<(bool success, string message)> UnapproveDebitNoteAsync(int id);

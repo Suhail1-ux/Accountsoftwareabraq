@@ -151,20 +151,7 @@ public static class DbInitializer
             );
         }
 
-        if (!context.CreditNotes.Any() && mainGroup != null && sampleFarmer != null)
-        {
-            context.CreditNotes.Add(new CreditNote 
-            { 
-                CreditNoteNo = "CN001", 
-                GroupId = mainGroup.Id,
-                FarmerId = sampleFarmer.Id,
-                CreditNoteDate = DateTime.Now,
-                Amount = 500,
-                Unit = "UNIT-1",
-                Status = "Approved",
-                CreatedAt = DateTime.Now
-            });
-        }
+
 
         await context.SaveChangesAsync();
     }

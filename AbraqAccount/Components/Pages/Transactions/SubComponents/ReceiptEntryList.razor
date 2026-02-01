@@ -60,8 +60,15 @@
                     <th>
                         <ColumnFilter Title="Date" TItem="ReceiptEntryGroupViewModel" TValue="string" Items="originalReceiptGroups" Property="@(x => x.ReceiptDate.ToString("dd/MM/yyyy"))" OnFilter="@(v => HandleColumnFilter("Date", v))" Align="left" />
                     </th>
+
                     <th>
-                        <ColumnFilter Title="Account Name" TItem="ReceiptEntryGroupViewModel" TValue="string" Items="originalReceiptGroups" Property="@(x => (x.CreditEntry?.AccountName ?? "") + (x.DebitEntry != null ? " / " + x.DebitEntry.AccountName : ""))" OnFilter="@(v => HandleColumnFilter("AccountName", v))" />
+                        <ColumnFilter Title="Entry For" TItem="ReceiptEntryGroupViewModel" TValue="string" Items="originalReceiptGroups" Property="@(x => x.EntryForName ?? "-")" OnFilter="@(v => HandleColumnFilter("EntryForName", v))" Align="left" />
+                    </th>
+                    <th>
+                        <ColumnFilter Title="Credit" TItem="ReceiptEntryGroupViewModel" TValue="string" Items="originalReceiptGroups" Property="@(x => x.CreditAccountName)" OnFilter="@(v => HandleColumnFilter("CreditAccountName", v))" />
+                    </th>
+                    <th>
+                        <ColumnFilter Title="Debit" TItem="ReceiptEntryGroupViewModel" TValue="string" Items="originalReceiptGroups" Property="@(x => x.DebitAccountName)" OnFilter="@(v => HandleColumnFilter("DebitAccountName", v))" />
                     </th>
                     <th>
                         <ColumnFilter Title="Amount" TItem="ReceiptEntryGroupViewModel" TValue="decimal" Items="originalReceiptGroups" Property="@(x => x.ReceiptAmount)" OnFilter="@(v => HandleColumnFilter("ReceiptAmount", v))" />
@@ -93,18 +100,9 @@
                                 </button>
                             </td>
                             <td>@group.ReceiptDate.ToString("dd/MM/yyyy")</td>
-                            <td>
-                                <div>
-                                    @if (group.CreditEntry != null)
-                                    {
-                                        <div class="text-primary">@group.CreditEntry.AccountName (Cr)</div>
-                                    }
-                                    @if (group.DebitEntry != null)
-                                    {
-                                        <div class="text-danger">@group.DebitEntry.AccountName (Dr)</div>
-                                    }
-                                </div>
-                            </td>
+                            <td>@(string.IsNullOrEmpty(group.EntryForName) ? "-" : group.EntryForName)</td>
+                            <td><span class="text-primary">@group.CreditAccountName</span></td>
+                            <td><span class="text-danger">@group.DebitAccountName</span></td>
                             <td>@group.ReceiptAmount.ToString("N2")</td>
                             <td>
                                 <span class="badge @GetStatusClass(group.Status)">@group.Status</span>
@@ -251,7 +249,9 @@
                      "Unit" => item.Unit,
                      "VoucherNo" => item.VoucherNo,
                      "Date" => item.ReceiptDate.ToString("dd/MM/yyyy"),
-                     "AccountName" => (item.CreditEntry?.AccountName ?? "") + (item.DebitEntry != null ? " / " + item.DebitEntry.AccountName : ""),
+                     "EntryForName" => item.EntryForName ?? "-",
+                     "CreditAccountName" => item.CreditAccountName,
+                     "DebitAccountName" => item.DebitAccountName,
                      "ReceiptAmount" => item.ReceiptAmount,
                      "Status" => item.Status,
                      _ => null

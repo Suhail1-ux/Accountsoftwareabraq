@@ -76,8 +76,8 @@
         }
         else if (mode == "Form")
         {
-            @if (activeTab == "Debit") { <DebitNoteForm @ref="debitForm" Id="editId" OnSaved="BackToList" /> }
-            else if (activeTab == "Credit") { <CreditNoteForm @ref="creditForm" Id="editId" OnSaved="BackToList" /> }
+            @if (activeTab == "Debit") { <DebitNoteForm @ref="debitForm" VoucherNo="@editVoucher" OnSaved="BackToList" /> }
+            else if (activeTab == "Credit") { <CreditNoteForm @ref="creditForm" VoucherNo="@editVoucher" OnSaved="BackToList" /> }
             else if (activeTab == "Receipt") { <ReceiptEntryForm @ref="receiptForm" VoucherNo="@editVoucher" OnSaved="BackToList" /> }
             else if (activeTab == "Payment") { <PaymentSettlementForm @ref="paymentForm" PANumber="@editVoucher" OnSaved="BackToList" /> }
             else if (activeTab == "Journal") { <JournalEntryForm @ref="journalForm" VoucherNo="@editVoucher" OnSaved="BackToList" /> }
@@ -355,8 +355,8 @@
     }
 
     // Edit handlers (passed to List components)
-    private void EditDebitNote(int id) { mode = "Form"; activeTab = "Debit"; editId = id; }
-    private void EditCreditNote(int id) { mode = "Form"; activeTab = "Credit"; editId = id; }
+    private void EditDebitNote(string voucher) { mode = "Form"; activeTab = "Debit"; editVoucher = voucher; }
+    private void EditCreditNote(string voucher) { mode = "Form"; activeTab = "Credit"; editVoucher = voucher; }
     private void EditReceipt(string voucher) { mode = "Form"; activeTab = "Receipt"; editVoucher = voucher; }
     private void EditPayment(string voucher) { mode = "Form"; activeTab = "Payment"; editVoucher = voucher; }
     private void EditJournal(string voucher) { mode = "Form"; activeTab = "Journal"; editVoucher = voucher; }

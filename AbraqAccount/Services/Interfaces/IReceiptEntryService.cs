@@ -16,7 +16,7 @@ public interface IReceiptEntryService
         int page, 
         int pageSize);
 
-    Task<(bool success, string message)> CreateMultipleReceiptsAsync(ReceiptEntryBatchModel model);
+    Task<(bool success, string message)> CreateMultipleReceiptsAsync(ReceiptEntryBatchModel model, string? existingVoucherNo = null);
     Task<(bool success, object? data, string? error)> GetVoucherDetailsAsync(string voucherNo);
     Task<(bool success, string message)> DeleteReceiptEntryAsync(int id);
     Task<IEnumerable<LookupItem>> GetAccountsAsync(string? searchTerm, int? paymentFromId = null, string? type = null);

@@ -1,6 +1,7 @@
 @using AbraqAccount.Models
 @using AbraqAccount.Services.Interfaces
 @inject IDebitNoteService DebitNoteService
+@inject IGeneralEntryService GeneralService
 @inject NavigationManager Navigation
 
 <div class="form-container">
@@ -8,57 +9,58 @@
         Debit Note - @(IsReadOnly ? "Details" : (IsEdit ? "Edit" : "Add"))
     </div>
 
-    <EditForm Model="model" OnValidSubmit="SubmitForm">
-        <DataAnnotationsValidator />
-        
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger">@errorMessage</div>
+    }
+
     <!-- Header Fields -->
     <div class="row mb-4">
-        <div class="col-md-4">
+        <div class="col-md-3">
             <div class="form-group-custom">
-                <label class="form-label text-muted">Debit Note Date</label>
+                <label class="form-label text-muted">Note Date</label>
                 @if (IsReadOnly)
                 {
-                    <div class="fw-bold fs-6">@model.DebitNoteDate.ToString("dd/MM/yyyy")</div>
+                    <div class="fw-bold fs-6">@model.EntryDate.ToString("dd/MM/yyyy")</div>
                 }
                 else
                 {
-                    <input type="date" @bind="model.DebitNoteDate" class="form-control-custom" />
+                    <input type="date" @bind="model.EntryDate" class="form-control-custom" />
                 }
             </div>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-3">
             <div class="form-group-custom">
                 <label class="form-label text-muted">Entry For</label>
                 @if (IsReadOnly)
                 {
-                    <div class="fw-bold fs-6">@model.EntryForName</div>
+                    <div class="fw-bold fs-6">@(entryProfiles?.FirstOrDefault(p => p.Id == selectedProfileId)?.Name ?? "-")</div>
                 }
                 else
                 {
-                    <select @onchange="OnEntryForChanged" class="form-control-custom">
-                        <option value="">Select Entry For</option>
+                    <select @onchange="OnProfileChanged" class="form-control-custom">
+                        <option value="">Select Entry Profile</option>
                         @if (entryProfiles != null)
                         {
                             @foreach (var profile in entryProfiles)
                             {
-                                <option value="@profile.Id" selected="@(model.EntryForId == profile.Id)">@profile.Name</option>
+                                <option value="@profile.Id" selected="@(selectedProfileId == profile.Id)">@profile.Name</option>
                             }
                         }
                     </select>
                 }
             </div>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-3">
             <div class="form-group-custom">
-                <label class="form-label text-muted">Unit</label>
+                <label class="form-label text-muted">Unit <span class="text-danger">*</span></label>
                 @if (IsReadOnly)
                 {
-                    <div class="fw-bold fs-6">@model.Unit</div>
+                    <div class="fw-bold fs-6">@selectedUnit</div>
                 }
                 else
                 {
-                    <select @bind="model.Unit" class="form-control-custom">
-                        <option value="">Select</option>
+                    <select @bind="selectedUnit" class="form-control-custom">
                         @foreach (var unit in unitList)
                         {
                             <option value="@unit">@unit</option>
@@ -67,311 +69,380 @@
                 }
             </div>
         </div>
+        <div class="col-md-3">
+            <div class="form-group-custom">
+                <label class="form-label text-muted">Mobile No.</label>
+                @if (IsReadOnly)
+                {
+                    <div class="fw-bold fs-6">@model.MobileNo</div>
+                }
+                else
+                {
+                    <input type="text" @bind="model.MobileNo" class="form-control-custom" placeholder="Enter Mobile No" />
+                }
+            </div>
+        </div>
     </div>
 
     <!-- Transaction Details Section -->
+    @if (!IsReadOnly)
+    {
     <div class="transaction-details-section">
         <div class="section-subtitle mb-3">Transaction Details</div>
-        
         <div class="row mb-3">
-             <div class="col-md-4">
+            <div class="col-md-2">
                 <div class="form-group-custom">
-                    <label class="form-label text-muted">Credit Account <span class="text-danger">*</span></label>
-                    @if (IsReadOnly)
-                    {
-                        <div class="fw-bold fs-6">@model.CreditAccountName</div>
-                    }
-                    else
-                    {
-                        <AbraqAccount.Components.Common.AccountSearch 
-                            Placeholder="Search Account Name" 
-                            SearchFunc='(t) => SearchAccounts(t, "Credit")'
-                            OnAccountSelected="OnCreditAccountSelected"
-                            InitialValue="@model.CreditAccountName"
-                            Disabled="@(model.EntryForId == null || model.EntryForId == 0)"
-                            CssClass="form-control-custom" />
-                    }
+                    <label>Type <span class="text-danger">*</span></label>
+                    <select @bind="EntryType" class="form-control-custom">
+                        <option value="Credit">Credit</option>
+                        <option value="Debit">Debit</option>
+                    </select>
                 </div>
             </div>
-            <div class="col-md-4">
+            <div class="col-md-3">
                 <div class="form-group-custom">
-                    <label class="form-label text-muted">Debit Account <span class="text-danger">*</span></label>
-                    @if (IsReadOnly)
-                    {
-                        <div class="fw-bold fs-6">@model.DebitAccountName</div>
-                    }
-                    else
-                    {
-                        <AbraqAccount.Components.Common.AccountSearch 
-                            Placeholder="Search Account Name" 
-                            SearchFunc='(t) => SearchAccounts(t, "Debit")'
-                            OnAccountSelected="OnDebitAccountSelected"
-                            InitialValue="@model.DebitAccountName"
-                            Disabled="@(model.EntryForId == null || model.EntryForId == 0)"
-                            CssClass="form-control-custom" />
-                    }
+                    <label>Account <span class="text-danger">*</span></label>
+                    <AbraqAccount.Components.Common.AccountSearch 
+                        Placeholder="Search Account Name" 
+                        SearchFunc="SearchAccountsForNew"
+                        OnAccountSelected="OnAccountSelectedForNew"
+                        InitialValue="@newEntry.AccountName"
+                        CssClass="form-control-custom" />
                 </div>
             </div>
-             <div class="col-md-4">
+            <div class="col-md-2">
                 <div class="form-group-custom">
-                    <label class="form-label text-muted">Amount <span class="text-danger">*</span></label>
-                    @if (IsReadOnly)
-                    {
-                        <div class="fw-bold fs-6 text-primary">@model.Amount?.ToString("N2")</div>
-                    }
-                    else
-                    {
-                        <input type="number" step="0.01" @bind="model.Amount" class="form-control-custom" placeholder="Enter Amount" />
-                    }
+                    <label>Amount <span class="text-danger">*</span></label>
+                    <input type="number" step="0.01" @bind="newEntry.Amount" class="form-control-custom" placeholder="Enter Amount" />
                 </div>
             </div>
         </div>
-        
-        <div class="row mb-4">
-            <div class="col-md-12">
+        <div class="row mb-3">
+            <div class="col-12">
                 <div class="form-group-custom">
-                    <label class="form-label text-muted">Narration</label>
-                    @if (IsReadOnly)
-                    {
-                        <div class="fw-bold fs-6">@(string.IsNullOrEmpty(model.Narration) ? "-" : model.Narration)</div>
-                    }
-                    else
-                    {
-                        <textarea @bind="model.Narration" class="form-control-custom" rows="2" placeholder="Enter Narration"></textarea>
-                    }
+                    <label>Narration</label>
+                    <textarea @bind="newEntry.Narration" class="form-control-custom" rows="2" placeholder="Enter Narration"></textarea>
                 </div>
             </div>
         </div>
+        <div class="d-flex justify-content-end gap-2 mb-4">
+            <button type="button" class="btn-add-custom" @onclick="AddNewRow">Add</button>
+            <button type="button" class="btn-clear-row-custom" @onclick="ClearNewEntry">Clear</button>
+        </div>
+    </div>
+    }
 
-        @if (!IsReadOnly)
-        {
-        <div class="d-flex justify-content-end mb-4">
-            <button type="button" class="btn-clear-custom" @onclick="ClearForm">Clear</button>
+    <!-- Details Table -->
+    <div class="details-table-section">
+        <div class="section-subtitle mb-3">Debit Note Details</div>
+        <div class="table-responsive">
+            <table class="table table-custom-bordered">
+                <thead>
+                    <tr>
+                        <th>Unit</th>
+                        <th>Type</th>
+                        <th>Account</th>
+                        <th>Debit(Rs)</th>
+                        <th>Credit(Rs)</th>
+                        <th>Narration</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (!uiEntries.Any())
+                    {
+                        <tr>
+                            <td colspan="7" class="text-center text-muted py-4">No entries added yet. Use the form above to add entries.</td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var entry in uiEntries)
+                        {
+                            <tr>
+                                <td>@entry.Unit</td>
+                                <td>@entry.Type</td>
+                                <td>@entry.AccountName</td>
+                                <td class="text-end">@entry.Debit.ToString("N2")</td>
+                                <td class="text-end">@entry.Credit.ToString("N2")</td>
+                                <td>@entry.Narration</td>
+                                <td>
+                                    @if (!IsReadOnly)
+                                    {
+                                        <button class="btn-edit-row me-2" @onclick="() => EditEntry(entry)" title="Edit">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <button class="btn-delete-row" @onclick="() => RemoveEntry(entry)" title="Delete">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <td colspan="3" class="text-end fw-bold">Total</td>
+                        <td class="text-end fw-bold">@TotalDebit.ToString("N2")</td>
+                        <td class="text-end fw-bold">@TotalCredit.ToString("N2")</td>
+                        <td colspan="2"></td>
+                    </tr>
+                </tfoot>
+            </table>
         </div>
-        }
     </div>
 
-        <div class="form-footer-actions">
-            @if (!IsReadOnly)
-            {
-                <button type="button" class="btn-save-custom" @onclick="SubmitForm" disabled="@isSubmitting">
-                    @if (isSubmitting) { <span class="spinner-border spinner-border-sm me-1"></span> }
-                    Save
-                </button>
-                <button type="button" class="btn-cancel-custom" @onclick="Cancel">Cancel</button>
-            }
-            else
-            {
-                <a href="transactions/entries?noteType=Debit" class="btn-cancel-custom text-decoration-none d-inline-flex align-items-center">
-                    <i class="bi bi-arrow-left me-1"></i> Back to List
-                </a>
-            }
-        </div>
-    </EditForm>
-</div>
-
-<style>
-    .form-container {
-        background: white;
-        padding: 1.5rem;
-        border: 1px solid #e0e0e0;
-        border-radius: 4px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-    }
-    .form-section-title {
-        font-size: 1.1rem;
-        font-weight: 500;
-        color: #495057;
-        margin-bottom: 2rem;
-        padding-bottom: 0.75rem;
-        border-bottom: 1px solid #f0f0f0;
-    }
-    .form-group-custom {
-        margin-bottom: 1rem;
-    }
-    .form-group-custom label {
-        display: block;
-        font-size: 0.9rem;
-        font-weight: 600;
-        color: #333;
-        margin-bottom: 0.5rem;
-    }
-    .form-control-custom {
-        width: 100%;
-        padding: 0.6rem 0.75rem;
-        border: 1px solid #ced4da;
-        border-radius: 4px;
-        font-size: 0.9rem;
-    }
-    .form-control-custom:focus {
-        border-color: #80bdff;
-        outline: 0;
-        box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
-    }
-    .btn-clear-custom {
-        background-color: #e9ecef;
-        border: none;
-        padding: 0.5rem 2rem;
-        border-radius: 4px;
-        color: #495057;
-        font-weight: 500;
-    }
-    .form-footer-actions {
-        display: flex;
-        justify-content: flex-end;
-        gap: 0.5rem;
-        padding-top: 1.5rem;
-        border-top: 1px solid #f0f0f0;
-    }
-    .btn-save-custom {
-        background-color: #6c757d;
-        color: white;
-        border: none;
-        padding: 0.5rem 2rem;
-        border-radius: 4px;
-        font-weight: 500;
-    }
-    .btn-cancel-custom {
-        background-color: #e9ecef;
-        color: #495057;
-        border: none;
-        padding: 0.5rem 2rem;
-        border-radius: 4px;
-        font-weight: 500;
-    }
-    .section-subtitle {
-        font-size: 1rem;
-        font-weight: 600;
-        color: #444;
-        border-bottom: 1px solid #eee;
-        padding-bottom: 0.5rem;
-    }
-</style>
-
-@code {
-    [Parameter] public int? Id { get; set; }
-    [Parameter] public bool IsReadOnly { get; set; }
-    [Parameter] public EventCallback OnSaved { get; set; }
-    private DebitNote model = new() { DebitNoteDate = DateTime.Now };
-    private bool IsEdit => Id.HasValue;
-    private bool isSubmitting;
-    private string? errorMessage;
-
-    private List<string> unitList = new();
-    private IEnumerable<LookupItem>? entryProfiles;
-
-    protected override async Task OnInitializedAsync()
-    {
-        unitList = (await DebitNoteService.GetUnitNamesAsync()).ToList();
-        entryProfiles = await DebitNoteService.GetEntryProfilesAsync();
-        
-        if (IsEdit)
+    <div class="form-footer-actions">
+        @if (!IsReadOnly)
         {
-            var existing = await DebitNoteService.GetDebitNoteByIdAsync(Id!.Value);
-            if (existing != null)
-            {
-                model = existing;
-            }
-            else
-            {
-                errorMessage = "Debit Note not found.";
-            }
-        }
-    }
-
-    private async Task<IEnumerable<LookupItem>> SearchAccounts(string term, string side)
-    {
-        return await DebitNoteService.GetAccountsAsync(term, model.EntryForId, side);
-    }
-
-    private void OnCreditAccountSelected(LookupItem account)
-    {
-        model.CreditAccountId = account.Id;
-        model.CreditAccountType = account.Type ?? "BankMaster";
-        model.CreditAccountName = account.Name;
-        
-        if (model.CreditAccountType.Contains("BankMaster", StringComparison.OrdinalIgnoreCase))
-        {
-            model.BankMasterId = account.Id;
-        }
-    }
-
-    private void OnDebitAccountSelected(LookupItem account)
-    {
-        model.DebitAccountId = account.Id;
-        model.DebitAccountType = account.Type ?? "BankMaster";
-        model.DebitAccountName = account.Name;
-
-        if (model.DebitAccountType.Contains("BankMaster", StringComparison.OrdinalIgnoreCase))
-        {
-            model.BankMasterId = account.Id;
-        }
-    }
-
-    private void OnEntryForChanged(ChangeEventArgs e)
-    {
-        if (int.TryParse(e.Value?.ToString(), out int profileId))
-        {
-            model.EntryForId = profileId;
-            var profile = entryProfiles?.FirstOrDefault(p => p.Id == profileId);
-            model.EntryForName = profile?.Name;
+            <button type="button" class="btn-save-custom" @onclick="SubmitForm" disabled="@(isSubmitting || !IsBalanced)">
+                @if (isSubmitting) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                Save
+            </button>
+            <button type="button" class="btn-cancel-custom" @onclick="Cancel">Cancel</button>
         }
         else
         {
-            model.EntryForId = null;
-            model.EntryForName = null;
+            <a href="transactions/entries?noteType=DebitNote" class="btn-cancel-custom text-decoration-none d-inline-flex align-items-center">
+                <i class="bi bi-arrow-left me-1"></i> Back to List
+            </a>
         }
+    </div>
+</div>
+
+<style>
+    .form-container { background: white; padding: 1.5rem; border: 1px solid #e0e0e0; border-radius: 4px; }
+    .form-section-title { font-size: 1.1rem; font-weight: 500; color: #495057; margin-bottom: 2rem; padding-bottom: 0.75rem; border-bottom: 2px solid #dc3545; }
+    .section-subtitle { font-size: 1rem; font-weight: 600; color: #444; border-bottom: 1px solid #eee; padding-bottom: 0.5rem; }
+    .form-group-custom { margin-bottom: 1rem; }
+    .form-group-custom label { display: block; font-size: 0.85rem; font-weight: 600; color: #333; margin-bottom: 0.4rem; }
+    .form-control-custom { width: 100%; padding: 0.5rem 0.75rem; border: 1px solid #ced4da; border-radius: 4px; font-size: 0.9rem; }
+    .btn-add-custom { background-color: #28a745; color: white; border: none; padding: 0.5rem 2rem; border-radius: 4px; font-weight: 500; }
+    .btn-clear-row-custom { background-color: #f8f9fa; color: #333; border: 1px solid #ced4da; padding: 0.5rem 2rem; border-radius: 4px; font-weight: 500; }
+    .table-custom-bordered { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    .table-custom-bordered th { background: #f8f9fa; padding: 0.75rem; border: 1px solid #dee2e6; text-align: left; }
+    .table-custom-bordered td { padding: 0.75rem; border: 1px solid #dee2e6; }
+    .btn-delete-row { background: none; border: none; color: #dc3545; cursor: pointer; }
+    .btn-edit-row { background: none; border: none; color: #ffc107; cursor: pointer; }
+    .form-footer-actions { display: flex; justify-content: flex-end; gap: 0.5rem; padding-top: 1.5rem; border-top: 1px solid #f0f0f0; margin-top: 2rem; }
+    .btn-save-custom { background-color: #6c757d; color: white; border: none; padding: 0.5rem 2rem; border-radius: 4px; font-weight: 500; }
+    .btn-cancel-custom { background-color: #e9ecef; color: #495057; border: none; padding: 0.5rem 2rem; border-radius: 4px; font-weight: 500; }
+</style>
+
+@code {
+    [Parameter] public string? VoucherNo { get; set; }
+    [Parameter] public bool IsReadOnly { get; set; }
+    [Parameter] public EventCallback OnSaved { get; set; }
+    private GeneralEntryBatchModel model = new() { EntryDate = DateTime.Now };
+    private List<UIEntry> uiEntries = new();
+    private string EntryType
+    {
+        get => newEntry.Type;
+        set
+        {
+            if (newEntry.Type != value)
+            {
+                newEntry.Type = value;
+                newEntry.AccountId = 0;
+                newEntry.AccountName = "";
+                newEntry.AccountType = "";
+            }
+        }
+    }
+
+    private UIEntry newEntry = new() { Type = "Credit" };
+    private string selectedUnit = "";
+    private List<string> unitList = new(); 
+    private bool IsEdit => !string.IsNullOrEmpty(VoucherNo);
+    private bool isSubmitting;
+    private string? errorMessage;
+    private IEnumerable<LookupItem>? entryProfiles;
+    private int? selectedProfileId;
+
+    private decimal TotalDebit => uiEntries.Sum(e => e.Debit);
+    private decimal TotalCredit => uiEntries.Sum(e => e.Credit);
+    private bool IsBalanced => Math.Abs(TotalDebit - TotalCredit) < 0.01m && uiEntries.Count > 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        entryProfiles = await DebitNoteService.GetEntryProfilesAsync();
+        unitList = await GeneralService.GetUnitNamesAsync();
+        
+        if (unitList.Any()) selectedUnit = unitList.First();
+        
+        if (IsEdit)
+        {
+            var entries = await GeneralService.GetVoucherEntriesAsync(VoucherNo!);
+            if (entries != null && entries.Any())
+            {
+                uiEntries.Clear();
+                model.EntryDate = entries.First().EntryDate;
+                model.MobileNo = entries.First().MobileNo;
+                selectedProfileId = entries.First().EntryForId;
+                selectedUnit = entries.First().Unit ?? "Unit 1";
+
+                foreach (var e in entries)
+                {
+                    if ((e.DebitAccountId ?? 0) > 1) { 
+                         uiEntries.Add(new UIEntry {
+                            Type = "Debit",
+                            AccountId = e.DebitAccountId ?? 0,
+                            AccountType = e.DebitAccountType,
+                            AccountName = e.DebitAccountName,
+                            Debit = e.Amount,
+                            Credit = 0,
+                            Amount = e.Amount,
+                            Narration = e.Narration ?? "",
+                            Unit = e.Unit
+                        });
+                    }
+                    if ((e.CreditAccountId ?? 0) > 1) { 
+                         uiEntries.Add(new UIEntry {
+                            Type = "Credit",
+                            AccountId = e.CreditAccountId ?? 0,
+                            AccountType = e.CreditAccountType,
+                            AccountName = e.CreditAccountName,
+                            Debit = 0,
+                            Credit = e.Amount,
+                            Amount = e.Amount,
+                            Narration = e.Narration ?? "",
+                            Unit = e.Unit
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    private async Task<IEnumerable<LookupItem>> SearchAccountsForNew(string term)
+    {
+        return await GeneralService.GetAccountsAsync(term, selectedProfileId, newEntry.Type);
+    }
+
+    private void OnAccountSelectedForNew(LookupItem account)
+    {
+        newEntry.AccountId = account.Id;
+        newEntry.AccountType = account.Type ?? "SubGroupLedger";
+        newEntry.AccountName = account.Name;
+    }
+
+    private void AddNewRow()
+    {
+        if (newEntry.AccountId == 0 || newEntry.Amount <= 0)
+        {
+            errorMessage = "Please select account and enter amount.";
+            return;
+        }
+
+        var entryToAdd = new UIEntry
+        {
+            Unit = selectedUnit,
+            Type = newEntry.Type,
+            AccountId = newEntry.AccountId,
+            AccountType = newEntry.AccountType,
+            AccountName = newEntry.AccountName,
+            Amount = newEntry.Amount,
+            Debit = newEntry.Type == "Debit" ? newEntry.Amount : 0,
+            Credit = newEntry.Type == "Credit" ? newEntry.Amount : 0,
+            Narration = newEntry.Narration
+        };
+
+        uiEntries.Add(entryToAdd);
+        ClearNewEntry();
+        errorMessage = null;
+    }
+
+    private void ClearNewEntry()
+    {
+        newEntry = new UIEntry { Type = "Credit" };
+    }
+
+    private void RemoveEntry(UIEntry entry)
+    {
+        uiEntries.Remove(entry);
+    }
+
+    private void EditEntry(UIEntry entry)
+    {
+        EntryType = entry.Type;
+        newEntry.AccountId = entry.AccountId;
+        newEntry.AccountType = entry.AccountType;
+        newEntry.AccountName = entry.AccountName;
+        newEntry.Amount = entry.Amount;
+        newEntry.Narration = entry.Narration;
+        
+        if (!string.IsNullOrEmpty(entry.Unit) && unitList.Contains(entry.Unit)) selectedUnit = entry.Unit;
+
+        uiEntries.Remove(entry);
+    }
+
+    private void OnProfileChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out int profileId)) selectedProfileId = profileId;
+        else selectedProfileId = null;
     }
 
     public async Task SubmitForm()
     {
-        isSubmitting = true;
-        errorMessage = null;
-
-        if (model.CreditAccountId == 0 || model.DebitAccountId == 0)
+        // For Debit/Credit Note, we might not need strict balancing if we are balancing against EntryFor
+        if (uiEntries.Count == 0)
         {
-            errorMessage = "Please select both Credit and Debit accounts.";
-            isSubmitting = false;
+            errorMessage = "Please add at least one entry.";
             return;
         }
 
+        if (selectedProfileId == null || selectedProfileId <= 0)
+        {
+            errorMessage = "Please select an 'Entry For' profile.";
+            return;
+        }
+
+        isSubmitting = true;
+        errorMessage = null;
+
+        model.Entries = uiEntries.Select(e => new GeneralEntryItemModel
+        {
+            Type = e.Type,
+            AccountId = e.AccountId,
+            AccountType = e.AccountType,
+            Amount = e.Amount,
+            Narration = e.Narration,
+            EntryForId = selectedProfileId,
+            EntryForName = entryProfiles?.FirstOrDefault(p => p.Id == selectedProfileId)?.Name,
+            Unit = e.Unit
+        }).ToList();
+
         var result = IsEdit 
-            ? await DebitNoteService.UpdateDebitNoteAsync(model)
-            : await DebitNoteService.CreateDebitNoteAsync(model);
+            ? await DebitNoteService.UpdateBatchDebitNoteAsync(VoucherNo!, model)
+            : await DebitNoteService.CreateBatchDebitNoteAsync(model);
 
         if (result.success)
         {
-            if (OnSaved.HasDelegate)
-            {
-                await OnSaved.InvokeAsync();
-            }
-            else
-            {
-                Navigation.NavigateTo("transactions/entries?noteType=Debit");
-            }
+            if (OnSaved.HasDelegate) await OnSaved.InvokeAsync();
+            else Navigation.NavigateTo("transactions/entries?noteType=DebitNote");
         }
-        else
-        {
-            errorMessage = result.message;
-        }
+        else errorMessage = result.message;
+        
         isSubmitting = false;
-    }
-
-    private void ClearForm()
-    {
-        model = new() { DebitNoteDate = DateTime.Now };
-        errorMessage = null;
     }
 
     private async Task Cancel()
     {
-        if (OnSaved.HasDelegate)
-        {
-            await OnSaved.InvokeAsync();
-        }
-        else
-        {
-            Navigation.NavigateTo("transactions/entries?noteType=Debit");
-        }
+        if (OnSaved.HasDelegate) await OnSaved.InvokeAsync();
+        else Navigation.NavigateTo("transactions/entries?noteType=DebitNote");
+    }
+
+    private class UIEntry
+    {
+        public string Type { get; set; } = "Credit";
+        public int AccountId { get; set; }
+        public string AccountType { get; set; } = "";
+        public string AccountName { get; set; } = "";
+        public decimal Amount { get; set; }
+        public decimal Debit { get; set; }
+        public decimal Credit { get; set; }
+        public string Narration { get; set; } = "";
+        public string? Unit { get; set; }
     }
 }

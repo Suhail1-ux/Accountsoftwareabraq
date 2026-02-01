@@ -6,6 +6,7 @@ namespace AbraqAccount.Models;
 public class GeneralEntryBatchModel
 {
     public DateTime EntryDate { get; set; }
+    public string? MobileNo { get; set; }
     public List<GeneralEntryItemModel> Entries { get; set; } = new();
 }
 

@@ -51,8 +51,8 @@ public interface IGeneralEntryService
     Task<IEnumerable<object>> GetAccountsByGroupIdAsync(int groupId);
     Task<LedgerReportResult> GetLedgerReportAsync(int accountId, string accountType, DateTime fromDate, DateTime toDate);
 
-    Task<(bool success, string message)> CreateGrowerBookEntryAsync(GeneralEntry entry);
-    Task<(bool success, string message)> UpdateGrowerBookEntryAsync(GeneralEntry entry);
+    Task<(bool success, string message)> CreateBatchGrowerBookAsync(GeneralEntryBatchModel model);
+    Task<(bool success, string message)> UpdateBatchGrowerBookAsync(string voucherNo, GeneralEntryBatchModel model);
     Task<(List<GeneralEntry> entries, int totalCount, int totalPages)> GetGrowerBookEntriesAsync(DateTime? fromDate, DateTime? toDate, string? bookNo, string? fromGrower, string? toGrower, string? status, string? unit, int page, int pageSize);
 
     Task<string> GetMediatorAccountNameAsync();

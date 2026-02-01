@@ -33,7 +33,9 @@ public class ReceiptEntryGroupViewModel
     public ReceiptEntry? DebitEntry { get; set; }
     public string VoucherNo { get; set; } = string.Empty;
     public DateTime ReceiptDate { get; set; }
-    public string AccountName { get; set; } = string.Empty;
+    public string CreditAccountName { get; set; } = string.Empty;
+    public string DebitAccountName { get; set; } = string.Empty;
+    public string EntryForName { get; set; } = string.Empty;
     public decimal ReceiptAmount { get; set; }
     public string Status { get; set; } = string.Empty;
     public int CreditEntryId { get; set; }

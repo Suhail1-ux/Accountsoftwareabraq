@@ -9,9 +9,9 @@ public interface ICreditNoteService
         string? unit, string? creditNoteNo, int? growerGroupId, int? farmerId, 
         string? status, DateTime? fromDate, DateTime? toDate, int page, int pageSize);
     
-    Task<(bool success, string message)> CreateCreditNoteAsync(CreditNote model);
     Task<CreditNote?> GetCreditNoteByIdAsync(int id);
-    Task<(bool success, string message)> UpdateCreditNoteAsync(CreditNote model);
+    Task<(bool success, string message)> CreateBatchCreditNoteAsync(GeneralEntryBatchModel model);
+    Task<(bool success, string message)> UpdateBatchCreditNoteAsync(string voucherNo, GeneralEntryBatchModel model);
     Task<(bool success, string message)> DeleteCreditNoteAsync(int id);
     
     Task LoadDropdownsAsync(dynamic viewBag, int? growerGroupId = null, int? farmerId = null);

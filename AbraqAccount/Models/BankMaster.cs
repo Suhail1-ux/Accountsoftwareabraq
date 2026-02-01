@@ -35,7 +35,7 @@ public class BankMaster
     
     [Required]
     [StringLength(20)]
-    public string Status { get; set; } = "Active"; // Active, Inactive
+    public string Status { get; set; } = "1"; // 1 = Active, 0 = Inactive
     
     [StringLength(255)]
     public string? CreatedBy { get; set; }

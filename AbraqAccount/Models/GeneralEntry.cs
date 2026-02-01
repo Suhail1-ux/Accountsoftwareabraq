@@ -12,17 +12,13 @@ public class GeneralEntry
     [Required]
     public DateTime EntryDate { get; set; } = DateTime.Now;
     
-    [Required]
-    public int DebitAccountId { get; set; } // Master Group, Master Sub Group, or Sub Group Ledger
+    public int? DebitAccountId { get; set; } // Master Group, Master Sub Group, or Sub Group Ledger
     
-    [Required]
-    public string DebitAccountType { get; set; } = string.Empty; // "MasterGroup", "MasterSubGroup", "SubGroupLedger"
+    public string? DebitAccountType { get; set; } = string.Empty; // "MasterGroup", "MasterSubGroup", "SubGroupLedger"
     
-    [Required]
-    public int CreditAccountId { get; set; } // Master Group, Master Sub Group, or Sub Group Ledger
+    public int? CreditAccountId { get; set; } // Master Group, Master Sub Group, or Sub Group Ledger
     
-    [Required]
-    public string CreditAccountType { get; set; } = string.Empty; // "MasterGroup", "MasterSubGroup", "SubGroupLedger"
+    public string? CreditAccountType { get; set; } = string.Empty; // "MasterGroup", "MasterSubGroup", "SubGroupLedger"
     
     [Required]
     public decimal Amount { get; set; }
@@ -45,11 +41,11 @@ public class GeneralEntry
     public string? Unit { get; set; }
     public bool IsActive { get; set; } = true;
     
-    [NotMapped]
     public string? VoucherType { get; set; } // "Receipt Entry", "Debit Note", "Credit Note", "Journal Entry Book"
 
-    [NotMapped]
     public string? PaymentType { get; set; } // "Mobile Pay", "Cash", etc.
+    
+    public string? MobileNo { get; set; }
 
     [NotMapped]
     public string DebitAccountName
