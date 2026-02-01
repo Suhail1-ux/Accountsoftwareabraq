@@ -27,8 +27,7 @@
         <select @bind="filter.Status">
             <option value="Unapproved">Unapproved</option>
             <option value="Approved">Approved</option>
-            <option value="Pending">Pending</option>
-            <option value="ALL">All Status</option>
+            <option value="Deleted">Deleted</option>
         </select>
     </div>
     <div class="filter-group">
@@ -65,13 +64,10 @@
                         <ColumnFilter Title="Entry For" TItem="PaymentSettlementGroupViewModel" TValue="string" Items="originalSettlementGroups" Property="@(x => x.EntryForName ?? "-")" OnFilter="@(v => HandleColumnFilter("EntryForName", v))" Align="left" />
                     </th>
                     <th>
-                        <ColumnFilter Title="Vendor/Supplier Name" TItem="PaymentSettlementGroupViewModel" TValue="string" Items="originalSettlementGroups" Property="@(x => (x.CreditEntry?.AccountName ?? "") + (x.DebitEntry != null ? " / " + x.DebitEntry.AccountName : ""))" OnFilter="@(v => HandleColumnFilter("VendorName", v))" />
+                        <ColumnFilter Title="Credit/Debit" TItem="PaymentSettlementGroupViewModel" TValue="string" Items="originalSettlementGroups" Property="@(x => (x.CreditEntry?.AccountName ?? "") + (x.DebitEntry != null ? " / " + x.DebitEntry.AccountName : ""))" OnFilter="@(v => HandleColumnFilter("VendorName", v))" />
                     </th>
                     <th>
                         <ColumnFilter Title="Amount" TItem="PaymentSettlementGroupViewModel" TValue="decimal" Items="originalSettlementGroups" Property="@(x => x.PaymentAmount)" OnFilter="@(v => HandleColumnFilter("PaymentAmount", v))" />
-                    </th>
-                    <th>
-                        <ColumnFilter Title="Payment Status" TItem="PaymentSettlementGroupViewModel" TValue="string" Items="originalSettlementGroups" Property="@(x => x.PaymentStatus)" OnFilter="@(v => HandleColumnFilter("PaymentStatus", v))" />
                     </th>
                     <th>Action</th>
                 </tr>
@@ -111,42 +107,48 @@
                                 </div>
                             </td>
                             <td>@item.PaymentAmount.ToString("N2")</td>
-                            <td>@item.PaymentStatus</td>
                             <td>
                                 <div class="action-icons">
-                                    @if (item.ApprovalStatus == "Approved")
+                                    @if (item.ApprovalStatus != "Deleted")
                                     {
-                                        <button class="action-icon approved-icon" @onclick="() => ConfirmUnapprove(item.CreditEntryId > 0 ? item.CreditEntryId : item.DebitEntryId)" title="Unapprove">
-                                            <i class="bi bi-check-circle-fill"></i>
-                                        </button>
+                                        @if (item.ApprovalStatus == "Approved")
+                                        {
+                                            <button class="action-icon approved-icon" @onclick="() => ConfirmUnapprove(item.CreditEntryId > 0 ? item.CreditEntryId : item.DebitEntryId)" title="Unapprove">
+                                                <i class="bi bi-check-circle-fill"></i>
+                                            </button>
+                                        }
+                                        else
+                                        {
+                                            <button class="action-icon approve-icon" @onclick="() => ConfirmApprove(item.CreditEntryId > 0 ? item.CreditEntryId : item.DebitEntryId)" title="Approve">
+                                                <i class="bi bi-hand-thumbs-up"></i>
+                                            </button>
+                                        }
+                                        
+                                        @if (item.CreditEntryId > 0)
+                                        {
+                                            @if (item.ApprovalStatus != "Approved")
+                                            {
+                                                <button class="action-icon edit-icon" type="button" @onclick="() => OnEdit.InvokeAsync(item.PANumber)" title="Edit">
+                                                    <i class="bi bi-pencil"></i>
+                                                </button>
+                                            }
+                                            <NavLink href="@($"transactions/payment-settlement/details/{item.PANumber}")" class="action-icon view-icon" title="View Details">
+                                                <i class="bi bi-eye"></i>
+                                            </NavLink>
+                                            <button class="action-icon history-icon" @onclick="() => ShowHistory(item.PANumber)" title="History">
+                                                <i class="bi bi-info-circle"></i>
+                                            </button>
+                                            @if (item.ApprovalStatus != "Approved")
+                                            {
+                                                <button class="action-icon delete-icon" @onclick="() => ConfirmDelete(item.CreditEntryId)" title="Delete">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            }
+                                        }
                                     }
                                     else
                                     {
-                                        <button class="action-icon approve-icon" @onclick="() => ConfirmApprove(item.CreditEntryId > 0 ? item.CreditEntryId : item.DebitEntryId)" title="Approve">
-                                            <i class="bi bi-hand-thumbs-up"></i>
-                                        </button>
-                                    }
-                                    
-                                    @if (item.CreditEntryId > 0)
-                                    {
-                                        @if (item.ApprovalStatus != "Approved")
-                                        {
-                                            <button class="action-icon edit-icon" type="button" @onclick="() => OnEdit.InvokeAsync(item.PANumber)" title="Edit">
-                                                <i class="bi bi-pencil"></i>
-                                            </button>
-                                        }
-                                        <NavLink href="@($"transactions/payment-settlement/details/{item.PANumber}")" class="action-icon view-icon" title="View Details">
-                                            <i class="bi bi-eye"></i>
-                                        </NavLink>
-                                        <button class="action-icon history-icon" @onclick="() => ShowHistory(item.PANumber)" title="History">
-                                            <i class="bi bi-info-circle"></i>
-                                        </button>
-                                        @if (item.ApprovalStatus != "Approved")
-                                        {
-                                            <button class="action-icon delete-icon" @onclick="() => ConfirmDelete(item.CreditEntryId)" title="Delete">
-                                                <i class="bi bi-trash"></i>
-                                            </button>
-                                        }
+                                        <span class="text-muted">Deleted</span>
                                     }
                                 </div>
                             </td>
@@ -404,3 +406,8 @@
         public DateTime? ToDate { get; set; }
     }
 }
+<style>
+    .table-notes tbody tr:nth-child(even) {
+        background-color: #f9f9f9;
+    }
+</style>

@@ -27,7 +27,7 @@
         <select @bind="filter.Status">
             <option value="Unapproved">Unapproved</option>
             <option value="Approved">Approved</option>
-            <option value="ALL">All Status</option>
+            <option value="Deleted">Deleted</option>
         </select>
     </div>
     <div class="filter-group">
@@ -61,13 +61,10 @@
                         <ColumnFilter Title="Date" TItem="GeneralEntryGroupViewModel" TValue="string" Items="originalJournalGroups" Property="@(x => x.Date.ToString("dd/MM/yyyy"))" OnFilter="@(v => HandleColumnFilter("Date", v))" Align="left" />
                     </th>
                     <th>
-                        <ColumnFilter Title="From Vendor/Expense(Dr.)" TItem="GeneralEntryGroupViewModel" TValue="string" Items="originalJournalGroups" Property="@(x => GetDisplayAccounts(x.Entries, false))" OnFilter="@(v => HandleColumnFilter("DebitAccounts", v))" />
+                        <ColumnFilter Title="Entry For" TItem="GeneralEntryGroupViewModel" TValue="string" Items="originalJournalGroups" Property="@(x => x.Entries.FirstOrDefault()?.EntryForName ?? "-")" OnFilter="@(v => HandleColumnFilter("EntryForName", v))" Align="left" />
                     </th>
                     <th>
-                        <ColumnFilter Title="To Vendor/Expense/Bank(Cr.)" TItem="GeneralEntryGroupViewModel" TValue="string" Items="originalJournalGroups" Property="@(x => GetDisplayAccounts(x.Entries, true))" OnFilter="@(v => HandleColumnFilter("CreditAccounts", v))" />
-                    </th>
-                    <th>
-                        <ColumnFilter Title="Type" TItem="GeneralEntryGroupViewModel" TValue="string" Items="originalJournalGroups" Property="@(x => x.Entries.FirstOrDefault()?.Type ?? "-")" OnFilter="@(v => HandleColumnFilter("Type", v))" />
+                        <ColumnFilter Title="Credit and Debit" TItem="GeneralEntryGroupViewModel" TValue="string" Items="originalJournalGroups" Property="@(x => GetDisplayAccounts(x.Entries, true) + " " + GetDisplayAccounts(x.Entries, false))" OnFilter="@(v => HandleColumnFilter("CreditAndDebit", v))" />
                     </th>
                     <th>
                         <ColumnFilter Title="Amount" TItem="GeneralEntryGroupViewModel" TValue="decimal" Items="originalJournalGroups" Property="@(x => x.TotalDebit)" OnFilter="@(v => HandleColumnFilter("Amount", v))" />
@@ -78,11 +75,11 @@
             <tbody>
                 @if (journalGroups == null)
                 {
-                    <tr><td colspan="8" class="text-center">Loading...</td></tr>
+                    <tr><td colspan="7" class="text-center">Loading...</td></tr>
                 }
                 else if (!journalGroups.Any())
                 {
-                    <tr><td colspan="8" class="text-center">No journal entries found.</td></tr>
+                    <tr><td colspan="7" class="text-center">No journal entries found.</td></tr>
                 }
                 else
                 {
@@ -100,42 +97,59 @@
                                 </button>
                             </td>
                             <td>@group.Date.ToString("dd/MM/yyyy")</td>
-                            <td>@debitAccounts</td>
-                            <td>@creditAccounts</td>
-                            <td>@(firstEntry?.Type ?? "-")</td>
+                            <td>@(firstEntry?.EntryForName ?? "-")</td>
+                            <td>
+                                <div>
+                                    @if (!string.IsNullOrEmpty(creditAccounts) && creditAccounts != "-")
+                                    {
+                                        <div class="text-primary">@creditAccounts (Cr)</div>
+                                    }
+                                    @if (!string.IsNullOrEmpty(debitAccounts) && debitAccounts != "-")
+                                    {
+                                        <div class="text-danger">@debitAccounts (Dr)</div>
+                                    }
+                                </div>
+                            </td>
                             <td>@group.TotalDebit.ToString("N2")</td>
                             <td>
                                 <div class="action-icons">
-                                    @if(group.Status == "Approved")
+                                    @if (group.Status != "Deleted")
                                     {
-                                        <button class="action-icon approved-icon" @onclick="() => ConfirmUnapprove(group.VoucherNo)" title="Unapprove">
-                                            <i class="bi bi-check-circle-fill"></i>
+                                        @if(group.Status == "Approved")
+                                        {
+                                            <button class="action-icon approved-icon" @onclick="() => ConfirmUnapprove(group.VoucherNo)" title="Unapprove">
+                                                <i class="bi bi-check-circle-fill"></i>
+                                            </button>
+                                        }
+                                        else
+                                        {
+                                            <button class="action-icon approve-icon" @onclick="() => ConfirmApprove(group.VoucherNo)" title="Approve">
+                                                <i class="bi bi-hand-thumbs-up"></i>
+                                            </button>
+                                        }
+                                        
+                                        @if (group.Status != "Approved")
+                                        {
+                                            <button class="action-icon edit-icon" type="button" @onclick="() => OnEdit.InvokeAsync(group.VoucherNo)" title="Edit">
+                                                <i class="bi bi-pencil"></i>
+                                            </button>
+                                        }
+                                        <NavLink href="@($"transactions/general-entry/details/{group.VoucherNo}")" class="action-icon view-icon" title="View">
+                                            <i class="bi bi-eye"></i>
+                                        </NavLink>
+                                        <button class="action-icon history-icon" @onclick="() => ShowHistory(group.VoucherNo)" title="History">
+                                            <i class="bi bi-info-circle"></i>
                                         </button>
+                                        @if (group.Status != "Approved")
+                                        {
+                                            <button class="action-icon delete-icon" @onclick="() => ConfirmDelete(group.VoucherNo)" title="Delete">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        }
                                     }
                                     else
                                     {
-                                        <button class="action-icon approve-icon" @onclick="() => ConfirmApprove(group.VoucherNo)" title="Approve">
-                                            <i class="bi bi-hand-thumbs-up"></i>
-                                        </button>
-                                    }
-                                    
-                                    @if (group.Status != "Approved")
-                                    {
-                                        <button class="action-icon edit-icon" type="button" @onclick="() => OnEdit.InvokeAsync(group.VoucherNo)" title="Edit">
-                                            <i class="bi bi-pencil"></i>
-                                        </button>
-                                    }
-                                    <NavLink href="@($"transactions/general-entry/details/{group.VoucherNo}")" class="action-icon view-icon" title="View">
-                                        <i class="bi bi-eye"></i>
-                                    </NavLink>
-                                    <button class="action-icon history-icon" @onclick="() => ShowHistory(group.VoucherNo)" title="History">
-                                        <i class="bi bi-info-circle"></i>
-                                    </button>
-                                    @if (group.Status != "Approved")
-                                    {
-                                        <button class="action-icon delete-icon" @onclick="() => ConfirmDelete(group.VoucherNo)" title="Delete">
-                                            <i class="bi bi-trash"></i>
-                                        </button>
+                                        <span class="text-muted">Deleted</span>
                                     }
                                 </div>
                             </td>
@@ -171,6 +185,10 @@
 </div>
 
 <style>
+    .table-notes tbody tr:nth-child(even) {
+        background-color: #f9f9f9;
+    }
+
     .filter-section { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 1rem; background: white; padding: 1.5rem; border: 1px solid #e0e0e0; border-radius: 4px; margin-bottom: 1.5rem; align-items: flex-end; }
     .filter-group { display: flex; flex-direction: column; }
     .filter-group label { font-size: 0.9rem; font-weight: 600; color: #333; margin-bottom: 0.5rem; }
@@ -263,9 +281,8 @@
                      "Unit" => item.Unit,
                      "VoucherNo" => item.VoucherNo,
                      "Date" => item.Date.ToString("dd/MM/yyyy"),
-                     "DebitAccounts" => GetDisplayAccounts(item.Entries, false),
-                     "CreditAccounts" => GetDisplayAccounts(item.Entries, true),
-                     "Type" => item.Entries.FirstOrDefault()?.Type ?? "-",
+                     "EntryForName" => item.Entries.FirstOrDefault()?.EntryForName ?? "-",
+                     "CreditAndDebit" => GetDisplayAccounts(item.Entries, true) + " " + GetDisplayAccounts(item.Entries, false),
                      "Amount" => item.TotalDebit,
                      "Status" => item.Status,
                      _ => null

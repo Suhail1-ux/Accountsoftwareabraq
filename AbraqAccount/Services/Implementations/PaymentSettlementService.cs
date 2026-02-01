@@ -56,14 +56,24 @@ public class PaymentSettlementService : IPaymentSettlementService
         try
         {
             var query = _context.GeneralEntries
-                .Where(s => s.VoucherType == "Payment Settlement" && s.IsActive)
+                .Where(s => s.VoucherType == "Payment Settlement")
                 .AsQueryable();
+
+            if (approvalStatus == "Deleted")
+            {
+                query = query.Where(s => !s.IsActive);
+            }
+            else
+            {
+                query = query.Where(s => s.IsActive);
+                if (!string.IsNullOrEmpty(approvalStatus) && approvalStatus != "All") 
+                    query = query.Where(p => p.Status == approvalStatus);
+            }
 
             if (!string.IsNullOrEmpty(unit) && unit != "ALL") query = query.Where(s => s.Unit == unit);
             if (!string.IsNullOrEmpty(paNumber)) query = query.Where(p => p.VoucherNo.Contains(paNumber));
             if (fromDate.HasValue) query = query.Where(p => p.EntryDate >= fromDate.Value);
             if (toDate.HasValue) query = query.Where(p => p.EntryDate <= toDate.Value);
-            if (!string.IsNullOrEmpty(approvalStatus)) query = query.Where(p => p.Status == approvalStatus);
             // paymentStatus? GeneralEntry doesn't have PaymentStatus. Using Status for now or generic check.
             
             // Name filtering requiring joins or in-memory. Fetching first.
@@ -177,7 +187,7 @@ public class PaymentSettlementService : IPaymentSettlementService
             Amount = ge.Amount,
             RefNo = ge.ReferenceNo, // Mapped to ReferenceNo in GE
             Narration = ge.Narration,
-            ApprovalStatus = ge.Status,
+            ApprovalStatus = !ge.IsActive ? "Deleted" : ge.Status,
             PaymentStatus = "Pending", // GE doesn't strictly track this separately?
             IsActive = ge.IsActive,
             CreatedAt = ge.CreatedAt,
@@ -327,7 +337,13 @@ public class PaymentSettlementService : IPaymentSettlementService
 
             // Find all with same PA Number
             var related = await _context.GeneralEntries.Where(g => g.VoucherNo == ge.VoucherNo).ToListAsync();
-            _context.GeneralEntries.RemoveRange(related);
+            
+            foreach (var item in related)
+            {
+                item.IsActive = false;
+                item.Status = "Deleted"; // Explicitly set status to Deleted
+                _context.GeneralEntries.Update(item);
+            }
             
             await _context.SaveChangesAsync();
             return (true, "Payment settlement deleted successfully!");
@@ -415,20 +431,79 @@ public class PaymentSettlementService : IPaymentSettlementService
 
     public async Task<IEnumerable<LookupItem>> GetAccountsAsync(string? searchTerm, int? paymentFromId = null, string? type = null)
     {
-        using var context = await _contextFactory.CreateDbContextAsync(); // Use factory
+        using var context = await _contextFactory.CreateDbContextAsync();
         
-         var rules = await context.AccountRules.Where(r => r.RuleType == "AllowedNature").ToListAsync();
-         // ... (Same Rule Logic)
-         // To stay safe, I'm just implementing standard search here for now.
-         
-         var bankMasters = await _context.BankMasters.Where(b => b.IsActive).OrderBy(b => b.AccountName).Take(50).ToListAsync();
-         var farmers = await _context.Farmers.Where(f => f.IsActive).OrderBy(f => f.FarmerName).Take(50).ToListAsync();
-         
-         var results = new List<LookupItem>();
-         results.AddRange(bankMasters.Select(b => new LookupItem { Id = b.Id, Name = b.AccountName, Type = "BankMaster" }));
-         results.AddRange(farmers.Select(f => new LookupItem { Id = f.Id, Name = f.FarmerName, Type = "Farmer" }));
+        // Return empty if no profile selected, enforcing the logic
+        if (!paymentFromId.HasValue || paymentFromId == 0)
+        {
+             return new List<LookupItem>();
+        }
 
-         return results;
+        try
+        {
+            var rules = await context.AccountRules
+                .Where(r => r.RuleType == "AllowedNature" && r.EntryAccountId == paymentFromId)
+                .ToListAsync();
+
+            bool CheckRule(string ruleValue, string? filterType)
+            {
+                if (string.IsNullOrWhiteSpace(ruleValue)) return false;
+                if (string.Equals(ruleValue, "Both", StringComparison.OrdinalIgnoreCase)) return true;
+                if (string.Equals(ruleValue, "Cancel", StringComparison.OrdinalIgnoreCase)) return false;
+                if (string.IsNullOrWhiteSpace(filterType)) return true;
+
+                if (string.Equals(ruleValue, "Debit", StringComparison.OrdinalIgnoreCase) && string.Equals(filterType, "Debit", StringComparison.OrdinalIgnoreCase)) return true;
+                if (string.Equals(ruleValue, "Credit", StringComparison.OrdinalIgnoreCase) && string.Equals(filterType, "Credit", StringComparison.OrdinalIgnoreCase)) return true;
+
+                return false;
+            }
+
+            var allowedSubGroupIds = rules
+                .Where(r => r.AccountType == "SubGroupLedger" && CheckRule(r.Value, type))
+                .Select(r => r.AccountId)
+                .ToHashSet();
+
+            var allowedBankMasterIds = rules
+                .Where(r => r.AccountType == "BankMaster" && CheckRule(r.Value, type))
+                .Select(r => r.AccountId)
+                .ToHashSet();
+
+            var allowedFarmerIds = rules
+                .Where(r => r.AccountType == "Farmer" && CheckRule(r.Value, type))
+                .Select(r => r.AccountId)
+                .ToHashSet();
+
+            var bankMastersQuery = context.BankMasters.Where(bm => bm.IsActive);
+            var farmersQuery = context.Farmers.Where(f => f.IsActive);
+
+            if (!string.IsNullOrEmpty(searchTerm))
+            {
+                bankMastersQuery = bankMastersQuery.Where(bm => bm.AccountName.Contains(searchTerm));
+                farmersQuery = farmersQuery.Where(f => f.FarmerName.Contains(searchTerm));
+            }
+
+            var bankMasters = await bankMastersQuery
+                .Where(bm => allowedBankMasterIds.Contains(bm.Id) || allowedSubGroupIds.Contains(bm.GroupId))
+                .OrderBy(bm => bm.AccountName)
+                .Take(50)
+                .ToListAsync();
+
+            var farmers = await farmersQuery
+                .Where(f => allowedFarmerIds.Contains(f.Id))
+                .OrderBy(f => f.FarmerName)
+                .Take(50)
+                .ToListAsync();
+
+            var results = new List<LookupItem>();
+            results.AddRange(bankMasters.Select(b => new LookupItem { Id = b.Id, Name = b.AccountName, Type = "BankMaster" }));
+            results.AddRange(farmers.Select(f => new LookupItem { Id = f.Id, Name = f.FarmerName, Type = "Farmer" }));
+
+            return results.OrderBy(a => a.Name).Take(100).ToList();
+        }
+        catch (Exception)
+        {
+            throw;
+        }
     }
 
     public async Task<IEnumerable<LookupItem>> GetEntryProfilesAsync()
