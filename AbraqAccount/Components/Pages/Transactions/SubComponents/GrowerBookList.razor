@@ -30,7 +30,7 @@
     <div class="filter-group">
         <label>Status</label>
         <select @bind="filterStatus">
-            <option value="All">All Status</option>
+            <option value="Deleted">Deleted</option>
             <option value="Unapproved">Unapproved</option>
             <option value="Approved">Approved</option>
         </select>
@@ -55,19 +55,13 @@
                         <ColumnFilter Title="Date" TItem="GeneralEntry" TValue="string" Items="originalEntries" Property="@(x => x.EntryDate.ToString("dd/MM/yyyy"))" OnFilter="@(v => HandleColumnFilter("Date", v))" Align="left" />
                     </th>
                     <th>
-                        <ColumnFilter Title="Credit" TItem="GeneralEntry" TValue="string" Items="originalEntries" Property="@(x => x.CreditAccountName)" OnFilter="@(v => HandleColumnFilter("CreditAccountName", v))" />
-                    </th>
-                    <th>
-                        <ColumnFilter Title="Debit" TItem="GeneralEntry" TValue="string" Items="originalEntries" Property="@(x => x.DebitAccountName)" OnFilter="@(v => HandleColumnFilter("DebitAccountName", v))" />
-                    </th>
-                    <th>
-                        <ColumnFilter Title="Amount" TItem="GeneralEntry" TValue="decimal" Items="originalEntries" Property="@(x => x.Amount)" OnFilter="@(v => HandleColumnFilter("Amount", v))" />
-                    </th>
-                    <th>
                         <ColumnFilter Title="Entry For" TItem="GeneralEntry" TValue="string" Items="originalEntries" Property="@(x => x.EntryForName)" OnFilter="@(v => HandleColumnFilter("EntryForName", v))" />
                     </th>
                     <th>
-                        <ColumnFilter Title="Status" TItem="GeneralEntry" TValue="string" Items="originalEntries" Property="@(x => x.Status)" OnFilter="@(v => HandleColumnFilter("Status", v))" />
+                        <ColumnFilter Title="Credit/Debit" TItem="GeneralEntry" TValue="string" Items="originalEntries" Property="@(x => (x.CreditAccountName ?? "") + " " + (x.DebitAccountName ?? ""))" OnFilter="@(v => HandleColumnFilter("CreditAndDebit", v))" />
+                    </th>
+                    <th>
+                        <ColumnFilter Title="Amount" TItem="GeneralEntry" TValue="decimal" Items="originalEntries" Property="@(x => x.Amount)" OnFilter="@(v => HandleColumnFilter("Amount", v))" />
                     </th>
                     <th>Action</th>
                 </tr>
@@ -75,11 +69,11 @@
             <tbody>
                 @if (entries == null)
                 {
-                    <tr><td colspan="8" class="text-center">Loading...</td></tr>
+                    <tr><td colspan="6" class="text-center">Loading...</td></tr>
                 }
                 else if (!entries.Any())
                 {
-                    <tr><td colspan="8" class="text-center">No entries found.</td></tr>
+                    <tr><td colspan="6" class="text-center">No entries found.</td></tr>
                 }
                 else
                 {
@@ -88,38 +82,52 @@
                         <tr>
                             <td>@item.VoucherNo</td>
                             <td>@item.EntryDate.ToString("dd/MM/yyyy")</td>
-                            <td>@item.CreditAccountName</td>
-                            <td>@item.DebitAccountName</td>
-                            <td>@item.Amount.ToString("N2")</td>
                             <td>@item.EntryForName</td>
-                             <td>
-                                <span class="badge @GetStatusClass(item.Status)">@item.Status</span>
+                            <td>
+                                <div>
+                                    @if (!string.IsNullOrEmpty(item.CreditAccountName))
+                                    {
+                                        <div class="text-primary">@item.CreditAccountName (Cr)</div>
+                                    }
+                                    @if (!string.IsNullOrEmpty(item.DebitAccountName))
+                                    {
+                                        <div class="text-danger">@item.DebitAccountName (Dr)</div>
+                                    }
+                                </div>
                             </td>
+                            <td>@item.Amount.ToString("N2")</td>
                             <td>
                                 <div class="action-icons">
-                                    <NavLink href="@($"grower-book/details/{item.VoucherNo}")" class="action-icon view-icon" title="View">
-                                        <i class="bi bi-eye"></i>
-                                    </NavLink>
-                                    @if (item.Status != "Approved")
+                                    @if (item.Status != "Deleted")
                                     {
-                                        <button class="action-icon edit-icon" type="button" @onclick="() => OnEdit.InvokeAsync(item.VoucherNo)" title="Edit">
-                                            <i class="bi bi-pencil"></i>
-                                        </button>
-                                    }
-                                    @if (item.Status == "Approved")
-                                    {
-                                        <button class="action-icon approved-icon" @onclick="() => ConfirmUnapprove(item.Id)" title="Unapprove">
-                                            <i class="bi bi-check-circle-fill"></i>
-                                        </button>
+                                        <NavLink href="@($"grower-book/details/{item.VoucherNo}")" class="action-icon view-icon" title="View">
+                                            <i class="bi bi-eye"></i>
+                                        </NavLink>
+                                        @if (item.Status != "Approved")
+                                        {
+                                            <button class="action-icon edit-icon" type="button" @onclick="() => OnEdit.InvokeAsync(item.VoucherNo)" title="Edit">
+                                                <i class="bi bi-pencil"></i>
+                                            </button>
+                                        }
+                                        @if (item.Status == "Approved")
+                                        {
+                                            <button class="action-icon approved-icon" @onclick="() => ConfirmUnapprove(item.Id)" title="Unapprove">
+                                                <i class="bi bi-check-circle-fill"></i>
+                                            </button>
+                                        }
+                                        else
+                                        {
+                                            <button class="action-icon approve-icon" @onclick="() => ConfirmApprove(item.Id)" title="Approve">
+                                                <i class="bi bi-hand-thumbs-up"></i>
+                                            </button>
+                                            <button class="action-icon delete-icon" @onclick="() => ConfirmDelete(item.Id)" title="Delete">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        }
                                     }
                                     else
                                     {
-                                        <button class="action-icon approve-icon" @onclick="() => ConfirmApprove(item.Id)" title="Approve">
-                                            <i class="bi bi-hand-thumbs-up"></i>
-                                        </button>
-                                        <button class="action-icon delete-icon" @onclick="() => ConfirmDelete(item.Id)" title="Delete">
-                                            <i class="bi bi-trash"></i>
-                                        </button>
+                                        <span class="text-muted">Deleted</span>
                                     }
                                 </div>
                             </td>
@@ -129,7 +137,7 @@
             </tbody>
         </table>
     </div>
-
+    
     <!-- Pagination -->
     <div class="pagination-section">
         <div class="pagination-info">
@@ -155,6 +163,10 @@
 </div>
 
 <style>
+    .table-custom tbody tr:nth-child(even) {
+        background-color: #f9f9f9;
+    }
+
      .filter-section { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; background: white; padding: 1.5rem; border: 1px solid #e0e0e0; border-radius: 4px; margin-bottom: 1.5rem; align-items: flex-end; }
     .filter-group { display: flex; flex-direction: column; }
     .filter-group label { font-size: 0.9rem; font-weight: 600; color: #333; margin-bottom: 0.5rem; }
@@ -234,8 +246,7 @@
                  object? val = col switch {
                      "VoucherNo" => item.VoucherNo,
                      "Date" => item.EntryDate.ToString("dd/MM/yyyy"),
-                     "CreditAccountName" => item.CreditAccountName,
-                     "DebitAccountName" => item.DebitAccountName,
+                     "CreditAndDebit" => (item.CreditAccountName ?? "") + " " + (item.DebitAccountName ?? ""),
                      "Amount" => item.Amount,
                      "EntryForName" => item.EntryForName,
                      "Status" => item.Status,

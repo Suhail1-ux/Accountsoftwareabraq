@@ -122,11 +122,20 @@ public class GeneralEntryService : IGeneralEntryService
     {
         try
         {
-            var query = _context.GeneralEntries.Where(g => g.IsActive).AsQueryable();
+            var query = _context.GeneralEntries.AsQueryable();
+
+            if (status == "Deleted")
+            {
+                query = query.Where(g => !g.IsActive);
+            }
+            else
+            {
+                query = query.Where(g => g.IsActive);
+                if (!string.IsNullOrEmpty(status) && status != "All") query = query.Where(g => g.Status == status);
+            }
 
             if (!string.IsNullOrEmpty(unit) && unit != "ALL") query = query.Where(g => g.Unit == unit);
             if (!string.IsNullOrEmpty(noteNo)) query = query.Where(g => g.VoucherNo.Contains(noteNo));
-            if (!string.IsNullOrEmpty(status)) query = query.Where(g => g.Status == status);
             if (fromDate.HasValue) query = query.Where(g => g.EntryDate >= fromDate.Value);
             if (fromDate.HasValue) query = query.Where(g => g.EntryDate >= fromDate.Value);
             if (toDate.HasValue) query = query.Where(g => g.EntryDate <= toDate.Value);
@@ -146,7 +155,7 @@ public class GeneralEntryService : IGeneralEntryService
                     Date = g.First().EntryDate,
                     Entries = g.ToList(),
                     TotalDebit = g.Sum(e => e.Amount),
-                    Status = g.First().Status,
+                    Status = !g.First().IsActive ? "Deleted" : g.First().Status,
                     Unit = g.First().Unit,
                     Id = g.First().Id
                 })
@@ -631,6 +640,7 @@ public class GeneralEntryService : IGeneralEntryService
             foreach (var rel in relatedEntries)
             {
                 rel.IsActive = false;
+                rel.Status = "Deleted";
                 rel.UpdatedAt = DateTime.Now;
                 rel.UpdatedBy = currentUser;
                 _context.Update(rel);
@@ -1819,12 +1829,21 @@ public class GeneralEntryService : IGeneralEntryService
         try
         {
             var query = _context.GeneralEntries
-                .Where(g => g.IsActive && g.VoucherNo.StartsWith("GBK/"))
+                .Where(g => g.VoucherNo.StartsWith("GBK/"))
                 .AsQueryable();
+
+            if (status == "Deleted")
+            {
+                query = query.Where(g => !g.IsActive);
+            }
+            else
+            {
+                query = query.Where(g => g.IsActive);
+                if (!string.IsNullOrEmpty(status) && status != "All") query = query.Where(g => g.Status == status);
+            }
 
             if (fromDate.HasValue) query = query.Where(g => g.EntryDate >= fromDate.Value);
             if (toDate.HasValue) query = query.Where(g => g.EntryDate <= toDate.Value);
-            if (!string.IsNullOrEmpty(status) && status != "All") query = query.Where(g => g.Status == status);
             if (!string.IsNullOrEmpty(bookNo)) query = query.Where(g => g.VoucherNo.Contains(bookNo));
             if (!string.IsNullOrEmpty(unit) && unit != "All") query = query.Where(g => g.Unit == unit);
 
@@ -1879,6 +1898,12 @@ public class GeneralEntryService : IGeneralEntryService
             foreach (var entry in entries)
             {
                 await LoadAccountNamesAsync(entry);
+
+                // Load AccountDetails for correct display names in list as seen in other methods
+                await LoadAccountDetailsAsync(entry);
+                await LoadAccountDetailsAsync(entry, isCredit: true);
+                
+                if (!entry.IsActive) entry.Status = "Deleted";
             }
 
             return (entries, totalCount, totalPages);

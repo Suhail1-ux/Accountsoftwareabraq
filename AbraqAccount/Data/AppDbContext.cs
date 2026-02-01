@@ -539,7 +539,7 @@ public class AppDbContext : DbContext
             entity.HasKey(e => e.RecipeItemId);
             entity.Property(e => e.RecipeItemId).HasColumnName("RecipeItemId").ValueGeneratedNever();
             entity.Property(e => e.RecipeId).HasColumnName("RecipeId").IsRequired();
-            entity.Property(e => e.packingitemid).HasColumnName("packingitemid").HasConversion<long>().IsRequired();
+            entity.Property(e => e.packingitemid).HasColumnName("packingitemid").IsRequired();
             entity.Property(e => e.qty).HasColumnName("qty");
             entity.Property(e => e.avgCost).HasColumnName("avgCost").HasColumnType("money");
             entity.Property(e => e.flagdeleted).HasColumnName("flagdeleted").IsRequired();
@@ -966,6 +966,7 @@ public class AppDbContext : DbContext
             entity.Property(e => e.ExpenseSubGroupId).HasColumnName("ExpenseSubGroupId").IsRequired();
             entity.Property(e => e.ExpenseLedgerId).HasColumnName("ExpenseLedgerId").IsRequired();
             entity.Property(e => e.Amount).HasColumnName("Amount").HasColumnType("decimal(18,2)").IsRequired();
+            entity.Property(e => e.TotalDiscount).HasColumnName("TotalDiscount").HasColumnType("decimal(18,2)");
             entity.Property(e => e.PaymentMode).HasColumnName("PaymentMode").HasMaxLength(50);
             entity.Property(e => e.ReferenceNo).HasColumnName("ReferenceNo").HasMaxLength(100);
             entity.Property(e => e.Narration).HasColumnName("Narration").HasColumnType("NVARCHAR(MAX)");
