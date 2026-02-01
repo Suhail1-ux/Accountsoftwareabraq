@@ -65,6 +65,7 @@ public class AppDbContext : DbContext
     public DbSet<UnitMaster> UnitMasters { get; set; }
     public DbSet<PartySub> PartySubs { get; set; }
     public DbSet<VehInfo> VehInfos { get; set; }
+    public DbSet<PaymentType> PaymentTypes { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -158,6 +159,17 @@ public class AppDbContext : DbContext
             entity.Property(e => e.Id).HasColumnName("Id");
             entity.Property(e => e.Username).HasColumnName("Username").HasMaxLength(255);
             entity.Property(e => e.Password).HasColumnName("Password").HasMaxLength(255);
+        });
+
+        // Map to SQL Server PaymentTypes table
+        modelBuilder.Entity<PaymentType>(entity =>
+        {
+            entity.ToTable("PaymentTypes");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("Id");
+            entity.Property(e => e.Name).HasColumnName("Name").HasMaxLength(100).IsRequired();
+            entity.Property(e => e.IsActive).HasColumnName("IsActive").HasDefaultValue(true);
+            entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
         });
 
         // Map to SQL Server MasterGroups table

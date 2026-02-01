@@ -1,0 +1,160 @@
+@page "/settings/payment-types"
+@using AbraqAccount.Models
+@using AbraqAccount.Services.Interfaces
+@inject ISettingsService SettingsService
+@inject NavigationManager Navigation
+
+<div class="entry-for-container">
+    <div class="page-header border-bottom mb-4">
+        <h4 class="m-0 fw-bold py-3 px-4 bg-white">Payment Types</h4>
+    </div>
+
+    <div class="px-4">
+        <div class="row g-4">
+            <!-- Left Column: Add Payment Type -->
+            <div class="col-lg-4">
+                <div class="card shadow-sm border-0 animate-fade-in">
+                    <div class="card-header bg-white py-3 border-0">
+                        <h6 class="m-0 fw-bold text-dark">Add Payment Type</h6>
+                    </div>
+                    <div class="card-body p-3 pt-0">
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Payment Type Name</label>
+                            <input type="text" class="form-control form-control-custom" 
+                                   placeholder="Enter Name (e.g. Cash, UPI)" 
+                                   @bind="newPaymentTypeName" />
+                        </div>
+                        <button class="btn btn-primary w-100 py-2 fw-bold" @onclick="HandleAdd" disabled="@isSubmitting">
+                            @if (isSubmitting) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                            Add Payment Type
+                        </button>
+                        @if (!string.IsNullOrEmpty(errorMessage))
+                        {
+                            <div class="text-danger small mt-2">@errorMessage</div>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: List Table -->
+            <div class="col-lg-8">
+                <div class="card shadow-sm border-0 animate-fade-in">
+                    <div class="card-header bg-white py-3 border-0">
+                        <h6 class="m-0 fw-bold text-dark">Existing Payment Types</h6>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover m-0 table-custom">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Name</th>
+                                        <th class="text-center">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @if (paymentTypes == null)
+                                    {
+                                        <tr><td colspan="3" class="text-center py-4">Loading...</td></tr>
+                                    }
+                                    else if (!paymentTypes.Any())
+                                    {
+                                        <tr>
+                                            <td colspan="3" class="text-center py-4 text-muted small">No payment types found.</td>
+                                        </tr>
+                                    }
+                                    else
+                                    {
+                                        @foreach (var entry in paymentTypes)
+                                        {
+                                            <tr>
+                                                <td class="align-middle">@entry.Id</td>
+                                                <td class="align-middle">@entry.Name</td>
+                                                <td class="text-center align-middle">
+                                                    <button class="btn btn-danger btn-sm p-1 rounded-1" 
+                                                            title="Delete" 
+                                                            @onclick="() => HandleDelete(entry.Id)">
+                                                        <i class="bi bi-trash small"></i>
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        }
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .entry-for-container { background: #f4f7f6; min-height: 100vh; padding-bottom: 50px; }
+    .form-control-custom { border: 1px solid #ced4da; border-radius: 4px; padding: 8px 12px; font-size: 0.9rem; }
+    .form-control-custom:focus { border-color: #0d6efd; box-shadow: none; }
+    
+    .table-custom thead th { background: #f8f9fa; border-bottom: 1px solid #dee2e6; color: #333; font-size: 0.85rem; padding: 12px 15px; font-weight: 700; }
+    .table-custom tbody td { padding: 12px 15px; font-size: 0.9rem; color: #444; border-bottom: 1px solid #f2f2f2; }
+    
+    .animate-fade-in { animation: fadeIn 0.3s ease-in-out; }
+    @@keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+    
+    .btn-primary { background-color: #0d6efd; border: none; }
+    .btn-primary:hover { background-color: #0b5ed7; }
+</style>
+
+@code {
+    private string newPaymentTypeName = "";
+    private List<PaymentType>? paymentTypes;
+    private bool isSubmitting;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadEntries();
+    }
+
+    private async Task LoadEntries()
+    {
+        paymentTypes = await SettingsService.GetPaymentTypesAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task HandleAdd()
+    {
+        if (string.IsNullOrWhiteSpace(newPaymentTypeName))
+        {
+            errorMessage = "Payment Type Name is required.";
+            return;
+        }
+
+        isSubmitting = true;
+        errorMessage = null;
+
+        var model = new PaymentType
+        {
+            Name = newPaymentTypeName
+        };
+
+        var result = await SettingsService.CreatePaymentTypeAsync(model);
+        if (result.success)
+        {
+            newPaymentTypeName = "";
+            await LoadEntries();
+        }
+        else
+        {
+            errorMessage = result.message;
+        }
+
+        isSubmitting = false;
+    }
+
+    private async Task HandleDelete(int id)
+    {
+        await SettingsService.DeletePaymentTypeAsync(id);
+        await LoadEntries();
+    }
+}

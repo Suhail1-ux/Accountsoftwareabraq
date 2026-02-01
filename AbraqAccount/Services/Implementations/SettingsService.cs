@@ -95,6 +95,71 @@ public class SettingsService : ISettingsService
     }
     #endregion
 
+    #region Payment Types
+    public async Task<List<PaymentType>> GetPaymentTypesAsync()
+    {
+        try
+        {
+            return await _context.PaymentTypes
+                .OrderBy(p => p.Name)
+                .ToListAsync();
+        }
+        catch (Exception)
+        {
+            throw;
+        }
+    }
+
+    public async Task<(bool success, string message)> CreatePaymentTypeAsync(PaymentType model)
+    {
+        try
+        {
+            model.CreatedAt = DateTime.Now;
+            _context.PaymentTypes.Add(model);
+            await _context.SaveChangesAsync();
+            return (true, "Payment Type created successfully!");
+        }
+        catch (Exception ex)
+        {
+            return (false, "Error: " + ex.Message);
+        }
+    }
+
+    public async Task<PaymentType?> GetPaymentTypeByIdAsync(int id)
+    {
+        return await _context.PaymentTypes.FindAsync(id);
+    }
+
+    public async Task<(bool success, string message)> UpdatePaymentTypeAsync(int id, PaymentType model)
+    {
+        try
+        {
+            var existing = await _context.PaymentTypes.FindAsync(id);
+            if (existing == null) return (false, "Payment Type not found.");
+
+            existing.Name = model.Name;
+            existing.IsActive = model.IsActive;
+            
+            await _context.SaveChangesAsync();
+            return (true, "Payment Type updated successfully!");
+        }
+        catch (Exception ex)
+        {
+            return (false, "Error: " + ex.Message);
+        }
+    }
+
+    public async Task DeletePaymentTypeAsync(int id)
+    {
+        var existing = await _context.PaymentTypes.FindAsync(id);
+        if (existing != null)
+        {
+            _context.PaymentTypes.Remove(existing);
+            await _context.SaveChangesAsync();
+        }
+    }
+    #endregion
+
     #region Transaction Rules
 
     public async Task<List<AccountRule>> GetAccountRulesAsync()

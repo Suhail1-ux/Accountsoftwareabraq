@@ -2,6 +2,7 @@
 @using AbraqAccount.Services.Interfaces
 @inject IPaymentSettlementService SettlementService
 @inject IGeneralEntryService GeneralEntryService
+@inject ISettingsService SettingsService
 @inject NavigationManager Navigation
 
 <div class="form-container">
@@ -116,11 +117,10 @@
                     <label>Payment Type <span class="text-danger">*</span></label>
                     <select @bind="newEntry.PaymentType" class="form-control-custom">
                         <option value="">Select</option>
-                        <option value="Cash">Cash</option>
-                        <option value="Cheque">Cheque</option>
-                        <option value="NEFT">NEFT</option>
-                        <option value="RTGS">RTGS</option>
-                        <option value="UPI">UPI</option>
+                        @foreach (var type in paymentTypes)
+                        {
+                            <option value="@type.Name">@type.Name</option>
+                        }
                     </select>
                 </div>
             </div>
@@ -269,6 +269,7 @@
     [Parameter] public EventCallback OnSaved { get; set; }
     private PaymentSettlementBatchModel model = new() { SettlementDate = DateTime.Now };
     private List<UIEntry> uiEntries = new();
+    private List<PaymentType> paymentTypes = new();
     private string EntryType
     {
         get => newEntry.Type;
@@ -301,6 +302,7 @@
     {
         entryProfiles = await SettlementService.GetEntryProfilesAsync();
         unitList = await GeneralEntryService.GetUnitNamesAsync();
+        paymentTypes = await SettingsService.GetPaymentTypesAsync();
         
         if (unitList.Any()) selectedUnit = unitList.First();
         

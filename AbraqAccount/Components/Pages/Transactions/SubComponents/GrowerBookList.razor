@@ -49,6 +49,9 @@
             <thead>
                 <tr>
                     <th>
+                        <ColumnFilter Title="Unit" TItem="GeneralEntry" TValue="string" Items="originalEntries" Property="@(x => x.Unit)" OnFilter="@(v => HandleColumnFilter("Unit", v))" Align="left" />
+                    </th>
+                    <th>
                         <ColumnFilter Title="Book No" TItem="GeneralEntry" TValue="string" Items="originalEntries" Property="@(x => x.VoucherNo)" OnFilter="@(v => HandleColumnFilter("VoucherNo", v))" Align="left" />
                     </th>
                     <th>
@@ -69,17 +72,18 @@
             <tbody>
                 @if (entries == null)
                 {
-                    <tr><td colspan="6" class="text-center">Loading...</td></tr>
+                    <tr><td colspan="7" class="text-center">Loading...</td></tr>
                 }
                 else if (!entries.Any())
                 {
-                    <tr><td colspan="6" class="text-center">No entries found.</td></tr>
+                    <tr><td colspan="7" class="text-center">No entries found.</td></tr>
                 }
                 else
                 {
                     @foreach (var item in entries)
                     {
                         <tr>
+                            <td>@item.Unit</td>
                             <td>@item.VoucherNo</td>
                             <td>@item.EntryDate.ToString("dd/MM/yyyy")</td>
                             <td>@item.EntryForName</td>
@@ -244,6 +248,7 @@
              
              query = query.Where(item => {
                  object? val = col switch {
+                     "Unit" => item.Unit,
                      "VoucherNo" => item.VoucherNo,
                      "Date" => item.EntryDate.ToString("dd/MM/yyyy"),
                      "CreditAndDebit" => (item.CreditAccountName ?? "") + " " + (item.DebitAccountName ?? ""),

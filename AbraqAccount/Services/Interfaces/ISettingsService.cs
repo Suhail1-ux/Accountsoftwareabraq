@@ -11,6 +11,13 @@ public interface ISettingsService
     Task<(bool success, string message)> UpdateEntryForAccountAsync(int id, EntryForAccount model);
     Task DeleteEntryForAccountAsync(int id);
 
+    // Payment Types
+    Task<List<PaymentType>> GetPaymentTypesAsync();
+    Task<(bool success, string message)> CreatePaymentTypeAsync(PaymentType model);
+    Task<PaymentType?> GetPaymentTypeByIdAsync(int id);
+    Task<(bool success, string message)> UpdatePaymentTypeAsync(int id, PaymentType model);
+    Task DeletePaymentTypeAsync(int id);
+
     // Transaction Rules
     Task<List<AccountRule>> GetAccountRulesAsync();
     Task<(bool success, string message)> CreateAccountRuleAsync(AccountRule model);
