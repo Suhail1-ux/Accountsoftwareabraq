@@ -71,9 +71,6 @@
                         <ColumnFilter Title="Amount" TItem="PaymentSettlementGroupViewModel" TValue="decimal" Items="originalSettlementGroups" Property="@(x => x.PaymentAmount)" OnFilter="@(v => HandleColumnFilter("PaymentAmount", v))" />
                     </th>
                     <th>
-                        <ColumnFilter Title="Approval Status" TItem="PaymentSettlementGroupViewModel" TValue="string" Items="originalSettlementGroups" Property="@(x => x.ApprovalStatus)" OnFilter="@(v => HandleColumnFilter("ApprovalStatus", v))" />
-                    </th>
-                    <th>
                         <ColumnFilter Title="Payment Status" TItem="PaymentSettlementGroupViewModel" TValue="string" Items="originalSettlementGroups" Property="@(x => x.PaymentStatus)" OnFilter="@(v => HandleColumnFilter("PaymentStatus", v))" />
                     </th>
                     <th>Action</th>
@@ -82,11 +79,11 @@
             <tbody>
                 @if (settlementGroups == null)
                 {
-                    <tr><td colspan="9" class="text-center">Loading...</td></tr>
+                    <tr><td colspan="8" class="text-center">Loading...</td></tr>
                 }
                 else if (!settlementGroups.Any())
                 {
-                    <tr><td colspan="9" class="text-center">No payment settlements found.</td></tr>
+                    <tr><td colspan="8" class="text-center">No payment settlements found.</td></tr>
                 }
                 else
                 {
@@ -114,9 +111,6 @@
                                 </div>
                             </td>
                             <td>@item.PaymentAmount.ToString("N2")</td>
-                            <td>
-                                <span class="badge @GetApprovalStatusClass(item.ApprovalStatus)">@item.ApprovalStatus</span>
-                            </td>
                             <td>@item.PaymentStatus</td>
                             <td>
                                 <div class="action-icons">

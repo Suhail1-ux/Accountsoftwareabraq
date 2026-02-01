@@ -6,7 +6,7 @@ namespace AbraqAccount.Services.Interfaces;
 public interface ICreditNoteService
 {
     Task<(List<CreditNote> notes, int totalCount, int totalPages)> GetCreditNotesAsync(
-        string? unit, string? creditNoteNo, int? growerGroupId, int? farmerId, 
+        string? unit, string? creditNoteNo, string? accountName, 
         string? status, DateTime? fromDate, DateTime? toDate, int page, int pageSize);
     
     Task<CreditNote?> GetCreditNoteByIdAsync(int id);

@@ -42,32 +42,22 @@ public class CreditNoteService : ICreditNoteService
 
     #region Listing
     public async Task<(List<CreditNote> notes, int totalCount, int totalPages)> GetCreditNotesAsync(
-        string? unit, string? creditNoteNo, int? growerGroupId, int? farmerId, 
+        string? unit, string? creditNoteNo, string? accountName, 
         string? status, DateTime? fromDate, DateTime? toDate, int page, int pageSize)
     {
         try
         {
             var query = _context.GeneralEntries
-                .Where(c => c.VoucherType == "Credit Note" && c.IsActive)
+                .Where(c => c.VoucherType == "Credit Note" && (status == "Deleted" ? !c.IsActive : c.IsActive))
                 .AsQueryable();
 
             if (!string.IsNullOrEmpty(unit) && unit != "ALL") query = query.Where(c => c.Unit == unit);
             if (!string.IsNullOrEmpty(creditNoteNo)) query = query.Where(c => c.VoucherNo.Contains(creditNoteNo));
-            if (!string.IsNullOrEmpty(status) && status != "ALL") query = query.Where(c => c.Status == status);
+            if (!string.IsNullOrEmpty(status) && status != "ALL" && status != "Deleted") query = query.Where(c => c.Status == status);
             if (fromDate.HasValue) query = query.Where(c => c.EntryDate >= fromDate.Value);
             if (toDate.HasValue) query = query.Where(c => c.EntryDate <= toDate.Value);
 
-            // Filter by Group/Farmer using Account Types
-            if (growerGroupId.HasValue)
-            {
-                query = query.Where(c => (c.DebitAccountType == "GrowerGroup" && c.DebitAccountId == growerGroupId.Value)
-                                      || (c.CreditAccountType == "GrowerGroup" && c.CreditAccountId == growerGroupId.Value));
-            }
-            if (farmerId.HasValue)
-            {
-                query = query.Where(c => (c.DebitAccountType == "Farmer" && c.DebitAccountId == farmerId.Value)
-                                      || (c.CreditAccountType == "Farmer" && c.CreditAccountId == farmerId.Value));
-            }
+            // Group/Farmer search logic moved to accountName filtering below pagination
 
             // 1. Get unique VoucherNos for pagination
             var voucherQuery = query.Select(x => x.VoucherNo).Distinct();
@@ -131,8 +121,13 @@ public class CreditNoteService : ICreditNoteService
                 notes.Add(note);
             }
             
-            // Re-sort to match pagination order (VoucherNo desc)
-            notes = notes.OrderByDescending(n => n.CreditNoteNo).ToList();
+            if (!string.IsNullOrEmpty(accountName))
+            {
+                notes = notes
+                    .Where(n => (n.CreditAccountName != null && n.CreditAccountName.Contains(accountName, StringComparison.OrdinalIgnoreCase))
+                             || (n.DebitAccountName != null && n.DebitAccountName.Contains(accountName, StringComparison.OrdinalIgnoreCase)))
+                    .ToList();
+            }
 
             return (notes, totalCount, totalPages);
         }
@@ -349,8 +344,17 @@ public class CreditNoteService : ICreditNoteService
             var ge = await _context.GeneralEntries.FindAsync(id);
             if (ge != null)
             {
-                // Hard delete per consolidation
-                _context.GeneralEntries.Remove(ge);
+                var relatedEntries = await _context.GeneralEntries
+                    .Where(g => g.VoucherNo == ge.VoucherNo)
+                    .ToListAsync();
+
+                foreach (var rel in relatedEntries)
+                {
+                    rel.IsActive = false;
+                    rel.UpdatedAt = DateTime.Now;
+                    rel.UpdatedBy = GetCurrentUsername();
+                }
+
                 await _context.SaveChangesAsync();
                 return (true, "Deleted successfully");
             }
@@ -371,11 +375,17 @@ public class CreditNoteService : ICreditNoteService
             var ge = await _context.GeneralEntries.FindAsync(id);
             if (ge == null) return (false, "Not found");
 
-            if (ge.Status == "Approved") return (false, "Already approved");
+            var relatedEntries = await _context.GeneralEntries
+                .Where(g => g.VoucherNo == ge.VoucherNo)
+                .ToListAsync();
 
-            ge.Status = "Approved";
-            ge.UpdatedAt = DateTime.Now;
-            ge.UpdatedBy = GetCurrentUsername();
+            foreach (var rel in relatedEntries)
+            {
+                rel.Status = "Approved";
+                rel.UpdatedAt = DateTime.Now;
+                rel.UpdatedBy = GetCurrentUsername();
+            }
+
             await _context.SaveChangesAsync();
             return (true, "Approved successfully");
         }
@@ -392,9 +402,17 @@ public class CreditNoteService : ICreditNoteService
             var ge = await _context.GeneralEntries.FindAsync(id);
             if (ge == null) return (false, "Not found");
 
-            ge.Status = "UnApproved";
-            ge.UpdatedAt = DateTime.Now;
-            ge.UpdatedBy = GetCurrentUsername();
+            var relatedEntries = await _context.GeneralEntries
+                .Where(g => g.VoucherNo == ge.VoucherNo)
+                .ToListAsync();
+
+            foreach (var rel in relatedEntries)
+            {
+                rel.Status = "UnApproved";
+                rel.UpdatedAt = DateTime.Now;
+                rel.UpdatedBy = GetCurrentUsername();
+            }
+
             await _context.SaveChangesAsync();
             return (true, "Unapproved successfully");
         }
@@ -468,7 +486,7 @@ public class CreditNoteService : ICreditNoteService
     {
         try
         {
-             var types = new[] { "Global", "CreditNote", "JournalEntryBook" };
+             var types = new[] { "Global", "CreditNote" };
              return await _context.EntryForAccounts
                 .Where(e => types.Contains(e.TransactionType)) 
                 .OrderBy(e => e.AccountName)

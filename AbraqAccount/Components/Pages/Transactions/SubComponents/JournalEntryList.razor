@@ -72,20 +72,17 @@
                     <th>
                         <ColumnFilter Title="Amount" TItem="GeneralEntryGroupViewModel" TValue="decimal" Items="originalJournalGroups" Property="@(x => x.TotalDebit)" OnFilter="@(v => HandleColumnFilter("Amount", v))" />
                     </th>
-                    <th>
-                        <ColumnFilter Title="Status" TItem="GeneralEntryGroupViewModel" TValue="string" Items="originalJournalGroups" Property="@(x => x.Status)" OnFilter="@(v => HandleColumnFilter("Status", v))" />
-                    </th>
                     <th>Action</th>
                 </tr>
             </thead>
             <tbody>
                 @if (journalGroups == null)
                 {
-                    <tr><td colspan="9" class="text-center">Loading...</td></tr>
+                    <tr><td colspan="8" class="text-center">Loading...</td></tr>
                 }
                 else if (!journalGroups.Any())
                 {
-                    <tr><td colspan="9" class="text-center">No journal entries found.</td></tr>
+                    <tr><td colspan="8" class="text-center">No journal entries found.</td></tr>
                 }
                 else
                 {
@@ -107,9 +104,6 @@
                             <td>@creditAccounts</td>
                             <td>@(firstEntry?.Type ?? "-")</td>
                             <td>@group.TotalDebit.ToString("N2")</td>
-                            <td>
-                                <span class="badge @GetStatusClass(group.Status)">@group.Status</span>
-                            </td>
                             <td>
                                 <div class="action-icons">
                                     @if(group.Status == "Approved")

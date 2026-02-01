@@ -65,16 +65,10 @@
                         <ColumnFilter Title="Entry For" TItem="ReceiptEntryGroupViewModel" TValue="string" Items="originalReceiptGroups" Property="@(x => x.EntryForName ?? "-")" OnFilter="@(v => HandleColumnFilter("EntryForName", v))" Align="left" />
                     </th>
                     <th>
-                        <ColumnFilter Title="Credit" TItem="ReceiptEntryGroupViewModel" TValue="string" Items="originalReceiptGroups" Property="@(x => x.CreditAccountName)" OnFilter="@(v => HandleColumnFilter("CreditAccountName", v))" />
-                    </th>
-                    <th>
-                        <ColumnFilter Title="Debit" TItem="ReceiptEntryGroupViewModel" TValue="string" Items="originalReceiptGroups" Property="@(x => x.DebitAccountName)" OnFilter="@(v => HandleColumnFilter("DebitAccountName", v))" />
+                        <ColumnFilter Title="Credit/Debit" TItem="ReceiptEntryGroupViewModel" TValue="string" Items="originalReceiptGroups" Property="@(x => x.CreditAccountName + " " + x.DebitAccountName)" OnFilter="@(v => HandleColumnFilter("Account", v))" />
                     </th>
                     <th>
                         <ColumnFilter Title="Amount" TItem="ReceiptEntryGroupViewModel" TValue="decimal" Items="originalReceiptGroups" Property="@(x => x.ReceiptAmount)" OnFilter="@(v => HandleColumnFilter("ReceiptAmount", v))" />
-                    </th>
-                    <th>
-                        <ColumnFilter Title="Status" TItem="ReceiptEntryGroupViewModel" TValue="string" Items="originalReceiptGroups" Property="@(x => x.Status)" OnFilter="@(v => HandleColumnFilter("Status", v))" />
                     </th>
                     <th>Action</th>
                 </tr>
@@ -82,11 +76,11 @@
             <tbody>
                 @if (receiptGroups == null)
                 {
-                    <tr><td colspan="7" class="text-center">Loading...</td></tr>
+                    <tr><td colspan="5" class="text-center">Loading...</td></tr>
                 }
                 else if (!receiptGroups.Any())
                 {
-                    <tr><td colspan="7" class="text-center">No receipt entries found.</td></tr>
+                    <tr><td colspan="5" class="text-center">No receipt entries found.</td></tr>
                 }
                 else
                 {
@@ -101,12 +95,11 @@
                             </td>
                             <td>@group.ReceiptDate.ToString("dd/MM/yyyy")</td>
                             <td>@(string.IsNullOrEmpty(group.EntryForName) ? "-" : group.EntryForName)</td>
-                            <td><span class="text-primary">@group.CreditAccountName</span></td>
-                            <td><span class="text-danger">@group.DebitAccountName</span></td>
-                            <td>@group.ReceiptAmount.ToString("N2")</td>
                             <td>
-                                <span class="badge @GetStatusClass(group.Status)">@group.Status</span>
+                                <div class="text-primary">@group.CreditAccountName Cr</div>
+                                <div class="text-danger">@group.DebitAccountName Dr</div>
                             </td>
+                            <td>@group.ReceiptAmount.ToString("N2")</td>
                             <td>
                                 <div class="action-icons">
                                     @if(group.Status == "Approved")
@@ -187,6 +180,8 @@
     .table-notes { width: 100%; border-collapse: collapse; }
     .table-notes th { padding: 0.75rem; text-align: left; background: #f8f9fa; border-bottom: 2px solid #dee2e6; }
     .table-notes td { padding: 0.75rem; border-bottom: 1px solid #dee2e6; }
+    .table-notes tbody tr:nth-child(odd) { background-color: #e9ecef; }
+    .table-notes tbody tr:nth-child(even) { background-color: #ffffff; }
     
     .badge { padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem; }
     .badge-unapproved { background-color: #ffc107; color: black; }
@@ -250,10 +245,8 @@
                      "VoucherNo" => item.VoucherNo,
                      "Date" => item.ReceiptDate.ToString("dd/MM/yyyy"),
                      "EntryForName" => item.EntryForName ?? "-",
-                     "CreditAccountName" => item.CreditAccountName,
-                     "DebitAccountName" => item.DebitAccountName,
+                     "Account" => item.CreditAccountName + " " + item.DebitAccountName,
                      "ReceiptAmount" => item.ReceiptAmount,
-                     "Status" => item.Status,
                      _ => null
                  };
                  

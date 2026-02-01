@@ -42,18 +42,18 @@ public class DebitNoteService : IDebitNoteService
 
     #region Listing
     public async Task<(List<DebitNote> notes, int totalCount, int totalPages)> GetDebitNotesAsync(
-        string? unit, string? debitNoteNo, string? vendor, string? status, 
+        string? unit, string? debitNoteNo, string? accountName, string? status, 
         DateTime? fromDate, DateTime? toDate, int page, int pageSize)
     {
         try
         {
             var query = _context.GeneralEntries
-                .Where(g => g.VoucherType == "Debit Note" && g.IsActive)
+                .Where(g => g.VoucherType == "Debit Note" && (status == "Deleted" ? !g.IsActive : g.IsActive))
                 .AsQueryable();
 
             if (!string.IsNullOrEmpty(unit) && unit != "ALL") query = query.Where(d => d.Unit == unit);
             if (!string.IsNullOrEmpty(debitNoteNo)) query = query.Where(d => d.VoucherNo.Contains(debitNoteNo));
-            if (!string.IsNullOrEmpty(status)) query = query.Where(d => d.Status == status);
+            if (!string.IsNullOrEmpty(status) && status != "ALL" && status != "Deleted") query = query.Where(d => d.Status == status);
             if (fromDate.HasValue) query = query.Where(d => d.EntryDate >= fromDate.Value);
             if (toDate.HasValue) query = query.Where(d => d.EntryDate <= toDate.Value);
 
@@ -116,11 +116,11 @@ public class DebitNoteService : IDebitNoteService
             // Re-apply sorting to match pagination
             notes = notes.OrderByDescending(d => d.DebitNoteNo).ToList();
 
-            if (!string.IsNullOrEmpty(vendor))
+            if (!string.IsNullOrEmpty(accountName))
             {
                  notes = notes
-                    .Where(d => (d.CreditAccountName != null && d.CreditAccountName.Contains(vendor, StringComparison.OrdinalIgnoreCase)) 
-                             || (d.DebitAccountName != null && d.DebitAccountName.Contains(vendor, StringComparison.OrdinalIgnoreCase)))
+                    .Where(d => (d.CreditAccountName != null && d.CreditAccountName.Contains(accountName, StringComparison.OrdinalIgnoreCase)) 
+                             || (d.DebitAccountName != null && d.DebitAccountName.Contains(accountName, StringComparison.OrdinalIgnoreCase)))
                     .ToList();
                  // Note: Filtering after pagination is imperfect but necessary without JOINs.
             }
@@ -295,8 +295,16 @@ public class DebitNoteService : IDebitNoteService
              var ge = await _context.GeneralEntries.FindAsync(id);
              if (ge == null) return (false, "Not found");
              
-             // Hard Delete to match consolidation pattern
-             _context.GeneralEntries.Remove(ge); 
+             var relatedEntries = await _context.GeneralEntries
+                 .Where(g => g.VoucherNo == ge.VoucherNo)
+                 .ToListAsync();
+
+             foreach (var rel in relatedEntries)
+             {
+                 rel.IsActive = false;
+                 rel.UpdatedAt = DateTime.Now;
+                 rel.UpdatedBy = GetCurrentUsername();
+             }
 
              await _context.SaveChangesAsync();
              return (true, "Deleted successfully");
@@ -334,9 +342,17 @@ public class DebitNoteService : IDebitNoteService
             var ge = await _context.GeneralEntries.FindAsync(id);
             if (ge == null) return (false, "Not found");
             
-            ge.Status = "Approved";
-            ge.UpdatedAt = DateTime.Now;
-            ge.UpdatedBy = GetCurrentUsername();
+            var relatedEntries = await _context.GeneralEntries
+                .Where(g => g.VoucherNo == ge.VoucherNo)
+                .ToListAsync();
+
+            foreach (var rel in relatedEntries)
+            {
+                rel.Status = "Approved";
+                rel.UpdatedAt = DateTime.Now;
+                rel.UpdatedBy = GetCurrentUsername();
+            }
+
             await _context.SaveChangesAsync();
             return (true, "Approved successfully");
         }
@@ -353,9 +369,17 @@ public class DebitNoteService : IDebitNoteService
             var ge = await _context.GeneralEntries.FindAsync(id);
             if (ge == null) return (false, "Not found");
             
-            ge.Status = "UnApproved";
-            ge.UpdatedAt = DateTime.Now;
-            ge.UpdatedBy = GetCurrentUsername();
+            var relatedEntries = await _context.GeneralEntries
+                .Where(g => g.VoucherNo == ge.VoucherNo)
+                .ToListAsync();
+
+            foreach (var rel in relatedEntries)
+            {
+                rel.Status = "UnApproved";
+                rel.UpdatedAt = DateTime.Now;
+                rel.UpdatedBy = GetCurrentUsername();
+            }
+
             await _context.SaveChangesAsync();
             return (true, "Unapproved successfully");
         }

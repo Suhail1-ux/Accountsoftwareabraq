@@ -127,7 +127,7 @@
             </div>
         </div>
         <div class="d-flex justify-content-end gap-2 mb-4">
-            <button type="button" class="btn-add-custom" @onclick="AddNewRow">Add</button>
+            <button type="button" class="btn-add-custom" @onclick="AddNewRow">@(editingEntry == null ? "Add" : "Update")</button>
             <button type="button" class="btn-clear-row-custom" @onclick="ClearNewEntry">Clear</button>
         </div>
     </div>
@@ -160,7 +160,7 @@
                     {
                         @foreach (var entry in uiEntries)
                         {
-                            <tr>
+                            <tr class="@(entry == editingEntry ? "row-editing" : "")">
                                 <td>@entry.Unit</td>
                                 <td>@entry.Type</td>
                                 <td>@entry.AccountName</td>
@@ -205,7 +205,7 @@
         }
         else
         {
-            <a href="transactions/entries?noteType=DebitNote" class="btn-cancel-custom text-decoration-none d-inline-flex align-items-center">
+            <a href="/transactions/entries?noteType=Debit" class="btn-cancel-custom text-decoration-none d-inline-flex align-items-center">
                 <i class="bi bi-arrow-left me-1"></i> Back to List
             </a>
         }
@@ -229,6 +229,13 @@
     .form-footer-actions { display: flex; justify-content: flex-end; gap: 0.5rem; padding-top: 1.5rem; border-top: 1px solid #f0f0f0; margin-top: 2rem; }
     .btn-save-custom { background-color: #6c757d; color: white; border: none; padding: 0.5rem 2rem; border-radius: 4px; font-weight: 500; }
     .btn-cancel-custom { background-color: #e9ecef; color: #495057; border: none; padding: 0.5rem 2rem; border-radius: 4px; font-weight: 500; }
+
+    /* Zebra striping for details table */
+    .table-custom-bordered tbody tr:nth-child(odd) { background-color: #f8f9fa; }
+    .table-custom-bordered tbody tr:nth-child(even) { background-color: #ffffff; }
+    
+    /* Highlight the row being edited */
+    .row-editing { background-color: #fff3cd !important; border: 2px solid #ffecb5; }
 </style>
 
 @code {
@@ -253,6 +260,7 @@
     }
 
     private UIEntry newEntry = new() { Type = "Credit" };
+    private UIEntry? editingEntry;
     private string selectedUnit = "";
     private List<string> unitList = new(); 
     private bool IsEdit => !string.IsNullOrEmpty(VoucherNo);
@@ -336,20 +344,37 @@
             return;
         }
 
-        var entryToAdd = new UIEntry
+        if (editingEntry != null)
         {
-            Unit = selectedUnit,
-            Type = newEntry.Type,
-            AccountId = newEntry.AccountId,
-            AccountType = newEntry.AccountType,
-            AccountName = newEntry.AccountName,
-            Amount = newEntry.Amount,
-            Debit = newEntry.Type == "Debit" ? newEntry.Amount : 0,
-            Credit = newEntry.Type == "Credit" ? newEntry.Amount : 0,
-            Narration = newEntry.Narration
-        };
+            // Update existing entry
+            editingEntry.Unit = selectedUnit;
+            editingEntry.Type = newEntry.Type;
+            editingEntry.AccountId = newEntry.AccountId;
+            editingEntry.AccountType = newEntry.AccountType;
+            editingEntry.AccountName = newEntry.AccountName;
+            editingEntry.Amount = newEntry.Amount;
+            editingEntry.Debit = newEntry.Type == "Debit" ? newEntry.Amount : 0;
+            editingEntry.Credit = newEntry.Type == "Credit" ? newEntry.Amount : 0;
+            editingEntry.Narration = newEntry.Narration;
+        }
+        else
+        {
+            // Add new entry
+            var entryToAdd = new UIEntry
+            {
+                Unit = selectedUnit,
+                Type = newEntry.Type,
+                AccountId = newEntry.AccountId,
+                AccountType = newEntry.AccountType,
+                AccountName = newEntry.AccountName,
+                Amount = newEntry.Amount,
+                Debit = newEntry.Type == "Debit" ? newEntry.Amount : 0,
+                Credit = newEntry.Type == "Credit" ? newEntry.Amount : 0,
+                Narration = newEntry.Narration
+            };
+            uiEntries.Add(entryToAdd);
+        }
 
-        uiEntries.Add(entryToAdd);
         ClearNewEntry();
         errorMessage = null;
     }
@@ -357,6 +382,7 @@
     private void ClearNewEntry()
     {
         newEntry = new UIEntry { Type = "Credit" };
+        editingEntry = null;
     }
 
     private void RemoveEntry(UIEntry entry)
@@ -366,6 +392,7 @@
 
     private void EditEntry(UIEntry entry)
     {
+        editingEntry = entry;
         EntryType = entry.Type;
         newEntry.AccountId = entry.AccountId;
         newEntry.AccountType = entry.AccountType;
@@ -374,8 +401,6 @@
         newEntry.Narration = entry.Narration;
         
         if (!string.IsNullOrEmpty(entry.Unit) && unitList.Contains(entry.Unit)) selectedUnit = entry.Unit;
-
-        uiEntries.Remove(entry);
     }
 
     private void OnProfileChanged(ChangeEventArgs e)
@@ -421,7 +446,7 @@
         if (result.success)
         {
             if (OnSaved.HasDelegate) await OnSaved.InvokeAsync();
-            else Navigation.NavigateTo("transactions/entries?noteType=DebitNote");
+            else Navigation.NavigateTo("/transactions/entries?noteType=Debit");
         }
         else errorMessage = result.message;
         
@@ -431,7 +456,7 @@
     private async Task Cancel()
     {
         if (OnSaved.HasDelegate) await OnSaved.InvokeAsync();
-        else Navigation.NavigateTo("transactions/entries?noteType=DebitNote");
+        else Navigation.NavigateTo("/transactions/entries?noteType=Debit");
     }
 
     private class UIEntry

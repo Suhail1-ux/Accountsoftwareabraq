@@ -93,7 +93,7 @@
             <div class="col-md-2">
                 <div class="form-group-custom">
                     <label>Type <span class="text-danger">*</span></label>
-                    <select @bind="EntryType" class="form-control-custom">
+                    <select @bind="EntryType" class="form-control-custom" disabled="@(selectedProfileId == null || selectedProfileId == 0)">
                         <option value="Credit">Credit</option>
                         <option value="Debit">Debit</option>
                     </select>
@@ -107,13 +107,14 @@
                         SearchFunc="SearchAccountsForNew"
                         OnAccountSelected="OnAccountSelectedForNew"
                         InitialValue="@newEntry.AccountName"
-                        CssClass="form-control-custom" />
+                        CssClass="form-control-custom"
+                        Disabled="@(selectedProfileId == null || selectedProfileId == 0)" />
                 </div>
             </div>
             <div class="col-md-2">
                 <div class="form-group-custom">
                     <label>Payment Type <span class="text-danger">*</span></label>
-                    <select @bind="newEntry.PaymentType" class="form-control-custom">
+                    <select @bind="newEntry.PaymentType" class="form-control-custom" disabled="@(selectedProfileId == null || selectedProfileId == 0)">
                         <option value="">Select</option>
                         <option value="Cash">Cash</option>
                         <option value="Mobile Pay">Mobile Pay</option>
@@ -125,13 +126,13 @@
             <div class="col-md-2">
                 <div class="form-group-custom">
                     <label>Amount <span class="text-danger">*</span></label>
-                    <input type="number" step="0.01" @bind="newEntry.Amount" class="form-control-custom" placeholder="Enter Amount" />
+                    <input type="number" step="0.01" @bind="newEntry.Amount" class="form-control-custom" placeholder="Enter Amount" disabled="@(selectedProfileId == null || selectedProfileId == 0)" />
                 </div>
             </div>
             <div class="col-md-3">
                 <div class="form-group-custom">
                     <label>Ref. No. Cheque/UTR</label>
-                    <input type="text" @bind="newEntry.RefNo" class="form-control-custom" placeholder="Enter Ref. No. Cheque/UTR" />
+                    <input type="text" @bind="newEntry.RefNo" class="form-control-custom" placeholder="Enter Ref. No. Cheque/UTR" disabled="@(selectedProfileId == null || selectedProfileId == 0)" />
                 </div>
             </div>
         </div>
@@ -139,12 +140,14 @@
             <div class="col-12">
                 <div class="form-group-custom">
                     <label>Narration</label>
-                    <textarea @bind="newEntry.Narration" class="form-control-custom" rows="2" placeholder="Enter Narration"></textarea>
+                    <textarea @bind="newEntry.Narration" class="form-control-custom" rows="2" placeholder="Enter Narration" disabled="@(selectedProfileId == null || selectedProfileId == 0)"></textarea>
                 </div>
             </div>
         </div>
         <div class="d-flex justify-content-end gap-2 mb-4">
-            <button type="button" class="btn-add-custom" @onclick="AddNewRow">Add</button>
+            <button type="button" class="btn-add-custom" @onclick="AddNewRow" disabled="@(selectedProfileId == null || selectedProfileId == 0)">
+                @(editingItem != null ? "Update" : "Add")
+            </button>
             <button type="button" class="btn-clear-row-custom" @onclick="ClearNewEntry">Clear</button>
         </div>
     </div>
@@ -181,7 +184,7 @@
                     {
                         @foreach (var entry in uiEntries)
                         {
-                            <tr>
+                            <tr class="@(entry == editingItem ? "table-active" : "")">
                                 <td>@entry.Unit</td>
                                 <td>@entry.Type</td>
                                 <td>@entry.AccountName</td>
@@ -230,7 +233,7 @@
         }
         else
         {
-            <a href="transactions/entries?noteType=Receipt" class="btn-cancel-custom text-decoration-none d-inline-flex align-items-center">
+            <a href="/transactions/entries?noteType=Receipt" class="btn-cancel-custom text-decoration-none d-inline-flex align-items-center">
                 <i class="bi bi-arrow-left me-1"></i> Back to List
             </a>
         }
@@ -262,6 +265,8 @@
     [Parameter] public EventCallback OnSaved { get; set; }
     private ReceiptEntryBatchModel model = new() { ReceiptDate = DateTime.Now };
     private List<UIEntry> uiEntries = new();
+    private UIEntry? editingItem; // Track item being edited
+
     private string EntryType
     {
         get => newEntry.Type;
@@ -349,22 +354,43 @@
             return;
         }
 
-        var entryToAdd = new UIEntry
+        if (editingItem != null)
         {
-            Unit = selectedUnit,
-            Type = newEntry.Type,
-            AccountId = newEntry.AccountId,
-            AccountType = newEntry.AccountType,
-            AccountName = newEntry.AccountName,
-            PaymentType = newEntry.PaymentType,
-            Amount = newEntry.Amount,
-            Debit = newEntry.Type == "Debit" ? newEntry.Amount : 0,
-            Credit = newEntry.Type == "Credit" ? newEntry.Amount : 0,
-            RefNo = newEntry.RefNo,
-            Narration = newEntry.Narration
-        };
+            // Update existing item
+            editingItem.Unit = selectedUnit;
+            editingItem.Type = newEntry.Type;
+            editingItem.AccountId = newEntry.AccountId;
+            editingItem.AccountType = newEntry.AccountType;
+            editingItem.AccountName = newEntry.AccountName;
+            editingItem.PaymentType = newEntry.PaymentType;
+            editingItem.Amount = newEntry.Amount;
+            editingItem.Debit = newEntry.Type == "Debit" ? newEntry.Amount : 0;
+            editingItem.Credit = newEntry.Type == "Credit" ? newEntry.Amount : 0;
+            editingItem.RefNo = newEntry.RefNo;
+            editingItem.Narration = newEntry.Narration;
+            
+            editingItem = null; // Exit edit mode
+        }
+        else
+        {
+            // Add new item
+            var entryToAdd = new UIEntry
+            {
+                Unit = selectedUnit,
+                Type = newEntry.Type,
+                AccountId = newEntry.AccountId,
+                AccountType = newEntry.AccountType,
+                AccountName = newEntry.AccountName,
+                PaymentType = newEntry.PaymentType,
+                Amount = newEntry.Amount,
+                Debit = newEntry.Type == "Debit" ? newEntry.Amount : 0,
+                Credit = newEntry.Type == "Credit" ? newEntry.Amount : 0,
+                RefNo = newEntry.RefNo,
+                Narration = newEntry.Narration
+            };
+            uiEntries.Add(entryToAdd);
+        }
 
-        uiEntries.Add(entryToAdd);
         ClearNewEntry();
         errorMessage = null;
     }
@@ -372,16 +398,23 @@
     private void ClearNewEntry()
     {
         newEntry = new UIEntry { Type = "Credit", PaymentType = "" };
+        editingItem = null; // Clear edit mode
     }
 
     private void RemoveEntry(UIEntry entry)
     {
         uiEntries.Remove(entry);
+        if (editingItem == entry)
+        {
+            ClearNewEntry();
+        }
     }
 
     private void EditEntry(UIEntry entry)
     {
-        // Set type first (logic in setter might clear fields if changed)
+        editingItem = entry; // Track editing item
+
+        // Set type first
         EntryType = entry.Type;
         
         newEntry.AccountId = entry.AccountId;
@@ -397,7 +430,7 @@
             selectedUnit = entry.Unit;
         }
 
-        uiEntries.Remove(entry);
+        // Do NOT remove from list
     }
 
     private void OnProfileChanged(ChangeEventArgs e)
@@ -449,7 +482,7 @@
             }
             else
             {
-                Navigation.NavigateTo("transactions/entries?noteType=Receipt");
+                Navigation.NavigateTo("/transactions/entries?noteType=Receipt");
             }
         }
         else
@@ -467,7 +500,7 @@
         }
         else
         {
-            Navigation.NavigateTo("transactions/entries?noteType=Receipt");
+            Navigation.NavigateTo("/transactions/entries?noteType=Receipt");
         }
     }
 

@@ -66,20 +66,17 @@
                     <th>
                         <ColumnFilter Title="Entry For" TItem="GeneralEntry" TValue="string" Items="originalEntries" Property="@(x => x.EntryForName)" OnFilter="@(v => HandleColumnFilter("EntryForName", v))" />
                     </th>
-                    <th>
-                        <ColumnFilter Title="Status" TItem="GeneralEntry" TValue="string" Items="originalEntries" Property="@(x => x.Status)" OnFilter="@(v => HandleColumnFilter("Status", v))" />
-                    </th>
                     <th>Action</th>
                 </tr>
             </thead>
             <tbody>
                 @if (entries == null)
                 {
-                    <tr><td colspan="8" class="text-center">Loading...</td></tr>
+                    <tr><td colspan="7" class="text-center">Loading...</td></tr>
                 }
                 else if (!entries.Any())
                 {
-                    <tr><td colspan="8" class="text-center">No entries found.</td></tr>
+                    <tr><td colspan="7" class="text-center">No entries found.</td></tr>
                 }
                 else
                 {
@@ -92,9 +89,6 @@
                             <td>@item.DebitAccountName</td>
                             <td>@item.Amount.ToString("N2")</td>
                             <td>@item.EntryForName</td>
-                             <td>
-                                <span class="badge @GetStatusClass(item.Status)">@item.Status</span>
-                            </td>
                             <td>
                                 <div class="action-icons">
                                     <NavLink href="@($"grower-book/details/{item.VoucherNo}")" class="action-icon view-icon" title="View">

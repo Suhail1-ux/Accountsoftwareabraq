@@ -7,7 +7,7 @@ namespace AbraqAccount.Services.Interfaces;
 public interface IDebitNoteService
 {
      Task<(List<DebitNote> notes, int totalCount, int totalPages)> GetDebitNotesAsync(
-        string? unit, string? debitNoteNo, string? vendor, string? status, 
+        string? unit, string? debitNoteNo, string? accountName, string? status, 
         DateTime? fromDate, DateTime? toDate, int page, int pageSize);
     
     Task<(bool success, string message)> CreateBatchDebitNoteAsync(GeneralEntryBatchModel model);
