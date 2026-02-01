@@ -7,6 +7,8 @@ using AbraqAccount.Models;
 using AbraqAccount.Services.Interfaces;
 using AbraqAccount.Models.Common;
 using AbraqAccount.Extensions;
+using Microsoft.Data.SqlClient;
+using System.Data;
 
 namespace AbraqAccount.Services.Implementations;
 
@@ -1338,28 +1340,31 @@ public class GeneralEntryService : IGeneralEntryService
         {
             var result = new LedgerReportResult();
             
-            // 0. Calculate Opening Balance
-            result.OpeningBalance = await CalculateBalanceUntilAsync(accountId, accountType, fromDate);
-            
-            // 1. Fetch GeneralEntries
-            var query = _context.GeneralEntries
-                .Where(g => g.EntryDate >= fromDate && g.EntryDate <= toDate);
-                
-            // Filter by Account
-            query = query.Where(g =>
-                (g.DebitAccountId == accountId && g.DebitAccountType == accountType) ||
-                (g.CreditAccountId == accountId && g.CreditAccountType == accountType)
-            );
-            
-            var generalEntries = await query.OrderBy(g => g.EntryDate).ThenBy(g => g.Id).ToListAsync();
+            var pAccountId = new SqlParameter("@AccountId", accountId);
+            var pAccountType = new SqlParameter("@AccountType", accountType);
+            var pFromDate = new SqlParameter("@FromDate", fromDate);
+            var pToDate = new SqlParameter("@ToDate", toDate);
+            var pOpeningBalance = new SqlParameter("@OpeningBalance", SqlDbType.Decimal) 
+            { 
+                Direction = ParameterDirection.Output,
+                Precision = 18,
+                Scale = 2
+            };
+
+            // Fetch Entries and get Opening Balance from SP
+            var generalEntries = await _context.GeneralEntries
+                .FromSqlRaw("EXEC GetLedgerReport @AccountId, @AccountType, @FromDate, @ToDate, @OpeningBalance OUTPUT", 
+                    pAccountId, pAccountType, pFromDate, pToDate, pOpeningBalance)
+                .ToListAsync();
+
+            // Set Opening Balance
+            result.OpeningBalance = pOpeningBalance.Value != DBNull.Value ? (decimal)pOpeningBalance.Value : 0;
             
             var allEntries = new List<GeneralEntry>();
 
             foreach (var entry in generalEntries)
             {
                 await LoadAccountNamesAsync(entry);
-                
-                bool isOurDebit = (entry.DebitAccountId == accountId && entry.DebitAccountType == accountType);
                 
                 var ledgerEntry = new GeneralEntry
                 {
@@ -1388,7 +1393,13 @@ public class GeneralEntryService : IGeneralEntryService
                     DebitMasterSubGroup = entry.DebitMasterSubGroup,
                     DebitSubGroupLedger = entry.DebitSubGroupLedger,
                     DebitBankMasterInfo = entry.DebitBankMasterInfo,
-                    DebitFarmer = entry.DebitFarmer
+                    DebitFarmer = entry.DebitFarmer,
+                    
+                    EntryForId = entry.EntryForId,
+                    EntryForName = entry.EntryForName,
+                    PaymentFromSubGroup = entry.PaymentFromSubGroup,
+                    PaymentFromSubGroupId = entry.PaymentFromSubGroupId,
+                    PaymentFromSubGroupName = entry.PaymentFromSubGroupName
                 };
 
                 allEntries.Add(ledgerEntry);
